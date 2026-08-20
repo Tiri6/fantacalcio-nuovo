@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from datetime import date
 
 import pandas as pd
@@ -50,7 +51,7 @@ def barra_laterale() -> None:
                 icon="🧪",
             )
         if st.button("Ricarica dati", use_container_width=True):
-            st.cache_data.clear()
+            invalida_dati()
             st.rerun()
 
 
@@ -82,32 +83,67 @@ def in_milioni(tabella: pd.DataFrame) -> pd.DataFrame:
 
 
 # --- caricamenti in cache ---------------------------------------------------
+#
+# Le cache sono indicizzate su un numero di versione invece di essere svuotate
+# con `cache_data.clear()`: svuotare una cache provoca un rerun immediato, che
+# cancellerebbe il messaggio di conferma appena mostrato dopo un salvataggio.
+
+CHIAVE_VERSIONE = "_versione_dati"
+
+
+def versione_dati() -> int:
+    return st.session_state.get(CHIAVE_VERSIONE, 0)
+
+
+def invalida_dati() -> None:
+    """Da chiamare dopo ogni scrittura: le viste ricaricheranno da sole."""
+    st.session_state[CHIAVE_VERSIONE] = versione_dati() + 1
 
 
 @st.cache_data(ttl=TTL)
-def squadre() -> pd.DataFrame:
+def _squadre(versione: int) -> pd.DataFrame:
     return archivio().squadre()
 
 
+def squadre() -> pd.DataFrame:
+    return _squadre(versione_dati())
+
+
 @st.cache_resource(ttl=TTL)
-def rose():
+def _rose(versione: int):
     """Le rose sono oggetti di dominio, non dati serializzabili: cache_resource."""
     return carica_rose(archivio())
 
 
+def rose():
+    return _rose(versione_dati())
+
+
 @st.cache_data(ttl=TTL)
-def classifica() -> pd.DataFrame:
+def _classifica(versione: int) -> pd.DataFrame:
     return vista.classifica(archivio())
 
 
+def classifica() -> pd.DataFrame:
+    return _classifica(versione_dati())
+
+
 @st.cache_data(ttl=TTL)
-def calendario() -> pd.DataFrame:
+def _calendario(versione: int) -> pd.DataFrame:
     return calendario_dettagliato(archivio())
 
 
+def calendario() -> pd.DataFrame:
+    return _calendario(versione_dati())
+
+
 @st.cache_data(ttl=TTL)
-def andamento_punti() -> pd.DataFrame:
+def _andamento_punti(versione: int) -> pd.DataFrame:
     return vista.andamento_punti(archivio())
+
+
+def andamento_punti() -> pd.DataFrame:
+    return _andamento_punti(versione_dati())
 
 
 def stati(momento: Momento = Momento.STAGIONE):
@@ -142,3 +178,33 @@ def mostra_violazioni(violazioni) -> None:
             st.error(testo, icon="⛔")
         else:
             st.warning(testo, icon="⚠️")
+
+
+def mostra_maglia(squadra_o_identita, larghezza: int = 160, didascalia: str = "") -> None:
+    """Disegna la maglia. Se e' stata caricata un'immagine, mostra quella.
+
+    Si passa sempre da un data URI: `st.html` non renderizza l'SVG inline, e
+    cosi' maglia disegnata e maglia caricata seguono la stessa strada.
+    """
+    identita = getattr(squadra_o_identita, "identita", squadra_o_identita)
+    contenuto = identita.maglia(larghezza)
+
+    if not contenuto.startswith("data:"):
+        codificato = base64.b64encode(contenuto.encode("utf-8")).decode("ascii")
+        contenuto = f"data:image/svg+xml;base64,{codificato}"
+
+    st.image(contenuto, width=larghezza, caption=didascalia or None)
+
+
+def mostra_logo(identita, larghezza: int = 96) -> None:
+    if identita.logo:
+        st.image(identita.logo, width=larghezza)
+
+
+def pastiglia_colore(colore: str, etichetta: str = "") -> str:
+    """Quadratino colorato da mettere in linea con il testo."""
+    return (
+        f'<span style="display:inline-block;width:14px;height:14px;'
+        f"border-radius:3px;background:{colore};border:1px solid #8884;"
+        f'vertical-align:-2px;margin-right:6px"></span>{etichetta}'
+    )

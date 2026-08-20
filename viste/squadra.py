@@ -23,9 +23,7 @@ momento = st.radio(
 )
 stato = ui.stati(momento)[nomi[scelta]]
 
-st.caption(
-    f"Fantallenatore: {rosa.squadra.fantallenatore} · {ui.badge_esito(stato.conforme)}"
-)
+st.caption(f"Presidente: {rosa.squadra.presidente} · {ui.badge_esito(stato.conforme)}")
 
 colonne = st.columns(5)
 colonne[0].metric(

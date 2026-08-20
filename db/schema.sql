@@ -4,10 +4,22 @@
 -- aggiungila anche li'.
 
 create table if not exists squadre (
-    id              bigserial primary key,
-    nome            text not null unique,
-    fantallenatore  text not null,
-    creata_il       timestamptz not null default now()
+    id                  bigserial primary key,
+    nome                text not null unique,
+    presidente          text not null,
+    -- Identita' della squadra: motto, stadio e colori sociali.
+    motto               text not null default '',
+    stadio              text not null default '',
+    colore_primario     text not null default '#2e7d32',
+    colore_secondario   text not null default '#ffffff',
+    -- Nome del membro di StileMaglia (TINTA_UNITA, STRISCE, BANDE, ...).
+    stile_maglia        text not null default 'TINTA_UNITA',
+    -- Logo e maglia personalizzata come data URI: sono dieci immagini piccole,
+    -- tenerle qui evita di dipendere da uno storage esterno.
+    logo                text,
+    maglia_caricata     text,
+    anno_fondazione     integer,
+    creata_il           timestamptz not null default now()
 );
 
 create table if not exists giocatori (

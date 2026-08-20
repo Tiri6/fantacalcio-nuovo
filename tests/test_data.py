@@ -59,9 +59,7 @@ def test_gli_ingaggi_stanno_nella_forbice(rose):
 def test_almeno_una_rosa_e_ampliata_dagli_under21(rose):
     parametri = ParametriLega()
     ampliate = [
-        rosa
-        for rosa in rose.values()
-        if rosa.dimensione > parametri.rosa_massimo_base
+        rosa for rosa in rose.values() if rosa.dimensione > parametri.rosa_massimo_base
     ]
     assert ampliate, "la demo deve mostrare l'espansione Under 21"
     for rosa in ampliate:
@@ -70,9 +68,7 @@ def test_almeno_una_rosa_e_ampliata_dagli_under21(rose):
 
 
 def test_il_dead_money_e_presente_dove_previsto(rose):
-    con_dead_money = {
-        id_ for id_, rosa in rose.items() if rosa.dead_money_totale > 0
-    }
+    con_dead_money = {id_ for id_, rosa in rose.items() if rosa.dead_money_totale > 0}
     assert con_dead_money == set(SQUADRE_CON_DEAD_MONEY)
 
 

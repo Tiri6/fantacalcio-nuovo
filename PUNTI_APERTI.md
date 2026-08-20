@@ -9,16 +9,16 @@ gia' un parametro: cambiare la decisione significa cambiare un valore in
 
 ---
 
-## 1. Fasce di gol: il primo gol scatta a 60 o a 66? ⚠️ importante
+## 1. Fasce di gol — ✅ CHIUSO
 
-L'articolo 1 elenca *"Fasce di gol: di 6 in 6 – 60-66-72-78-84-90"*.
+L'articolo 1 elenca *"Fasce di gol: di 6 in 6 – 60-66-72-78-84-90"*, che si
+prestava a due letture.
 
-La sequenza e' coerente sia leggendo 60 come "primo gol" sia come "ultima
-soglia a zero gol". Su Leghe Fantacalcio — la piattaforma dove giocate — il
-primo gol scatta a 66.
-
-**Oggi il codice usa 66**, per allinearsi ai risultati che vedete sulla
-piattaforma. Se la lega intende 60, si cambia `soglia_primo_gol`.
+**Deciso dalla lega: il primo gol e' a 66**, poi uno ogni 6. E' quello che il
+codice applica (`soglia_primo_gol = 66`, `passo_gol = 6`), ed e' anche il
+comportamento di Leghe Fantacalcio. Conviene correggere la formulazione
+nell'articolo 1 alla prossima revisione del regolamento, togliendo il 60
+dall'elenco per evitare che la domanda si riapra fra un anno.
 
 ## 2. Draft Lottery: come si assegnano le pick dalla 2ª alla 5ª?
 
@@ -33,6 +33,10 @@ pick, stimate per simulazione.
 
 Alternativa possibile: sorteggiare solo la pick 1 con quei pesi e assegnare le
 pick 2-5 per ordine di classifica inversa.
+
+Nota pratica: il draft si svolge di persona e il risultato si carica dopo via
+CSV, quindi questa scelta incide sul sorteggio della Lottery ma non sulla
+conduzione dell'asta.
 
 ## 3. Quando si chiudono le finestre di mercato?
 
@@ -77,7 +81,16 @@ progressiva del Salary Cap della stagione successiva (–1M, –3M, –5M).
 Salary Cap per squadra invece che uno unico di lega — una modifica piccola ma
 che tocca la struttura, quindi meglio farla dopo il voto.
 
-## 8. Portiere d'emergenza (Lodo Messina)
+## 8. Il draft si gestisce offline — ✅ CHIARITO
+
+Il draft si svolge di persona e poi si carica il CSV con l'esito. Il sito non
+deve quindi condurre l'asta in tempo reale: gli serve la pagina **Importa
+dati**, che c'e', con la verifica di conformita' fatta *prima* di scrivere.
+
+Resta utile la sala draft come tabellone da proiettare durante l'asta, ma non
+e' piu' un requisito bloccante.
+
+## 9. Portiere d'emergenza (Lodo Messina)
 
 Il modello prevede gia' il campo (`Rosa.portiere_emergenza_id`) e la regola e'
 chiara: non firma contratto, non incide su monte anni ne' su Salary Cap, vota
@@ -86,7 +99,7 @@ con malus di −1 (Lodo Messina bis).
 **Non c'e' ancora il flusso** per attivarlo e disattivarlo, perche' dipende
 dalla disponibilita' dei portieri, che si legge su Leghe Fantacalcio.
 
-## 9. Cose che il regolamento rimanda esplicitamente
+## 10. Cose che il regolamento rimanda esplicitamente
 
 - **Stadio di proprieta'** (art. 9): regole da definire.
 - **Sponsorship** (art. 10): regole da definire, con l'eccezione
@@ -94,7 +107,7 @@ dalla disponibilita' dei portieri, che si legge su Leghe Fantacalcio.
 - **Coppa e playoff**: proposta in appendice, da votare.
 - **Prestiti**: l'istituto non e' previsto, quindi il codice non li contempla.
 
-## 10. Registro dei lodi
+## 11. Registro dei lodi
 
 Il principio di tassativita' dell'articolo 1 dice che le decisioni prese a
 maggioranza entrano nel regolamento. Lo schema prevede gia' una tabella `lodi`

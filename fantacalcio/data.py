@@ -17,6 +17,7 @@ import pandas as pd
 
 from .config import Impostazioni, carica_impostazioni
 from .demo_data import costruisci_db
+from .identita import IdentitaSquadra, StileMaglia
 from .modelli import Contratto, Giocatore, Rosa, Squadra, VoceDeadMoney
 
 TABELLE = ("squadre", "giocatori", "contratti", "dead_money", "calendario")
@@ -45,6 +46,15 @@ class Archivio:
     def calendario(self) -> pd.DataFrame:
         return self.tabella("calendario")
 
+    def scrivi(
+        self, nome: str, righe: list[dict], chiave: str
+    ) -> int:  # pragma: no cover - astratto
+        """Inserisce o aggiorna righe, usando `chiave` per riconoscere i duplicati."""
+        raise NotImplementedError
+
+    def svuota(self, nome: str) -> None:  # pragma: no cover - astratto
+        raise NotImplementedError
+
 
 @dataclass
 class ArchivioSQLite(Archivio):
@@ -59,6 +69,31 @@ class ArchivioSQLite(Archivio):
             raise ValueError(f"Tabella non prevista: {nome}")
         with sqlite3.connect(self.percorso) as conn:
             return pd.read_sql_query(f"select * from {nome}", conn)
+
+    def scrivi(self, nome: str, righe: list[dict], chiave: str) -> int:
+        if nome not in TABELLE:
+            raise ValueError(f"Tabella non prevista: {nome}")
+        if not righe:
+            return 0
+
+        colonne = list(righe[0])
+        if chiave not in colonne:
+            raise ValueError(
+                f"La chiave '{chiave}' non e' tra le colonne scritte: {colonne}"
+            )
+        with sqlite3.connect(self.percorso) as conn:
+            conn.executemany(
+                f"insert or replace into {nome} ({', '.join(colonne)}) "
+                f"values ({', '.join(':' + c for c in colonne)})",
+                righe,
+            )
+        return len(righe)
+
+    def svuota(self, nome: str) -> None:
+        if nome not in TABELLE:
+            raise ValueError(f"Tabella non prevista: {nome}")
+        with sqlite3.connect(self.percorso) as conn:
+            conn.execute(f"delete from {nome}")
 
 
 @dataclass
@@ -77,6 +112,20 @@ class ArchivioSupabase(Archivio):
             raise ValueError(f"Tabella non prevista: {nome}")
         risposta = self._client.table(nome).select("*").execute()
         return pd.DataFrame(risposta.data or [])
+
+    def scrivi(self, nome: str, righe: list[dict], chiave: str) -> int:
+        if nome not in TABELLE:
+            raise ValueError(f"Tabella non prevista: {nome}")
+        if not righe:
+            return 0
+        # Serve la service key: con la chiave anon la RLS blocca le scritture.
+        self._client.table(nome).upsert(righe, on_conflict=chiave).execute()
+        return len(righe)
+
+    def svuota(self, nome: str) -> None:
+        if nome not in TABELLE:
+            raise ValueError(f"Tabella non prevista: {nome}")
+        self._client.table(nome).delete().neq("id", -1).execute()
 
 
 def crea_archivio(impostazioni: Impostazioni | None = None) -> Archivio:
@@ -106,6 +155,50 @@ def _data(valore) -> date | None:
     return date.fromisoformat(str(valore)[:10])
 
 
+def _testo(valore, predefinito: str = "") -> str:
+    if valore is None or (isinstance(valore, float) and pd.isna(valore)):
+        return predefinito
+    return str(valore)
+
+
+def costruisci_squadra(riga) -> Squadra:
+    """Da una riga della tabella `squadre` all'oggetto di dominio.
+
+    I campi di identita' sono tutti opzionali: una lega appena creata ha solo
+    nome e presidente, e il resto si compila dalla pagina Identita'.
+    """
+    stile = _testo(riga.get("stile_maglia"), "TINTA_UNITA")
+    try:
+        stile_maglia = StileMaglia[stile]
+    except KeyError:
+        stile_maglia = StileMaglia.TINTA_UNITA
+
+    anno = riga.get("anno_fondazione")
+    identita = IdentitaSquadra(
+        presidente=_testo(riga.get("presidente")),
+        motto=_testo(riga.get("motto")),
+        stadio=_testo(riga.get("stadio")),
+        colore_primario=_testo(riga.get("colore_primario"), "#2e7d32"),
+        colore_secondario=_testo(riga.get("colore_secondario"), "#ffffff"),
+        stile_maglia=stile_maglia,
+        logo=_testo(riga.get("logo")) or None,
+        maglia_caricata=_testo(riga.get("maglia_caricata")) or None,
+        anno_fondazione=None if anno is None or pd.isna(anno) else int(anno),
+    )
+    return Squadra(
+        id=int(riga["id"]),
+        nome=riga["nome"],
+        presidente=identita.presidente,
+        identita=identita,
+    )
+
+
+def carica_squadre(arch: Archivio) -> dict[int, Squadra]:
+    return {
+        int(riga["id"]): costruisci_squadra(riga) for _, riga in arch.squadre().iterrows()
+    }
+
+
 def carica_giocatori(arch: Archivio) -> dict[int, Giocatore]:
     """Anagrafica di tutti i giocatori della lega, indicizzata per id."""
     return {
@@ -131,11 +224,7 @@ def carica_rose(arch: Archivio) -> dict[int, Rosa]:
     rose: dict[int, Rosa] = {}
     for _, riga in arch.squadre().iterrows():
         squadra_id = int(riga["id"])
-        squadra = Squadra(
-            id=squadra_id,
-            nome=riga["nome"],
-            fantallenatore=riga["fantallenatore"],
-        )
+        squadra = costruisci_squadra(riga)
 
         suoi = contratti[contratti["squadra_id"] == squadra_id]
         suoi_contratti = [
@@ -191,3 +280,35 @@ def calendario_dettagliato(arch: Archivio) -> pd.DataFrame:
         )
     )
     return partite.sort_values(["giornata", "casa"]).reset_index(drop=True)
+
+
+def salva_squadra(arch: Archivio, squadra: Squadra) -> None:
+    """Persiste nome, presidente e identita' visiva di una squadra."""
+    identita = squadra.identita
+    arch.scrivi(
+        "squadre",
+        [
+            {
+                "id": squadra.id,
+                "nome": squadra.nome,
+                "presidente": identita.presidente,
+                "motto": identita.motto,
+                "stadio": identita.stadio,
+                "colore_primario": identita.colore_primario,
+                "colore_secondario": identita.colore_secondario,
+                "stile_maglia": identita.stile_maglia.name,
+                "logo": identita.logo,
+                "maglia_caricata": identita.maglia_caricata,
+                "anno_fondazione": identita.anno_fondazione,
+            }
+        ],
+        chiave="id",
+    )
+
+
+def prossimo_id(arch: Archivio, tabella: str, colonna: str = "id") -> int:
+    """Primo identificativo libero: serve per creare una squadra nuova."""
+    esistenti = arch.tabella(tabella)
+    if esistenti.empty or colonna not in esistenti.columns:
+        return 1
+    return int(esistenti[colonna].max()) + 1

@@ -35,6 +35,11 @@ all'avvio: non ricrearlo a mano.
 - **La demo deve restare conforme.** `test_ogni_squadra_ha_una_rosa_conforme`
   lo verifica: se aggiungi un vincolo, aggiorna il generatore.
 - **Mai committare secret.** `.streamlit/secrets.toml` e' in `.gitignore`.
+- **Dopo una scrittura chiama `ui.invalida_dati()`**, non `st.cache_data.clear()`:
+  svuotare una cache provoca un rerun immediato che cancella il messaggio di
+  conferma appena mostrato. Le cache sono indicizzate su un numero di versione.
+- **I messaggi che precedono un `st.rerun()` non si vedono.** Mettili nel
+  `session_state` e mostrali in cima alla pagina al giro successivo.
 
 ## Dove mettere le mani
 
@@ -46,6 +51,8 @@ all'avvio: non ricrearlo a mano.
 | Toccare l'ordine del draft | `draft.ordine_round` + `test_draft.py` |
 | Aggiungere una schermata | nuovo file in `viste/`, registrato in `app.py` |
 | Nuova tabella o colonna | `db/schema.sql` **e** `SCHEMA_SQLITE`, poi `data.py` |
+| Toccare colori o maglia | `identita.py` + `test_identita.py` |
+| Cambiare il formato del CSV | `importazione.py` (i sinonimi stanno in `COLONNE_ROSE`) |
 
 Le viste sono script eseguiti da `st.navigation`: il codice a livello di
 modulo e' normale, non e' un errore di stile.

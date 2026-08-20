@@ -16,7 +16,7 @@ Base: regolamento **V2.1 di Agosto 2026**, versione post-redline.
 
 > I punti del regolamento che ho dovuto interpretare sono elencati in
 > [PUNTI_APERTI.md](PUNTI_APERTI.md), con l'ipotesi che il codice applica oggi.
-> **Il primo da guardare e' la fascia del primo gol: 60 o 66?**
+> Le fasce di gol sono chiuse: **primo gol a 66**, poi uno ogni 6.
 
 ---
 
@@ -47,6 +47,8 @@ valido per le regole.
 | **Cruscotto** | Chi e' in regola e chi no: rosa, monte anni, annuali, cap e floor di tutte e 10 le squadre in una tabella. |
 | **Rose e contratti** | La rosa di una squadra con anni residui, ingaggi, status U21 e quanto costerebbe tagliare ciascun giocatore. |
 | **Mercato** | Simulatore di scambi validato contro i lodi, e calcolo del Dead Money prima di svincolare. |
+| **Identita' squadre** | Presidente, motto, stadio, colori sociali, maglia e logo. La maglia si disegna dai colori: nessuno resta senza. |
+| **Importa dati** | Il CSV del draft e i risultati di giornata, con anteprima ed errori riga per riga prima di scrivere. |
 | **Draft** | Draft Lottery riproducibile, ordine di chiamata round per round, probabilita' delle pick, draft list delle scadenze. |
 | **Campionato** | Classifica e risultati importati da Leghe: servono a determinare l'ordine del draft. |
 | **Regolamento** | I valori che il gestionale applica davvero, articolo per articolo. |
@@ -61,9 +63,11 @@ viste/                    una schermata per file
 fantacalcio/
   regole.py               TUTTI i numeri del regolamento (ParametriLega)
   modelli.py              Giocatore, Contratto, Rosa, Dead Money
+  identita.py             colori sociali, maglia disegnata in SVG, logo
   conformita.py           verifica una rosa -> elenco di violazioni
   draft.py                Draft Lottery e ordine di chiamata (art. 3)
   mercato.py              finestre, svincoli, scambi e lodi (art. 5-8)
+  importazione.py         lettura e validazione dei CSV
   standings.py            calendario e classifica
   data.py                 accesso ai dati: Supabase o SQLite demo
   vista.py                dai dati grezzi alle tabelle a schermo
@@ -105,6 +109,44 @@ rispecchia con il parametro `Momento`:
 
 ---
 
+## Caricare i dati dopo il draft
+
+Il draft si fa di persona e poi si carica il risultato dalla pagina **Importa
+dati**. Il CSV vuole una riga per giocatore:
+
+```csv
+squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita;data_nascita
+Tiri Team;Rossi Marco;Juventus;Dc;2.500.000;3;Italia;17/04/2001
+Padel United;Silva Joao;Napoli;W/T;4,2M;2;Brasile;30/06/1999
+```
+
+Il lettore e' volutamente tollerante, perche' i fogli veri non arrivano mai
+puliti:
+
+- **intestazioni**: riconosce i sinonimi piu' comuni (`Fantasquadra`,
+  `Calciatore`, `Stipendio`, `Durata`, `RM`, `Nazionalità`...), senza badare a
+  maiuscole e accenti;
+- **separatore**: `;` o `,`, riconosciuto da solo;
+- **importi**: `3.500.000`, `1500000`, `3,5M`, `4 mln`, `€ 2.100.000`;
+- **date**: `17/04/2001`, `2001-04-17`, `17-04-2001`;
+- **ruoli multipli**: separali con `/` — per esempio `Dc/Dd`. Non usare `;`
+  dentro la cella se il CSV e' separato da `;`: e' l'errore piu' comune, e il
+  programma lo riconosce e te lo dice.
+
+Le colonne obbligatorie sono `squadra`, `giocatore`, `ruoli`, `ingaggio` e
+`anni`. Le altre migliorano i controlli: senza `data_nascita`, per esempio, non
+si puo' stabilire chi e' Under 21.
+
+**Niente viene scritto finche' non confermi.** Prima vedi gli errori riga per
+riga, l'anteprima delle rose e — la parte utile — la verifica di conformita':
+se il draft ha lasciato qualcuno oltre il Salary Cap o sotto i 30 giocatori, lo
+scopri prima di importare, non dopo.
+
+Stessa cosa per i **risultati di giornata**: carichi giornata, squadre e punti,
+e i gol vengono calcolati dalle fasce della lega.
+
+---
+
 ## Passare ai dati veri (Supabase)
 
 1. Crea il progetto su [supabase.com](https://supabase.com) (piano free).
@@ -122,18 +164,18 @@ Al riavvio la sidebar passa da "Modalita' demo" a "Dati live da Supabase":
 
 ## Cosa manca per essere "la piattaforma vera"
 
-Oggi il gestionale **legge e valida**. Perche' i tuoi amici lo usino davvero
-servono le scritture, nell'ordine in cui le farei:
+Il gestionale ora **legge, valida e scrive** (identita' squadre e import CSV).
+Perche' i tuoi amici lo usino davvero manca, nell'ordine in cui lo farei:
 
-1. **Login dei 10 partecipanti** e permessi (ognuno vede tutto, modifica la
-   propria rosa; il presidente ratifica).
-2. **Importazione dei dati veri**: rose, contratti e ingaggi da Capology,
-   risultati di giornata da Leghe Fantacalcio.
-3. **Proposta e ratifica degli scambi** dentro il sito, con il vincolo delle
-   24 ore e lo storico di chi ha proposto cosa.
-4. **Sala draft**: la lottery estratta una volta e registrata, il tabellone
-   che avanza pick per pick durante l'asta al Centro Padel.
-5. **Registro dei lodi**, collegato all'articolo che modificano.
+1. **Login dei 10 partecipanti** e permessi: ognuno vede tutto, modifica solo
+   la propria squadra, il presidente ratifica.
+2. **Proposta e ratifica degli scambi** dentro il sito, con il vincolo delle
+   24 ore e lo storico di chi ha proposto cosa. Oggi lo scambio si simula ma
+   non si registra.
+3. **Svincoli registrati**, che scrivano davvero il Dead Money invece di
+   limitarsi a calcolarlo.
+4. **Registro dei lodi**, collegato all'articolo che modificano.
+5. **Tabellone del draft** da proiettare durante l'asta al Centro Padel.
 
 Il punto 1 e' anche il momento in cui va deciso se restare su Streamlit: per
 dieci persone che consultano e propongono scambi puo' bastare, ma per un'asta

@@ -20,17 +20,108 @@ SEME = 20260915
 STAGIONE = "2026/27"
 DATA_DRAFT = date(2026, 9, 15)
 
+# nome, presidente, motto, stadio, colore primario, colore secondario, stile
 SQUADRE = [
-    ("Tiri Team", "Marco"),
-    ("Padel United", "Luca"),
-    ("Nuovo Cuneo FC", "Giulia"),
-    ("Real Bisalta", "Andrea"),
-    ("Gesso Rovers", "Francesca"),
-    ("Stura Athletic", "Davide"),
-    ("Borgo San Giuseppe", "Sara"),
-    ("Atletico Madonna dell'Olmo", "Stefano"),
-    ("Spinetta City", "Chiara"),
-    ("Ronchi Wanderers", "Alberto"),
+    (
+        "Tiri Team",
+        "Marco",
+        "Chi non risica non rosica",
+        "Arena del Padel",
+        "#c62828",
+        "#f5f5f5",
+        "STRISCE",
+        2026,
+    ),
+    (
+        "Padel United",
+        "Luca",
+        "Sempre a rete",
+        "Stadio Comunale",
+        "#1565c0",
+        "#ffd600",
+        "BANDE",
+        2026,
+    ),
+    (
+        "Nuovo Cuneo FC",
+        "Giulia",
+        "Dalle Alpi con furore",
+        "Fortino delle Alpi",
+        "#2e7d32",
+        "#ffffff",
+        "TINTA_UNITA",
+        2026,
+    ),
+    (
+        "Real Bisalta",
+        "Andrea",
+        "In alto sempre",
+        "Cima Bisalta",
+        "#4527a0",
+        "#ffffff",
+        "META",
+        2026,
+    ),
+    (
+        "Gesso Rovers",
+        "Francesca",
+        "Scorriamo come il fiume",
+        "Riva del Gesso",
+        "#00838f",
+        "#eeeeee",
+        "BANDA_TRASVERSALE",
+        2026,
+    ),
+    (
+        "Stura Athletic",
+        "Davide",
+        "Corrente contraria",
+        "Ponte Vecchio",
+        "#ef6c00",
+        "#212121",
+        "STRISCE",
+        2026,
+    ),
+    (
+        "Borgo San Giuseppe",
+        "Sara",
+        "Il quartiere non molla",
+        "Campo del Borgo",
+        "#ad1457",
+        "#ffffff",
+        "TINTA_UNITA",
+        2026,
+    ),
+    (
+        "Atletico Madonna dell'Olmo",
+        "Stefano",
+        "Fede e contropiede",
+        "L'Olmo",
+        "#283593",
+        "#e53935",
+        "BANDE",
+        2026,
+    ),
+    (
+        "Spinetta City",
+        "Chiara",
+        "Piccoli ma tosti",
+        "Spinetta Park",
+        "#00695c",
+        "#ffeb3b",
+        "META",
+        2026,
+    ),
+    (
+        "Ronchi Wanderers",
+        "Alberto",
+        "Vagabondi del pallone",
+        "Prati di Ronchi",
+        "#37474f",
+        "#ff7043",
+        "BANDA_TRASVERSALE",
+        2026,
+    ),
 ]
 
 CLUB = [
@@ -199,8 +290,29 @@ def genera_lega(rng: random.Random | None = None) -> dict:
     parametri = ParametriLega()
 
     squadre = [
-        {"id": i + 1, "nome": nome, "fantallenatore": mister}
-        for i, (nome, mister) in enumerate(SQUADRE)
+        {
+            "id": indice + 1,
+            "nome": nome,
+            "presidente": presidente,
+            "motto": motto,
+            "stadio": stadio,
+            "colore_primario": primario,
+            "colore_secondario": secondario,
+            "stile_maglia": stile,
+            "logo": None,
+            "maglia_caricata": None,
+            "anno_fondazione": fondazione,
+        }
+        for indice, (
+            nome,
+            presidente,
+            motto,
+            stadio,
+            primario,
+            secondario,
+            stile,
+            fondazione,
+        ) in enumerate(SQUADRE)
     ]
 
     giocatori: list[dict] = []
@@ -317,7 +429,15 @@ SCHEMA_SQLITE = """
 create table if not exists squadre (
     id integer primary key,
     nome text not null unique,
-    fantallenatore text not null
+    presidente text not null,
+    motto text not null default '',
+    stadio text not null default '',
+    colore_primario text not null default '#2e7d32',
+    colore_secondario text not null default '#ffffff',
+    stile_maglia text not null default 'TINTA_UNITA',
+    logo text,
+    maglia_caricata text,
+    anno_fondazione integer
 );
 create table if not exists giocatori (
     id integer primary key,

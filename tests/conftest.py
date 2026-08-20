@@ -45,7 +45,7 @@ def costruisci_rosa(
 
     I parametri servono a rompere una regola alla volta nei test.
     """
-    squadra = Squadra(id=squadra_id, nome=nome, fantallenatore="Mister")
+    squadra = Squadra(id=squadra_id, nome=nome, presidente="Mister")
     giocatori: dict[int, Giocatore] = {}
     contratti: list[Contratto] = []
 

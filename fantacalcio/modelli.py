@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 
+from .identita import IdentitaSquadra
 from .regole import RUOLO_PORTIERE, ParametriLega
 
 
@@ -76,9 +77,23 @@ class Contratto:
 
 @dataclass(frozen=True)
 class Squadra:
+    """Anagrafica di una squadra della lega, identita' visiva compresa."""
+
     id: int
     nome: str
-    fantallenatore: str
+    presidente: str
+    identita: IdentitaSquadra = field(default_factory=IdentitaSquadra)
+
+    @property
+    def motto(self) -> str:
+        return self.identita.motto
+
+    @property
+    def stadio(self) -> str:
+        return self.identita.stadio
+
+    def maglia(self, larghezza: int = 180) -> str:
+        return self.identita.maglia(larghezza)
 
 
 @dataclass(frozen=True)
