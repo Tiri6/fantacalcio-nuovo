@@ -112,10 +112,45 @@ rispecchia con il parametro `Momento`:
 
 ---
 
+## Caricare i giocatori (listone ufficiale)
+
+Prima delle rose si carica il **listone** di Fantacalcio.it, il file
+`Quotazioni_Fantacalcio_Stagione_*.xlsx`: 509 giocatori con ruoli Mantra,
+squadra di Serie A e quotazioni. Pagina **Importa dati → Listone giocatori**.
+
+Cosa il listone **non** contiene, e va quindi da altrove:
+
+| Serve per | Da dove |
+|---|---|
+| A quale squadra della lega appartiene | il vostro file del draft |
+| Anni di contratto | il vostro file del draft |
+| **Ingaggio** (Salary Cap e Floor) | Capology, come dice l'art. 4 |
+| Data di nascita e nazionalita' (status Under 21) | da aggiungere a mano |
+
+Finche' mancano gli ingaggi, Salary Cap e Floor risulteranno a zero: non e' un
+errore del programma, e' un dato che non c'e' ancora.
+
+Il vantaggio del listone e' che dopo averlo caricato il file delle rose diventa
+minimo: bastano `squadra`, `giocatore`, `anni`, `ingaggio`. Ruoli e club si
+ricavano dal nome, e un nome che non esiste viene segnalato con un
+suggerimento (`Svilarr` → «Forse intendevi: Svilar»).
+
+---
+
 ## Caricare i dati dopo il draft
 
 Il draft si fa di persona e poi si carica il risultato dalla pagina **Importa
 dati**. Il CSV vuole una riga per giocatore:
+
+Con il listone gia' caricato bastano quattro colonne:
+
+```csv
+squadra;giocatore;anni;ingaggio
+Tiri Team;Svilar;3;4.500.000
+Padel United;Dimarco;2;6,2M
+```
+
+Senza listone servono anche ruoli e club:
 
 ```csv
 squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita;data_nascita
@@ -243,25 +278,23 @@ molto meglio. La logica di regole non andrebbe comunque riscritta.
 
 ## Spostare il progetto nel suo repository
 
-Questa cartella vive dentro il repo `virtual-nutritionist` perche' la sessione
-cloud non aveva il permesso di crearne uno nuovo. Da casa:
-
-1. Crea su GitHub un repo vuoto `fantacalcio-nuovo` (senza README).
-2. Poi:
+Questa cartella vive dentro `virtual-nutritionist` perche' la sessione cloud
+non ha il permesso di creare repository. La migrazione e' uno script, e
+**conserva la storia dei commit** (`git subtree split`):
 
 ```bash
-git clone https://github.com/Tiri6/virtual-nutritionist.git /tmp/vn
-cd /tmp/vn && git checkout claude/fantacalcio-github-setup-j3e4ly
-
-cp -r fantacalcio /percorso/dove/vuoi/fantacalcio-nuovo
-cd /percorso/dove/vuoi/fantacalcio-nuovo
-
-git init -b main
-git add .
-git commit -m "Primo commit: gestionale FantaCalcio NuoVo"
-git remote add origin https://github.com/Tiri6/fantacalcio-nuovo.git
-git push -u origin main
+# 1. Su GitHub: crea un repository vuoto (privato), senza README ne' .gitignore
+# 2. Poi, dalla cartella fantacalcio/ del repo virtual-nutritionist:
+./scripts/migra_in_repo_dedicato.sh git@github.com:Tiri6/fantacalcio-nuovo.git
 ```
 
-Nel nuovo repo `.claude/`, `.github/` e `.gitignore` finiscono alla radice,
-dove devono stare: hook di avvio e CI funzionano subito, senza modifiche.
+Lo script rifiuta di partire se ci sono modifiche non committate, estrae i
+commit che toccano `fantacalcio/` riscrivendo i percorsi alla radice, e pusha
+su `main`. Nel nuovo repo `.claude/`, `.github/` e `.gitignore` finiscono dove
+devono stare: hook di avvio e CI funzionano subito.
+
+Dopo la migrazione, togli la cartella dal repo vecchio:
+
+```bash
+git rm -r fantacalcio && git commit -m "Sposta il gestionale nel suo repo"
+```

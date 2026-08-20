@@ -15,7 +15,7 @@ serve chiedere "leggi la memoria", basta dire cosa si vuole fare.
 Gestionale della lega: contratti, monte anni, Salary Cap/Floor, draft, scambi.
 Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 
-**Ultimo aggiornamento:** 20 agosto 2026 — login, permessi e registro scambi.
+**Ultimo aggiornamento:** 20 agosto 2026 — listone ufficiale (509 giocatori veri) e script di migrazione.
 
 ---
 
@@ -46,14 +46,18 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 
 ## Cosa manca (in ordine di utilita')
 
-1. **Dati veri**: il CSV della lega non e' ancora arrivato. Appena c'e', tarare
-   i sinonimi delle intestazioni in `importazione.COLONNE_ROSE`.
-2. **Svincoli registrati**: oggi il Dead Money si calcola ma non si scrive.
+1. **Assegnazioni, contratti e ingaggi**: il listone e' caricato (509 giocatori
+   con ruoli Mantra e quotazioni) ma non dice chi appartiene a quale squadra,
+   con quanti anni e con quale ingaggio. Gli ingaggi vanno da Capology
+   (art. 4). Finche' mancano, Salary Cap e Floor sono a zero.
+2. **Data di nascita e nazionalita'**: senza, lo status Under 21 non si puo'
+   determinare e l'espansione rosa non si applica.
+3. **Svincoli registrati**: oggi il Dead Money si calcola ma non si scrive.
    Serve un flusso come quello degli scambi.
-3. **Gestione utenti** dall'interfaccia: creare partecipanti, assegnare
+4. **Gestione utenti** dall'interfaccia: creare partecipanti, assegnare
    squadre, reimpostare password. Oggi gli utenti esistono solo nella demo.
-4. **Registro dei lodi**: la tabella c'e' nello schema, manca la pagina.
-5. **Tabellone del draft** da proiettare durante l'asta.
+5. **Registro dei lodi**: la tabella c'e' nello schema, manca la pagina.
+6. **Tabellone del draft** da proiettare durante l'asta.
 
 ## Punti aperti del regolamento
 
@@ -71,6 +75,9 @@ sara' di 18 o 27 giornate.
 - **Il contatore di versione deve essere globale**, non nel session_state: le
   cache di Streamlit sono condivise fra sessioni, e con dieci persone collegate
   chi entra dopo leggerebbe dati vecchi.
+- **Il ruolo Mantra `B` (braccetto) esisteva nel listone vero e non nel mio
+  modello.** Trovato solo caricando il file ufficiale: i dati veri scoprono
+  buchi che i dati inventati non mostrano.
 - **Nei CSV separati da `;` i ruoli non vanno scritti `M;C`** ma `M/C`. Il
   lettore ora lo riconosce e lo spiega.
 - **Ricaricare la pagina fa uscire dal login** (session_state di Streamlit).

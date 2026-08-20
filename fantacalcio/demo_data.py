@@ -475,12 +475,15 @@ create table if not exists squadre (
 );
 create table if not exists giocatori (
     id integer primary key,
+    id_ufficiale integer unique,
     nome text not null,
     club text not null,
     ruoli text not null,
     ingaggio real not null,
     nazionalita text not null,
-    data_nascita text
+    data_nascita text,
+    quotazione real,
+    fvm real
 );
 create table if not exists contratti (
     giocatore_id integer primary key,

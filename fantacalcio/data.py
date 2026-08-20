@@ -212,8 +212,15 @@ def carica_squadre(arch: Archivio) -> dict[int, Squadra]:
     }
 
 
+def _numero(valore) -> float | None:
+    if valore is None or pd.isna(valore):
+        return None
+    return float(valore)
+
+
 def carica_giocatori(arch: Archivio) -> dict[int, Giocatore]:
     """Anagrafica di tutti i giocatori della lega, indicizzata per id."""
+    ufficiale = None
     return {
         int(riga["id"]): Giocatore(
             id=int(riga["id"]),
@@ -223,6 +230,13 @@ def carica_giocatori(arch: Archivio) -> dict[int, Giocatore]:
             ingaggio=float(riga["ingaggio"]),
             nazionalita=riga["nazionalita"],
             data_nascita=_data(riga.get("data_nascita")),
+            id_ufficiale=(
+                None
+                if (ufficiale := riga.get("id_ufficiale")) is None or pd.isna(ufficiale)
+                else int(ufficiale)
+            ),
+            quotazione=_numero(riga.get("quotazione")),
+            fvm=_numero(riga.get("fvm")),
         )
         for _, riga in arch.giocatori().iterrows()
     }

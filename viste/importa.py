@@ -11,8 +11,11 @@ from fantacalcio import ui, vista
 from fantacalcio.data import archivio
 from fantacalcio.importazione import (
     anteprima_conformita,
+    applica_listone,
     applica_risultati,
     applica_rose,
+    catalogo_giocatori,
+    importa_listone,
     importa_risultati,
     importa_rose,
     modello_risultati,
@@ -41,7 +44,80 @@ def tabella_problemi(problemi) -> pd.DataFrame:
     )
 
 
-rose, risultati = st.tabs(["Rose dal draft", "Risultati di giornata"])
+listone, rose, risultati = st.tabs(
+    ["Listone giocatori", "Rose dal draft", "Risultati di giornata"]
+)
+
+with listone:
+    st.markdown(
+        "Il **listone ufficiale** di Fantacalcio.it (`Quotazioni_Fantacalcio_"
+        "Stagione_*.xlsx`): anagrafica, ruoli Mantra, squadra di Serie A e "
+        "quotazioni di tutti i giocatori."
+    )
+    st.info(
+        "Il listone **non contiene** le assegnazioni alle squadre della lega, "
+        "gli anni di contratto ne' gli ingaggi Capology: serve a popolare il "
+        "catalogo. Caricato questo, il file delle rose puo' limitarsi a "
+        "`squadra`, `giocatore`, `anni`, `ingaggio`.",
+        icon="ℹ️",
+    )
+
+    file_listone = st.file_uploader("Listone (.xlsx)", type=["xlsx"], key="xlsx_listone")
+    if file_listone is None:
+        st.info("Carica il file per vedere l'anteprima.", icon="👆")
+    else:
+        esito_listone = importa_listone(file_listone.getvalue())
+
+        colonne = st.columns(2)
+        colonne[0].metric("Giocatori letti", len(esito_listone.righe))
+        colonne[1].metric("Errori", len(esito_listone.errori))
+
+        if esito_listone.errori:
+            st.error("Correggi gli errori prima di importare.", icon="⛔")
+            st.dataframe(
+                tabella_problemi(esito_listone.errori),
+                hide_index=True,
+                use_container_width=True,
+            )
+
+        if esito_listone.righe:
+            anteprima_listone = pd.DataFrame(
+                [
+                    {
+                        "Id": r["id_ufficiale"],
+                        "Giocatore": r["nome"],
+                        "Club": r["club"],
+                        "Ruoli": "/".join(r["ruoli"]),
+                        "Quotazione": r["quotazione"],
+                        "Valore di mercato": r["fvm"],
+                    }
+                    for r in esito_listone.righe
+                ]
+            )
+            st.dataframe(
+                anteprima_listone,
+                hide_index=True,
+                use_container_width=True,
+                height=320,
+            )
+            st.caption(
+                f"{anteprima_listone['Club'].nunique()} squadre di Serie A. "
+                "I giocatori gia' presenti mantengono ingaggio e contratto: il "
+                "listone aggiorna solo ruoli, club e quotazioni."
+            )
+
+        if st.button(
+            "Importa il listone",
+            type="primary",
+            disabled=not esito_listone.importabile,
+        ):
+            riepilogo = applica_listone(archivio(), esito_listone)
+            ui.invalida_dati()
+            st.success(
+                f"{riepilogo['totali']} giocatori nel catalogo "
+                f"({riepilogo['nuovi']} nuovi, {riepilogo['aggiornati']} aggiornati).",
+                icon="✅",
+            )
 
 with rose:
     st.markdown(
@@ -61,7 +137,13 @@ with rose:
     if file_rose is None:
         st.info("Carica il CSV per vedere l'anteprima.", icon="👆")
     else:
-        esito = importa_rose(file_rose.getvalue(), ui.parametri())
+        catalogo = catalogo_giocatori(archivio())
+        if catalogo:
+            st.caption(
+                f"Listone caricato ({len(catalogo)} giocatori): puoi omettere "
+                f"`ruoli` e `club`, si ricavano dal nome."
+            )
+        esito = importa_rose(file_rose.getvalue(), ui.parametri(), catalogo or None)
 
         colonne = st.columns(3)
         colonne[0].metric("Righe lette", len(esito.righe))

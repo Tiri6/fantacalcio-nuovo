@@ -24,6 +24,11 @@ class Giocatore:
     ingaggio: float
     nazionalita: str = "Italia"
     data_nascita: date | None = None
+    # Dal listone ufficiale: id, quotazione Mantra e valore di mercato.
+    # Non concorrono al Salary Cap, che usa gli ingaggi reali di Capology.
+    id_ufficiale: int | None = None
+    quotazione: float | None = None
+    fvm: float | None = None
 
     @property
     def portiere(self) -> bool:

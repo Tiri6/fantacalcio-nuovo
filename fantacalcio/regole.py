@@ -12,13 +12,14 @@ from datetime import date
 
 # --- Ruoli Mantra -----------------------------------------------------------
 # La lega gioca in modalita' Mantra: un giocatore puo' avere piu' ruoli.
-RUOLI_MANTRA = ("Por", "Dc", "Dd", "Ds", "E", "M", "C", "W", "T", "A", "Pc")
+RUOLI_MANTRA = ("Por", "Dc", "Dd", "Ds", "B", "E", "M", "C", "W", "T", "A", "Pc")
 
 ETICHETTE_RUOLO = {
     "Por": "Portiere",
     "Dc": "Difensore centrale",
     "Dd": "Terzino destro",
     "Ds": "Terzino sinistro",
+    "B": "Braccetto",
     "E": "Esterno",
     "M": "Mediano",
     "C": "Centrocampista centrale",

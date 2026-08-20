@@ -379,3 +379,189 @@ class TestRisultati:
         )
         with pytest.raises(ValueError, match="non presenti in lega"):
             applica_risultati(archivio, esito)
+
+
+class TestListone:
+    """Il listone ufficiale di Fantacalcio.it: anagrafica e quotazioni."""
+
+    def costruisci_xlsx(self, righe: list[tuple]) -> bytes:
+        import io
+
+        from openpyxl import Workbook
+
+        cartella = Workbook()
+        foglio = cartella.active
+        foglio.title = "Tutti"
+        foglio.append(("Quotazioni Fantacalcio Stagione 2026 27",))
+        foglio.append(
+            (
+                "Id",
+                "R",
+                "RM",
+                "Nome",
+                "Squadra",
+                "Qt.A",
+                "Qt.I",
+                "Diff.",
+                "Qt.A M",
+                "Qt.I M",
+                "Diff.M",
+                "FVM",
+                "FVM M",
+            )
+        )
+        for riga in righe:
+            foglio.append(riga)
+        buffer = io.BytesIO()
+        cartella.save(buffer)
+        return buffer.getvalue()
+
+    def test_legge_anagrafica_e_quotazioni(self):
+        from fantacalcio.importazione import importa_listone
+
+        contenuto = self.costruisci_xlsx(
+            [(5841, "P", "Por", "Svilar", "Roma", 18, 18, 0, 18, 18, 0, 65, 65)]
+        )
+        esito = importa_listone(contenuto)
+
+        assert esito.importabile
+        riga = esito.righe[0]
+        assert riga["id_ufficiale"] == 5841
+        assert riga["nome"] == "Svilar"
+        assert riga["club"] == "Roma"
+        assert riga["ruoli"] == ("Por",)
+        assert riga["quotazione"] == 18
+
+    def test_ruoli_mantra_multipli(self):
+        from fantacalcio.importazione import importa_listone
+
+        contenuto = self.costruisci_xlsx(
+            [(254, "D", "E;W", "Dimarco", "Inter", 32, 32, 0, 30, 30, 0, 265, 265)]
+        )
+        assert importa_listone(contenuto).righe[0]["ruoli"] == ("E", "W")
+
+    def test_il_braccetto_e_un_ruolo_valido(self):
+        """Ruolo B della difesa a tre: c'e' nel listone vero."""
+        from fantacalcio.importazione import importa_listone
+
+        contenuto = self.costruisci_xlsx(
+            [(1, "D", "B;Dc", "Tizio", "Atalanta", 10, 10, 0, 10, 10, 0, 30, 30)]
+        )
+        esito = importa_listone(contenuto)
+        assert esito.importabile
+        assert esito.righe[0]["ruoli"] == ("B", "Dc")
+
+    def test_id_duplicati_ignorati(self):
+        from fantacalcio.importazione import importa_listone
+
+        contenuto = self.costruisci_xlsx(
+            [
+                (1, "P", "Por", "Tizio", "Roma", 1, 1, 0, 1, 1, 0, 1, 1),
+                (1, "P", "Por", "Tizio", "Roma", 1, 1, 0, 1, 1, 0, 1, 1),
+            ]
+        )
+        assert len(importa_listone(contenuto).righe) == 1
+
+    def test_file_non_excel(self):
+        from fantacalcio.importazione import importa_listone
+
+        esito = importa_listone(b"non sono un xlsx")
+        assert not esito.importabile
+        assert esito.errori[0].colonna == "file"
+
+    def test_applica_conserva_ingaggi_e_contratti(self, tmp_path):
+        """Ri-caricare il listone non deve azzerare gli ingaggi Capology."""
+        from fantacalcio.data import ArchivioSQLite
+        from fantacalcio.importazione import applica_listone, importa_listone
+
+        archivio = ArchivioSQLite(tmp_path / "listone.db")
+        contenuto = self.costruisci_xlsx(
+            [(5841, "P", "Por", "Svilar", "Roma", 18, 18, 0, 18, 18, 0, 65, 65)]
+        )
+        applica_listone(archivio, importa_listone(contenuto))
+
+        # Il presidente inserisce l'ingaggio vero.
+        giocatori = archivio.giocatori()
+        identificativo = int(giocatori[giocatori["id_ufficiale"] == 5841]["id"].iloc[0])
+        archivio.scrivi(
+            "giocatori",
+            [
+                {
+                    "id": identificativo,
+                    "id_ufficiale": 5841,
+                    "nome": "Svilar",
+                    "club": "Roma",
+                    "ruoli": "Por",
+                    "ingaggio": 4_500_000,
+                    "nazionalita": "Serbia",
+                    "data_nascita": None,
+                    "quotazione": 18,
+                    "fvm": 65,
+                }
+            ],
+            chiave="id",
+        )
+
+        # Il listone si aggiorna: il club cambia, l'ingaggio no.
+        aggiornato = self.costruisci_xlsx(
+            [(5841, "P", "Por", "Svilar", "Milan", 20, 20, 0, 20, 20, 0, 70, 70)]
+        )
+        riepilogo = applica_listone(archivio, importa_listone(aggiornato))
+
+        assert riepilogo["aggiornati"] == 1
+        assert riepilogo["nuovi"] == 0
+        riga = archivio.giocatori().query("id_ufficiale == 5841").iloc[0]
+        assert riga["club"] == "Milan"
+        assert riga["ingaggio"] == 4_500_000
+        assert riga["nazionalita"] == "Serbia"
+
+
+class TestRoseRisolteDalListone:
+    """Con il catalogo caricato, il file delle rose puo' essere minimale."""
+
+    @pytest.fixture
+    def catalogo(self):
+        return {
+            "svilar": {"nome": "Svilar", "club": "Roma", "ruoli": ("Por",)},
+            "dimarco": {"nome": "Dimarco", "club": "Inter", "ruoli": ("E", "W")},
+        }
+
+    def test_ruoli_e_club_dal_catalogo(self, catalogo):
+        esito = importa_rose(
+            "squadra;giocatore;anni;ingaggio\nTiri Team;Svilar;3;4.500.000",
+            catalogo=catalogo,
+        )
+        assert esito.importabile
+        riga = esito.righe[0]
+        assert riga["ruoli"] == ("Por",)
+        assert riga["club"] == "Roma"
+
+    def test_il_nome_prende_la_grafia_del_listone(self, catalogo):
+        esito = importa_rose(
+            "squadra;giocatore;anni;ingaggio\nTiri Team;  svilar ;3;4.500.000",
+            catalogo=catalogo,
+        )
+        assert esito.righe[0]["giocatore"] == "Svilar"
+
+    def test_nome_sconosciuto_con_suggerimento(self, catalogo):
+        esito = importa_rose(
+            "squadra;giocatore;anni;ingaggio\nTiri Team;Svilarr;3;4.500.000",
+            catalogo=catalogo,
+        )
+        assert not esito.importabile
+        assert len(esito.errori) == 1, "un solo errore, non anche 'ruoli mancanti'"
+        assert "Forse intendevi: Svilar" in esito.errori[0].messaggio
+
+    def test_i_ruoli_nel_file_hanno_la_precedenza(self, catalogo):
+        esito = importa_rose(
+            "squadra;giocatore;ruoli;anni;ingaggio\nTiri Team;Dimarco;Ds;2;6M",
+            catalogo=catalogo,
+        )
+        assert esito.righe[0]["ruoli"] == ("Ds",)
+
+    def test_senza_catalogo_i_ruoli_restano_obbligatori(self):
+        esito = importa_rose(
+            "squadra;giocatore;anni;ingaggio\nTiri Team;Svilar;3;4.500.000"
+        )
+        assert not esito.importabile
+        assert "obbligatorie mancanti" in esito.errori[0].messaggio

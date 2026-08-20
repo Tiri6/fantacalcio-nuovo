@@ -11,12 +11,15 @@ l'anteprima, poi si conferma.
 from __future__ import annotations
 
 import csv
+import difflib
 import io
 import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
 from typing import TYPE_CHECKING
+
+import pandas as pd
 
 from .regole import RUOLI_MANTRA, ParametriLega
 
@@ -257,9 +260,17 @@ def _riga_disallineata(grezza: dict, separatore: str = ";") -> str | None:
 
 
 def importa_rose(
-    contenuto: str | bytes, parametri: ParametriLega | None = None
+    contenuto: str | bytes,
+    parametri: ParametriLega | None = None,
+    catalogo: dict[str, dict] | None = None,
 ) -> EsitoImportazione:
-    """Legge il CSV delle rose uscito dal draft e valida ogni riga."""
+    """Legge il CSV delle rose uscito dal draft e valida ogni riga.
+
+    Con un `catalogo` (dal listone ufficiale) il file puo' limitarsi a squadra,
+    giocatore, anni e ingaggio: ruoli e club si ricavano dal nome. Un nome che
+    non corrisponde a nessun giocatore diventa un errore con dei suggerimenti,
+    invece di entrare in silenzio con dati incompleti.
+    """
     parametri = parametri or ParametriLega()
     esito = EsitoImportazione()
 
@@ -273,7 +284,10 @@ def importa_rose(
     colonne, ignorate = mappa_colonne(intestazioni, COLONNE_ROSE)
     esito.intestazioni_ignorate = ignorate
 
-    mancanti = [c for c in OBBLIGATORIE_ROSE if c not in colonne]
+    obbligatorie = (
+        ("squadra", "giocatore", "ingaggio", "anni") if catalogo else OBBLIGATORIE_ROSE
+    )
+    mancanti = [c for c in obbligatorie if c not in colonne]
     if mancanti:
         esito.problemi.append(
             Problema(
@@ -319,10 +333,49 @@ def importa_rose(
         riga: dict = {"squadra": squadra, "giocatore": giocatore, "club": campo("club")}
         valida = True
 
-        try:
-            riga["ruoli"] = leggi_ruoli(campo("ruoli"))
-        except ValueError as errore:
-            esito.problemi.append(Problema(numero, "ruoli", campo("ruoli"), str(errore)))
+        # Con il listone caricato, nome e ruoli si ricavano dal catalogo: il
+        # file della lega puo' limitarsi a squadra, giocatore, anni e ingaggio.
+        scheda = None
+        if catalogo:
+            scheda = catalogo.get(normalizza_nome_giocatore(giocatore))
+            if scheda is None:
+                simili = difflib.get_close_matches(
+                    normalizza_nome_giocatore(giocatore), catalogo, n=3, cutoff=0.7
+                )
+                suggerimento = (
+                    " Forse intendevi: " + ", ".join(catalogo[s]["nome"] for s in simili)
+                    if simili
+                    else ""
+                )
+                esito.problemi.append(
+                    Problema(
+                        numero,
+                        "giocatore",
+                        giocatore,
+                        f"Non e' nel listone ufficiale.{suggerimento}",
+                    )
+                )
+                valida = False
+            else:
+                # Si adotta la grafia del listone: cosi' i nomi restano allineati.
+                riga["giocatore"] = scheda["nome"]
+                riga["club"] = riga["club"] or scheda["club"]
+
+        if campo("ruoli"):
+            try:
+                riga["ruoli"] = leggi_ruoli(campo("ruoli"))
+            except ValueError as errore:
+                esito.problemi.append(
+                    Problema(numero, "ruoli", campo("ruoli"), str(errore))
+                )
+                valida = False
+        elif scheda is not None:
+            riga["ruoli"] = scheda["ruoli"]
+        elif not catalogo:
+            # Senza catalogo i ruoli sono obbligatori nel file. Se invece il
+            # catalogo c'e' ma il nome non e' stato trovato, l'errore e' gia'
+            # stato segnalato sopra: non serve ripeterlo.
+            esito.problemi.append(Problema(numero, "ruoli", "", "nessun ruolo indicato"))
             valida = False
 
         try:
@@ -760,3 +813,231 @@ def applica_risultati(arch, esito: EsitoImportazione) -> dict:
 
     arch.scrivi("calendario", righe, chiave="id")
     return {"partite": len(righe)}
+
+
+# ---------------------------------------------------------------------------
+# Listone ufficiale delle quotazioni (xlsx di Fantacalcio.it)
+# ---------------------------------------------------------------------------
+
+# Il file ha una riga di titolo e le intestazioni vere alla seconda riga.
+RIGA_INTESTAZIONI_LISTONE = 2
+FOGLIO_LISTONE = "Tutti"
+
+
+def normalizza_nome_giocatore(nome: str) -> str:
+    """Chiave di confronto fra il listone e i file della lega.
+
+    'Martinez Jo.' e 'MARTINEZ JO' devono corrispondere: si tolgono accenti,
+    punteggiatura e spazi.
+    """
+    senza_accenti = "".join(
+        c
+        for c in unicodedata.normalize("NFD", str(nome))
+        if unicodedata.category(c) != "Mn"
+    )
+    return re.sub(r"[^a-z0-9]", "", senza_accenti.lower())
+
+
+def importa_listone(contenuto: bytes) -> EsitoImportazione:
+    """Legge il listone ufficiale: anagrafica, ruoli Mantra e quotazioni.
+
+    Non contiene ne' le assegnazioni alle squadre ne' gli ingaggi: serve a
+    popolare il catalogo dei giocatori, non le rose.
+    """
+    import io as _io
+
+    from openpyxl import load_workbook
+
+    esito = EsitoImportazione()
+    try:
+        cartella = load_workbook(_io.BytesIO(contenuto), data_only=True, read_only=True)
+    except Exception as errore:  # noqa: BLE001 - openpyxl alza tipi eterogenei
+        esito.problemi.append(
+            Problema(0, "file", "", f"Non e' un file Excel leggibile: {errore}")
+        )
+        return esito
+
+    foglio = (
+        cartella[FOGLIO_LISTONE]
+        if FOGLIO_LISTONE in cartella.sheetnames
+        else cartella[cartella.sheetnames[0]]
+    )
+
+    righe = list(foglio.iter_rows(values_only=True))
+    if len(righe) <= RIGA_INTESTAZIONI_LISTONE:
+        esito.problemi.append(Problema(0, "file", "", "Il foglio e' vuoto"))
+        return esito
+
+    intestazioni = [
+        str(v).strip() if v is not None else ""
+        for v in righe[RIGA_INTESTAZIONI_LISTONE - 1]
+    ]
+    indice = {
+        normalizza_intestazione(nome): posizione
+        for posizione, nome in enumerate(intestazioni)
+    }
+    esito.intestazioni_ignorate = []
+
+    def colonna(*chiavi: str):
+        for chiave in chiavi:
+            if chiave in indice:
+                return indice[chiave]
+        return None
+
+    posizioni = {
+        "id_ufficiale": colonna("id"),
+        "ruoli": colonna("rm", "ruolomantra"),
+        "nome": colonna("nome"),
+        "club": colonna("squadra"),
+        "quotazione": colonna("qtam", "qta"),
+        "fvm": colonna("fvmm", "fvm"),
+    }
+    mancanti = [
+        k for k in ("id_ufficiale", "ruoli", "nome", "club") if posizioni[k] is None
+    ]
+    if mancanti:
+        esito.problemi.append(
+            Problema(
+                0,
+                "intestazioni",
+                ", ".join(i for i in intestazioni if i),
+                f"Colonne del listone non trovate: {', '.join(mancanti)}. "
+                f"Attese Id, RM, Nome, Squadra.",
+            )
+        )
+        return esito
+
+    visti: set[int] = set()
+    for numero, grezza in enumerate(
+        righe[RIGA_INTESTAZIONI_LISTONE:], start=RIGA_INTESTAZIONI_LISTONE + 1
+    ):
+
+        def valore(campo: str, riga=grezza):
+            posizione = posizioni[campo]
+            if posizione is None or posizione >= len(riga):
+                return None
+            return riga[posizione]
+
+        if valore("nome") in (None, ""):
+            continue
+
+        try:
+            id_ufficiale = int(valore("id_ufficiale"))
+        except (TypeError, ValueError):
+            esito.problemi.append(
+                Problema(numero, "Id", str(valore("id_ufficiale")), "Id non numerico")
+            )
+            continue
+
+        if id_ufficiale in visti:
+            continue  # il foglio "Tutti" ripete i giocatori dei fogli per ruolo
+        visti.add(id_ufficiale)
+
+        try:
+            ruoli = leggi_ruoli(str(valore("ruoli")))
+        except ValueError as errore:
+            esito.problemi.append(
+                Problema(numero, "RM", str(valore("ruoli")), str(errore))
+            )
+            continue
+
+        def numero_o_none(campo: str) -> float | None:
+            grezzo = valore(campo)
+            try:
+                return float(grezzo) if grezzo not in (None, "") else None
+            except (TypeError, ValueError):
+                return None
+
+        esito.righe.append(
+            {
+                "id_ufficiale": id_ufficiale,
+                "nome": str(valore("nome")).strip(),
+                "club": str(valore("club") or "").strip(),
+                "ruoli": ruoli,
+                "quotazione": numero_o_none("quotazione"),
+                "fvm": numero_o_none("fvm"),
+                "riga_csv": numero,
+            }
+        )
+
+    if not esito.righe:
+        esito.problemi.append(
+            Problema(0, "file", "", "Nessun giocatore leggibile nel listone")
+        )
+    return esito
+
+
+def applica_listone(arch, esito: EsitoImportazione) -> dict:
+    """Scrive il catalogo dei giocatori, conservando ingaggi e contratti.
+
+    Un giocatore gia' presente (stesso Id ufficiale) viene aggiornato nei campi
+    del listone; ingaggio, nazionalita' e data di nascita restano quelli che
+    erano, perche' il listone non li contiene.
+    """
+    from .data import prossimo_id
+
+    if not esito.importabile:
+        raise ValueError(
+            f"Importazione non eseguibile: {len(esito.errori)} errori da correggere"
+        )
+
+    esistenti = arch.giocatori()
+    per_ufficiale: dict[int, dict] = {}
+    if not esistenti.empty and "id_ufficiale" in esistenti.columns:
+        for _, r in esistenti.iterrows():
+            if r["id_ufficiale"] is not None and not pd.isna(r["id_ufficiale"]):
+                per_ufficiale[int(r["id_ufficiale"])] = r.to_dict()
+
+    prossimo = prossimo_id(arch, "giocatori")
+    righe = []
+    aggiornati = 0
+    for riga in esito.righe:
+        precedente = per_ufficiale.get(riga["id_ufficiale"])
+        if precedente is not None:
+            identificativo = int(precedente["id"])
+            ingaggio = float(precedente.get("ingaggio") or 0.0)
+            nazionalita = precedente.get("nazionalita") or "Italia"
+            nascita = precedente.get("data_nascita")
+            aggiornati += 1
+        else:
+            identificativo = prossimo
+            prossimo += 1
+            ingaggio, nazionalita, nascita = 0.0, "Italia", None
+
+        righe.append(
+            {
+                "id": identificativo,
+                "id_ufficiale": riga["id_ufficiale"],
+                "nome": riga["nome"],
+                "club": riga["club"],
+                "ruoli": ";".join(riga["ruoli"]),
+                "ingaggio": ingaggio,
+                "nazionalita": nazionalita,
+                "data_nascita": nascita if isinstance(nascita, str) else None,
+                "quotazione": riga["quotazione"],
+                "fvm": riga["fvm"],
+            }
+        )
+
+    arch.scrivi("giocatori", righe, chiave="id")
+    return {
+        "totali": len(righe),
+        "nuovi": len(righe) - aggiornati,
+        "aggiornati": aggiornati,
+    }
+
+
+def catalogo_giocatori(arch) -> dict[str, dict]:
+    """Giocatori indicizzati per nome normalizzato, per risolvere le rose."""
+    righe = arch.giocatori()
+    if righe.empty:
+        return {}
+    catalogo: dict[str, dict] = {}
+    for _, r in righe.iterrows():
+        catalogo[normalizza_nome_giocatore(r["nome"])] = {
+            "nome": r["nome"],
+            "club": r["club"],
+            "ruoli": tuple(str(r["ruoli"]).split(";")),
+            "quotazione": r.get("quotazione"),
+        }
+    return catalogo

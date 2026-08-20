@@ -24,6 +24,9 @@ create table if not exists squadre (
 
 create table if not exists giocatori (
     id            bigserial primary key,
+    -- Id del listone ufficiale Fantacalcio: aggancia il giocatore alle
+    -- quotazioni anche se il nome viene scritto diversamente.
+    id_ufficiale  integer unique,
     nome          text not null,
     club          text not null,
     -- Ruoli Mantra separati da ';' (es. 'Dd;E'). Un giocatore puo' averne piu' di uno.
@@ -31,7 +34,11 @@ create table if not exists giocatori (
     -- Stipendio annuo lordo, fonte ufficiale Capology (art. 4).
     ingaggio      numeric(12, 2) not null default 0,
     nazionalita   text not null default 'Italia',
-    data_nascita  date
+    data_nascita  date,
+    -- Dal listone: quotazione Mantra e valore di mercato. Non c'entrano con il
+    -- Salary Cap (che usa gli ingaggi Capology) ma servono al draft.
+    quotazione    numeric(6, 2),
+    fvm           numeric(8, 2)
 );
 
 -- Un giocatore ha al massimo un contratto: la chiave primaria lo garantisce.
