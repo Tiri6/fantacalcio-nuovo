@@ -1,0 +1,21 @@
+[project]
+name = "fantacalcio-lega"
+version = "0.1.0"
+description = "Sito della lega di fantacalcio: classifica, rose, calendario e statistiche"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 90
+
+[tool.ruff.lint]
+# Set esplicito: senza questo il comportamento cambia con la versione di ruff.
+select = ["E", "F", "W", "I", "UP", "B", "C4", "BLE", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# Le viste Streamlit sono script: eseguono codice a livello di modulo.
+"viste/*.py" = ["E402"]

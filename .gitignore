@@ -1,0 +1,14 @@
+# Secret: mai nel repo. Usa .streamlit/secrets.toml.example come modello.
+.streamlit/secrets.toml
+.env
+
+# Database di demo: viene rigenerato da solo.
+data/*.db
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.DS_Store
