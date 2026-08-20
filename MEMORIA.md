@@ -15,7 +15,7 @@ serve chiedere "leggi la memoria", basta dire cosa si vuole fare.
 Gestionale della lega: contratti, monte anni, Salary Cap/Floor, draft, scambi.
 Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 
-**Ultimo aggiornamento:** 20 agosto 2026 — listone ufficiale (509 giocatori veri) e script di migrazione.
+**Ultimo aggiornamento:** 20 agosto 2026 — migrazione nel repository dedicato, listone ufficiale caricato (509 giocatori).
 
 ---
 
@@ -86,8 +86,10 @@ sara' di 18 o 27 giornate.
 
 ## Come si lavora
 
-- Branch: `claude/fantacalcio-github-setup-j3e4ly` su `Tiri6/virtual-nutritionist`.
-  Il progetto vive nella sottocartella `fantacalcio/`.
+- Repository: **`Tiri6/fantacalcio-nuovo`** (privato). Il progetto e' alla
+  radice: la migrazione da `virtual-nutritionist` e' fatta, conservando i
+  commit con `git subtree split`.
+- Un branch per ogni lavoro, mai due sessioni Claude sullo stesso branch.
 - Prima di ogni push: `.venv/bin/pytest` e `.venv/bin/ruff check .` devono
   passare puliti.
 - Le regole del progetto stanno in `CLAUDE.md`: leggile prima di toccare il
@@ -95,5 +97,6 @@ sara' di 18 o 27 giornate.
 
 ## Attenzione
 
-`Tiri6/virtual-nutritionist` e' un repository **pubblico**. Non committare il
-PDF del regolamento, i dati veri della lega, ne' credenziali.
+Il repository e' privato, ma restano fuori comunque: il PDF del regolamento,
+il database con i dati veri e ogni credenziale. `.streamlit/secrets.toml` e'
+in `.gitignore`.

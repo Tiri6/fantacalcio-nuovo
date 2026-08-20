@@ -240,21 +240,6 @@ Ogni passaggio resta nello storico, con chi l'ha fatto e quando.
 
 ---
 
-## Passare ai dati veri (Supabase)
-
-1. Crea il progetto su [supabase.com](https://supabase.com) (piano free).
-2. SQL Editor → incolla `db/schema.sql` → Run.
-3. Settings → API: copia URL e chiave `anon`.
-4. `cp .streamlit/secrets.toml.example .streamlit/secrets.toml` e compila.
-
-Al riavvio la sidebar passa da "Modalita' demo" a "Dati live da Supabase":
-`config.py` sceglie da solo il backend, il codice non cambia.
-
-> La chiave `anon` legge soltanto (la RLS in `schema.sql` blocca le scritture).
-> `.streamlit/secrets.toml` e' in `.gitignore` e non finira' mai su GitHub.
-
----
-
 ## Cosa manca per essere "la piattaforma vera"
 
 Il gestionale **legge, valida e scrive**: identita', import CSV, login e
@@ -276,25 +261,79 @@ molto meglio. La logica di regole non andrebbe comunque riscritta.
 
 ---
 
-## Spostare il progetto nel suo repository
+## Lavorare in due (o in dieci)
 
-Questa cartella vive dentro `virtual-nutritionist` perche' la sessione cloud
-non ha il permesso di creare repository. La migrazione e' uno script, e
-**conserva la storia dei commit** (`git subtree split`):
+Il repository e' privato: chi collabora va aggiunto da **Settings →
+Collaborators**, con permesso *Write*.
 
-```bash
-# 1. Su GitHub: crea un repository vuoto (privato), senza README ne' .gitignore
-# 2. Poi, dalla cartella fantacalcio/ del repo virtual-nutritionist:
-./scripts/migra_in_repo_dedicato.sh git@github.com:Tiri6/fantacalcio-nuovo.git
-```
+Tre regole che evitano il 90% dei problemi:
 
-Lo script rifiuta di partire se ci sono modifiche non committate, estrae i
-commit che toccano `fantacalcio/` riscrivendo i percorsi alla radice, e pusha
-su `main`. Nel nuovo repo `.claude/`, `.github/` e `.gitignore` finiscono dove
-devono stare: hook di avvio e CI funzionano subito.
-
-Dopo la migrazione, togli la cartella dal repo vecchio:
+**Un branch a testa.** `marco/qualcosa`, `luca/qualcosa`. Se lavorate entrambi
+su `main` vi pestate i piedi: chi pusha per secondo viene rifiutato e deve
+sbrogliare un merge.
 
 ```bash
-git rm -r fantacalcio && git commit -m "Sposta il gestionale nel suo repo"
+git pull                        # sempre, prima di iniziare
+git checkout -b marco/svincoli  # un branch per ogni cosa che fai
+# ... lavori ...
+git push -u origin marco/svincoli
 ```
+
+Poi su GitHub apri una **pull request** verso `main`.
+
+**Mai due sessioni Claude sullo stesso branch nello stesso momento.** Due
+Claude che modificano gli stessi file in parallelo producono conflitti che poi
+tocca risolvere a mano.
+
+**Prima di pushare, i test devono passare.** `pytest` e `ruff check .`: sono la
+rete che permette a due persone di toccare lo stesso codice senza rompersi a
+vicenda.
+
+### Riprendere il progetto da una sessione nuova
+
+Apri Claude Code su questo repository e di' direttamente cosa vuoi fare.
+`CLAUDE.md` si carica da solo e rimanda a [MEMORIA.md](MEMORIA.md), che dice a
+che punto siamo, cosa e' gia' stato deciso e quali trappole sono gia' costate
+tempo. A fine sessione, `/memoria` per aggiornarla.
+
+---
+
+## Pubblicare il sito
+
+Il sito non e' ancora online: finche' gira solo in locale non c'e' un indirizzo
+da dare ai partecipanti. Servono due passaggi.
+
+**1. Supabase — il database vero.** Crea il progetto su
+[supabase.com](https://supabase.com) (piano free), apri il SQL Editor e incolla
+`db/schema.sql`. Poi da *Settings → API* copia URL e chiave.
+
+Senza questo passo l'app gira in modalita' demo: dati inventati, e ogni riavvio
+azzera tutto.
+
+Per provarlo prima in locale: `cp .streamlit/secrets.toml.example
+.streamlit/secrets.toml` e compilalo. Al riavvio la sidebar passa da "Modalita'
+demo" a "Dati live da Supabase" — `config.py` sceglie da solo il backend, il
+codice non cambia.
+
+> La chiave `anon` legge soltanto: la RLS in `schema.sql` blocca le scritture.
+> Per importare e ratificare serve la `service_role`, che bypassa la RLS —
+> tienila **solo** nei secret del deploy, mai nel repository.
+> `.streamlit/secrets.toml` e' in `.gitignore`.
+
+**2. Streamlit Community Cloud — il sito.** Su
+[share.streamlit.io](https://share.streamlit.io) collega il repository, indica
+`app.py` come main file, e in *Settings → Secrets* incolla:
+
+```toml
+NOME_LEGA = "FantaCalcio NuoVo"
+SUPABASE_URL = "https://xxxx.supabase.co"
+SUPABASE_KEY = "..."
+```
+
+Esce un indirizzo tipo `https://fantacalcio-nuovo.streamlit.app`: **quello e'
+il link da dare ai partecipanti.** Ogni push su `main` ridispiega da solo.
+
+Due cose da sapere sul piano gratuito: l'app **va in letargo** quando non la usa
+nessuno, e il primo che apre il link aspetta qualche decina di secondi; e
+l'indirizzo e' pubblico, quindi la pagina di accesso e' raggiungibile da
+chiunque ce l'abbia (senza credenziali, pero', non si entra).
