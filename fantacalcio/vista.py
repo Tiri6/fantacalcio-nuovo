@@ -1,27 +1,28 @@
-"""Trasformazioni dai dati grezzi alle tabelle mostrate a schermo.
+"""Dai dati grezzi alle tabelle mostrate a schermo.
 
 Modulo puro (solo pandas): non importa Streamlit, cosi' resta testabile e
-riutilizzabile da script o notebook.
+riutilizzabile se un domani il sito cambia tecnologia.
 """
 
 from __future__ import annotations
 
+from datetime import date
+
 import pandas as pd
 
-from .data import Archivio, calendario_dettagliato, prestazioni_dettagliate
-from .scoring import Prestazione, RegoleLega, calcola_formazione
+from .conformita import Momento, StatoRosa, verifica_rosa
+from .data import Archivio, calendario_dettagliato
+from .modelli import Rosa
+from .regole import ETICHETTE_RUOLO, ParametriLega
 from .standings import Partita, calcola_classifica
-
-ETICHETTE_RUOLO = {
-    "P": "Portiere",
-    "D": "Difensore",
-    "C": "Centrocampista",
-    "A": "Attaccante",
-}
 
 
 def _opzionale(valore, tipo):
     return None if pd.isna(valore) else tipo(valore)
+
+
+def milioni(importo: float) -> str:
+    return f"{importo / 1_000_000:.2f}M"
 
 
 def partite_dominio(calendario: pd.DataFrame) -> list[Partita]:
@@ -41,12 +42,12 @@ def partite_dominio(calendario: pd.DataFrame) -> list[Partita]:
 
 
 def classifica(arch: Archivio) -> pd.DataFrame:
-    """Classifica pronta da mostrare, con posizione e colonne in italiano."""
+    """Classifica del campionato: e' anche l'input della Draft Lottery."""
     calendario = calendario_dettagliato(arch)
     righe = calcola_classifica(
         arch.squadre()["nome"].tolist(), partite_dominio(calendario)
     )
-    tabella = pd.DataFrame(
+    return pd.DataFrame(
         [
             {
                 "Pos": posizione,
@@ -64,17 +65,14 @@ def classifica(arch: Archivio) -> pd.DataFrame:
             for posizione, r in enumerate(righe, start=1)
         ]
     )
-    if not tabella.empty:
-        tabella["Media punti"] = (
-            tabella["Punti fantacalcio"] / tabella["PG"].replace(0, pd.NA)
-        ).round(2)
-    return tabella
 
 
 def andamento_punti(arch: Archivio) -> pd.DataFrame:
     """Punti fantacalcio per squadra e giornata (per i grafici)."""
     calendario = calendario_dettagliato(arch)
     giocate = calendario[calendario["gol_casa"].notna()]
+    if giocate.empty:
+        return pd.DataFrame(columns=["giornata", "squadra", "punti", "gol"])
 
     casa = giocate[["giornata", "casa", "punti_casa", "gol_casa"]].rename(
         columns={"casa": "squadra", "punti_casa": "punti", "gol_casa": "gol"}
@@ -91,163 +89,124 @@ def andamento_punti(arch: Archivio) -> pd.DataFrame:
     return unione.sort_values(["squadra", "giornata"]).reset_index(drop=True)
 
 
-def classifica_marcatori(arch: Archivio, quanti: int = 15) -> pd.DataFrame:
-    """Migliori marcatori della lega, con assist e media voto."""
-    prestazioni = prestazioni_dettagliate(arch)
-    prestazioni["gol_totali"] = prestazioni["gol_segnati"] + prestazioni["gol_su_rigore"]
-
-    aggregato = (
-        prestazioni.groupby(["giocatore", "ruolo", "club", "squadra"], dropna=False)
-        .agg(
-            gol=("gol_totali", "sum"),
-            assist=("assist", "sum"),
-            presenze=("voto", "count"),
-            media_voto=("voto", "mean"),
-        )
-        .reset_index()
-    )
-    aggregato["media_voto"] = aggregato["media_voto"].round(2)
-    aggregato = aggregato.sort_values(
-        ["gol", "assist", "media_voto"], ascending=False
-    ).head(quanti)
-    return aggregato.reset_index(drop=True)
+# ---------------------------------------------------------------------------
+# Il cuore del gestionale: conformita' delle rose
+# ---------------------------------------------------------------------------
 
 
-def migliori_per_media(
-    arch: Archivio, presenze_minime: int = 3, quanti: int = 15
-) -> pd.DataFrame:
-    """Media fantavoto per giocatore, tra chi ha almeno N presenze."""
-    prestazioni = prestazioni_dettagliate(arch)
-    con_voto = prestazioni[prestazioni["voto"].notna()].copy()
-    regole = RegoleLega()
-
-    con_voto["fantavoto"] = [
-        calcola_fantavoto_riga(riga, regole) for riga in con_voto.to_dict("records")
-    ]
-    aggregato = (
-        con_voto.groupby(["giocatore", "ruolo", "club", "squadra"], dropna=False)
-        .agg(
-            presenze=("fantavoto", "count"),
-            media_fantavoto=("fantavoto", "mean"),
-            media_voto=("voto", "mean"),
-        )
-        .reset_index()
-    )
-    aggregato = aggregato[aggregato["presenze"] >= presenze_minime]
-    aggregato[["media_fantavoto", "media_voto"]] = aggregato[
-        ["media_fantavoto", "media_voto"]
-    ].round(2)
-    return (
-        aggregato.sort_values("media_fantavoto", ascending=False)
-        .head(quanti)
-        .reset_index(drop=True)
-    )
+def stati_rose(
+    rose: dict[int, Rosa],
+    data_draft: date,
+    parametri: ParametriLega | None = None,
+    momento: Momento = Momento.STAGIONE,
+) -> dict[int, StatoRosa]:
+    """Verifica tutte le rose della lega."""
+    return {
+        squadra_id: verifica_rosa(rosa, data_draft, parametri, momento)
+        for squadra_id, rosa in rose.items()
+    }
 
 
-def calcola_fantavoto_riga(riga: dict, regole: RegoleLega | None = None) -> float:
-    """Fantavoto di una riga di `prestazioni` (dict o Series convertita in dict)."""
-    from .scoring import fantavoto
-
-    regole = regole or RegoleLega()
-    return fantavoto(
-        Prestazione(
-            giocatore_id=int(riga.get("giocatore_id", 0)),
-            nome=str(riga.get("giocatore", "")),
-            ruolo=str(riga["ruolo"]),
-            voto=float(riga["voto"]),
-            gol_segnati=int(riga.get("gol_segnati", 0)),
-            gol_su_rigore=int(riga.get("gol_su_rigore", 0)),
-            rigori_sbagliati=int(riga.get("rigori_sbagliati", 0)),
-            rigori_parati=int(riga.get("rigori_parati", 0)),
-            gol_subiti=int(riga.get("gol_subiti", 0)),
-            autogol=int(riga.get("autogol", 0)),
-            assist=int(riga.get("assist", 0)),
-            ammonizioni=int(riga.get("ammonizioni", 0)),
-            espulsioni=int(riga.get("espulsioni", 0)),
-        ),
-        regole,
-    )
-
-
-def tabellino_squadra(arch: Archivio, squadra_id: int, giornata: int) -> pd.DataFrame:
-    """Formazione schierata da una squadra in una giornata, con i fantavoti.
-
-    Include i panchinari, marcando chi e' entrato per un titolare s.v.
-    """
-    formazioni = arch.formazioni()
-    schierati = formazioni[
-        (formazioni["squadra_id"] == squadra_id) & (formazioni["giornata"] == giornata)
-    ]
-    if schierati.empty:
-        return pd.DataFrame()
-
-    prestazioni = prestazioni_dettagliate(arch)
-    prestazioni = prestazioni[prestazioni["giornata"] == giornata]
-    unione = schierati.merge(prestazioni, on=["giornata", "giocatore_id"], how="left")
-
-    regole = RegoleLega()
-    titolari = unione[unione["titolare"] == 1].to_dict("records")
-    panchina = (
-        unione[unione["titolare"] == 0]
-        .sort_values("ordine_panchina")
-        .to_dict("records")
-    )
-
-    def a_prestazione(riga: dict) -> Prestazione:
-        voto = riga.get("voto")
-        return Prestazione(
-            giocatore_id=int(riga["giocatore_id"]),
-            nome=str(riga.get("giocatore") or riga["giocatore_id"]),
-            ruolo=str(riga["ruolo"]),
-            voto=None if pd.isna(voto) else float(voto),
-            gol_segnati=int(riga.get("gol_segnati") or 0),
-            gol_su_rigore=int(riga.get("gol_su_rigore") or 0),
-            rigori_sbagliati=int(riga.get("rigori_sbagliati") or 0),
-            rigori_parati=int(riga.get("rigori_parati") or 0),
-            gol_subiti=int(riga.get("gol_subiti") or 0),
-            autogol=int(riga.get("autogol") or 0),
-            assist=int(riga.get("assist") or 0),
-            ammonizioni=int(riga.get("ammonizioni") or 0),
-            espulsioni=int(riga.get("espulsioni") or 0),
-        )
-
-    risultato = calcola_formazione(
-        [a_prestazione(r) for r in titolari],
-        [a_prestazione(r) for r in panchina],
-        regole,
-    )
-    entrati = {p.giocatore_id for p in risultato.panchinari_entrati}
-    contati = {p.giocatore_id for p in risultato.schierati}
-
+def cruscotto_lega(stati: dict[int, StatoRosa]) -> pd.DataFrame:
+    """Una riga per squadra con tutti i vincoli del regolamento a colpo d'occhio."""
     righe = []
-    for riga in titolari + panchina:
-        gid = int(riga["giocatore_id"])
-        titolare = riga["titolare"] == 1
-        if titolare:
-            stato = "Titolare" if gid in contati else "s.v."
-        else:
-            stato = "Entrato" if gid in entrati else "Panchina"
+    for stato in stati.values():
         righe.append(
             {
-                "Giocatore": riga.get("giocatore"),
-                "Ruolo": ETICHETTE_RUOLO.get(riga["ruolo"], riga["ruolo"]),
-                "Club": riga.get("club"),
-                "Voto": riga.get("voto"),
-                "Fantavoto": risultato.dettaglio.get(gid),
-                "Stato": stato,
+                "Squadra": stato.squadra,
+                "Rosa": f"{stato.dimensione}/{stato.limite_dimensione}",
+                "U21": stato.slot_u21,
+                "Portieri": stato.portieri,
+                "Anni": f"{stato.anni_impegnati}/66",
+                "Anni liberi": stato.anni_disponibili,
+                "Annuali": f"{stato.contratti_annuali}/{stato.annuali_richiesti}",
+                "Ingaggi": stato.monte_ingaggi,
+                "Dead money": stato.dead_money,
+                "Spesa": stato.spesa_salariale,
+                "Spazio cap": stato.spazio_salariale,
+                "Esito": "Conforme" if stato.conforme else "Da sistemare",
+                "Violazioni": len(stato.violazioni),
+            }
+        )
+    tabella = pd.DataFrame(righe)
+    if tabella.empty:
+        return tabella
+    return tabella.sort_values(["Esito", "Squadra"]).reset_index(drop=True)
+
+
+def violazioni_lega(stati: dict[int, StatoRosa]) -> pd.DataFrame:
+    """Elenco piatto di tutte le violazioni aperte, per l'area del presidente."""
+    righe = [
+        {
+            "Squadra": stato.squadra,
+            "Articolo": v.articolo,
+            "Gravita": v.gravita.value.capitalize(),
+            "Regola": v.codice,
+            "Problema": v.messaggio,
+        }
+        for stato in stati.values()
+        for v in stato.violazioni
+    ]
+    return pd.DataFrame(
+        righe, columns=["Squadra", "Articolo", "Gravita", "Regola", "Problema"]
+    )
+
+
+def rosa_dettagliata(
+    rosa: Rosa, data_draft: date, parametri: ParametriLega | None = None
+) -> pd.DataFrame:
+    """La rosa di una squadra con contratti, ingaggi e status Under 21."""
+    parametri = parametri or ParametriLega()
+    righe = []
+    for contratto in rosa.contratti:
+        giocatore = rosa.giocatore(contratto.giocatore_id)
+        righe.append(
+            {
+                "Giocatore": giocatore.nome,
+                "Ruoli": " / ".join(ETICHETTE_RUOLO.get(r, r) for r in giocatore.ruoli),
+                "Club": giocatore.club,
+                "Eta": giocatore.eta_al(data_draft),
+                "U21": "Si" if giocatore.under_21(data_draft, parametri) else "",
+                "Anni residui": contratto.anni_residui,
+                "In scadenza": "Si" if contratto.in_scadenza else "",
+                "Prolungato": "Si" if contratto.prolungato else "",
+                "Ingaggio": giocatore.ingaggio,
+                "Valore residuo": contratto.valore_residuo(giocatore.ingaggio),
+                "Dead money se tagliato": round(
+                    parametri.quota_dead_money
+                    * contratto.valore_residuo(giocatore.ingaggio),
+                    2,
+                ),
             }
         )
 
-    tabellino = pd.DataFrame(righe)
-    # Voto e fantavoto diventano testo: st.dataframe stampa "None" nelle celle
-    # nulle di una colonna numerica, e in un tabellino si legge male. Qui non
-    # serve ordinare per voto, quindi il trattino e' il compromesso giusto.
-    for colonna in ("Voto", "Fantavoto"):
-        tabellino[colonna] = [
-            "—" if v is None or pd.isna(v) else f"{float(v):.1f}"
-            for v in tabellino[colonna]
-        ]
+    tabella = pd.DataFrame(righe)
+    if tabella.empty:
+        return tabella
+    return tabella.sort_values(
+        ["Anni residui", "Ingaggio"], ascending=[True, False]
+    ).reset_index(drop=True)
 
-    tabellino.attrs["totale"] = risultato.totale
-    tabellino.attrs["gol"] = risultato.gol
-    return tabellino
+
+def contratti_in_scadenza(rose: dict[int, Rosa], data_draft: date) -> pd.DataFrame:
+    """Chi va a scadenza a fine stagione: la draft list della prossima asta."""
+    righe = []
+    for rosa in rose.values():
+        for contratto in rosa.contratti_annuali:
+            giocatore = rosa.giocatore(contratto.giocatore_id)
+            righe.append(
+                {
+                    "Squadra": rosa.squadra.nome,
+                    "Giocatore": giocatore.nome,
+                    "Club": giocatore.club,
+                    "Ruoli": " / ".join(giocatore.ruoli),
+                    "Eta": giocatore.eta_al(data_draft),
+                    "Ingaggio": giocatore.ingaggio,
+                }
+            )
+    tabella = pd.DataFrame(
+        righe, columns=["Squadra", "Giocatore", "Club", "Ruoli", "Eta", "Ingaggio"]
+    )
+    if tabella.empty:
+        return tabella
+    return tabella.sort_values(["Squadra", "Ingaggio"], ascending=[True, False])

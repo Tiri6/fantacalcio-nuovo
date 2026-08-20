@@ -1,13 +1,15 @@
 """Accesso ai dati: stesso set di funzioni sia su Supabase sia su SQLite demo.
 
-Le pagine Streamlit non sanno quale backend e' attivo: chiedono un
-`archivio()` e ricevono DataFrame con le stesse colonne.
+Le pagine non sanno quale backend e' attivo: chiedono un `archivio()` e
+ricevono DataFrame per le tabelle grezze oppure oggetti di dominio gia'
+costruiti (`carica_rose`).
 """
 
 from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
@@ -15,8 +17,9 @@ import pandas as pd
 
 from .config import Impostazioni, carica_impostazioni
 from .demo_data import costruisci_db
+from .modelli import Contratto, Giocatore, Rosa, Squadra, VoceDeadMoney
 
-TABELLE = ("squadre", "giocatori", "rose", "calendario", "prestazioni", "formazioni")
+TABELLE = ("squadre", "giocatori", "contratti", "dead_money", "calendario")
 
 
 class Archivio:
@@ -33,17 +36,14 @@ class Archivio:
     def giocatori(self) -> pd.DataFrame:
         return self.tabella("giocatori")
 
-    def rose(self) -> pd.DataFrame:
-        return self.tabella("rose")
+    def contratti(self) -> pd.DataFrame:
+        return self.tabella("contratti")
+
+    def dead_money(self) -> pd.DataFrame:
+        return self.tabella("dead_money")
 
     def calendario(self) -> pd.DataFrame:
         return self.tabella("calendario")
-
-    def prestazioni(self) -> pd.DataFrame:
-        return self.tabella("prestazioni")
-
-    def formazioni(self) -> pd.DataFrame:
-        return self.tabella("formazioni")
 
 
 @dataclass
@@ -94,33 +94,89 @@ def archivio() -> Archivio:
 
 
 # ---------------------------------------------------------------------------
-# Viste derivate, usate direttamente dalle pagine
+# Dalle righe del database agli oggetti di dominio
 # ---------------------------------------------------------------------------
 
 
-def rose_dettagliate(arch: Archivio) -> pd.DataFrame:
-    """Rose con nome squadra, nome giocatore, ruolo, club, prezzo."""
-    squadre = arch.squadre().rename(columns={"id": "squadra_id", "nome": "squadra"})
-    giocatori = arch.giocatori().rename(
-        columns={"id": "giocatore_id", "nome": "giocatore"}
-    )
-    unione = (
-        arch.rose()
-        .merge(squadre[["squadra_id", "squadra", "allenatore"]], on="squadra_id")
-        .merge(
-            giocatori[["giocatore_id", "giocatore", "ruolo", "club", "quotazione"]],
-            on="giocatore_id",
+def _data(valore) -> date | None:
+    if valore is None or (isinstance(valore, float) and pd.isna(valore)):
+        return None
+    if isinstance(valore, date):
+        return valore
+    return date.fromisoformat(str(valore)[:10])
+
+
+def carica_giocatori(arch: Archivio) -> dict[int, Giocatore]:
+    """Anagrafica di tutti i giocatori della lega, indicizzata per id."""
+    return {
+        int(riga["id"]): Giocatore(
+            id=int(riga["id"]),
+            nome=riga["nome"],
+            club=riga["club"],
+            ruoli=tuple(str(riga["ruoli"]).split(";")),
+            ingaggio=float(riga["ingaggio"]),
+            nazionalita=riga["nazionalita"],
+            data_nascita=_data(riga.get("data_nascita")),
         )
-    )
-    ordine = {r: i for i, r in enumerate(("P", "D", "C", "A"))}
-    unione["_ordine"] = unione["ruolo"].map(ordine)
-    return (
-        unione.sort_values(
-            ["squadra", "_ordine", "prezzo"], ascending=[True, True, False]
+        for _, riga in arch.giocatori().iterrows()
+    }
+
+
+def carica_rose(arch: Archivio) -> dict[int, Rosa]:
+    """Costruisce la rosa di ogni squadra, con contratti e Dead Money."""
+    giocatori = carica_giocatori(arch)
+    contratti = arch.contratti()
+    voci_dead_money = arch.dead_money()
+
+    rose: dict[int, Rosa] = {}
+    for _, riga in arch.squadre().iterrows():
+        squadra_id = int(riga["id"])
+        squadra = Squadra(
+            id=squadra_id,
+            nome=riga["nome"],
+            fantallenatore=riga["fantallenatore"],
         )
-        .drop(columns="_ordine")
-        .reset_index(drop=True)
-    )
+
+        suoi = contratti[contratti["squadra_id"] == squadra_id]
+        suoi_contratti = [
+            Contratto(
+                giocatore_id=int(c["giocatore_id"]),
+                squadra_id=squadra_id,
+                anni_residui=int(c["anni_residui"]),
+                prolungato=bool(c.get("prolungato", False)),
+                stagione_prolungamento=(
+                    c["stagione_prolungamento"]
+                    if c.get("stagione_prolungamento")
+                    and not pd.isna(c.get("stagione_prolungamento"))
+                    else None
+                ),
+            )
+            for _, c in suoi.iterrows()
+        ]
+
+        sue_voci = (
+            voci_dead_money[voci_dead_money["squadra_id"] == squadra_id]
+            if not voci_dead_money.empty
+            else voci_dead_money
+        )
+        dead_money = [
+            VoceDeadMoney(
+                giocatore_id=(
+                    int(v["giocatore_id"]) if not pd.isna(v["giocatore_id"]) else 0
+                ),
+                nome_giocatore=v["nome_giocatore"],
+                importo=float(v["importo"]),
+                stagione=v["stagione"],
+                addebitato=bool(v.get("addebitato", False)),
+            )
+            for _, v in sue_voci.iterrows()
+        ]
+
+        rose[squadra_id] = Rosa(
+            squadra=squadra, contratti=suoi_contratti, dead_money=dead_money
+        ).collega(giocatori)
+
+    return rose
 
 
 def calendario_dettagliato(arch: Archivio) -> pd.DataFrame:
@@ -135,22 +191,3 @@ def calendario_dettagliato(arch: Archivio) -> pd.DataFrame:
         )
     )
     return partite.sort_values(["giornata", "casa"]).reset_index(drop=True)
-
-
-def prestazioni_dettagliate(arch: Archivio) -> pd.DataFrame:
-    """Prestazioni arricchite con giocatore, ruolo, club e squadra di fantacalcio."""
-    giocatori = arch.giocatori().rename(
-        columns={"id": "giocatore_id", "nome": "giocatore"}
-    )
-    squadre = arch.squadre().rename(columns={"id": "squadra_id", "nome": "squadra"})
-    rose = arch.rose()[["squadra_id", "giocatore_id"]]
-
-    return (
-        arch.prestazioni()
-        .merge(
-            giocatori[["giocatore_id", "giocatore", "ruolo", "club"]],
-            on="giocatore_id",
-        )
-        .merge(rose, on="giocatore_id", how="left")
-        .merge(squadre[["squadra_id", "squadra"]], on="squadra_id", how="left")
-    )

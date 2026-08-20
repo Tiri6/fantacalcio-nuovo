@@ -1,14 +1,22 @@
-# Fantacalcio della Lega
+# FantaCalcio NuoVo — il gestionale della lega
 
-Sito della lega: classifica, calendario con i tabellini di ogni giornata, rose
-delle squadre e statistiche. Stack identico a quello che usi gia' sul progetto
-nutrizionista — **Streamlit + Supabase + Plotly** — cosi' non devi imparare
-niente di nuovo.
+Il gioco (voti, formazioni, risultati) si svolge su **Leghe Fantacalcio**.
+Questo progetto governa tutto quello che la piattaforma non sa fare, ed e' cio'
+che rende "gestionale" la vostra lega:
 
-Il progetto parte **senza credenziali**: se non trova Supabase genera una lega
-di demo in SQLite. Questo e' voluto, ed e' il pezzo che rende comodo lavorare
-dal browser: in una sessione cloud puoi aprire, modificare e vedere il sito
-funzionante senza avere in mano nessun segreto.
+- contratti pluriennali e **monte anni** (66 anni da distribuire);
+- **Salary Cap** (100M) e **Salary Floor** (80M) su ingaggi reali da Capology;
+- **Dead Money** da svincolo (Lodo Origi);
+- **regola "1/3"** sui contratti in scadenza;
+- **espansione Under 21** che allarga la rosa;
+- **draft con lottery** a due fasce e ordine di chiamata variabile per round;
+- **scambi** validati contro i lodi Bono, Corti e Longoni.
+
+Base: regolamento **V2.1 di Agosto 2026**, versione post-redline.
+
+> I punti del regolamento che ho dovuto interpretare sono elencati in
+> [PUNTI_APERTI.md](PUNTI_APERTI.md), con l'ipotesi che il codice applica oggi.
+> **Il primo da guardare e' la fascia del primo gol: 60 o 66?**
 
 ---
 
@@ -20,16 +28,28 @@ python3 -m venv .venv
 .venv/bin/streamlit run app.py
 ```
 
-Si apre su <http://localhost:8501> con 8 squadre, 200 giocatori e 6 giornate
-gia' giocate. I dati di demo sono generati con un seme fisso, quindi sono
-identici a ogni riavvio.
-
-Test e lint:
+Parte **senza credenziali**: se non trova Supabase genera una lega di demo in
+SQLite, con 10 squadre, rose contrattualizzate e 11 giornate disputate. Tutte
+le rose della demo sono conformi al regolamento, quindi sono un banco di prova
+valido per le regole.
 
 ```bash
-.venv/bin/pytest        # 54 test
+.venv/bin/pytest        # 143 test
 .venv/bin/ruff check .
 ```
+
+---
+
+## Le schermate
+
+| Pagina | A cosa serve |
+|---|---|
+| **Cruscotto** | Chi e' in regola e chi no: rosa, monte anni, annuali, cap e floor di tutte e 10 le squadre in una tabella. |
+| **Rose e contratti** | La rosa di una squadra con anni residui, ingaggi, status U21 e quanto costerebbe tagliare ciascun giocatore. |
+| **Mercato** | Simulatore di scambi validato contro i lodi, e calcolo del Dead Money prima di svincolare. |
+| **Draft** | Draft Lottery riproducibile, ordine di chiamata round per round, probabilita' delle pick, draft list delle scadenze. |
+| **Campionato** | Classifica e risultati importati da Leghe: servono a determinare l'ordine del draft. |
+| **Regolamento** | I valori che il gestionale applica davvero, articolo per articolo. |
 
 ---
 
@@ -37,143 +57,112 @@ Test e lint:
 
 ```
 app.py                    router: st.navigation, monta le viste
-viste/                    una schermata per file (home, classifica, ...)
-fantacalcio/              logica, senza Streamlit dentro (tranne ui.py)
-  scoring.py              fantavoto, bonus/malus, sostituzioni, punti -> gol
-  standings.py            calendario round robin e classifica
+viste/                    una schermata per file
+fantacalcio/
+  regole.py               TUTTI i numeri del regolamento (ParametriLega)
+  modelli.py              Giocatore, Contratto, Rosa, Dead Money
+  conformita.py           verifica una rosa -> elenco di violazioni
+  draft.py                Draft Lottery e ordine di chiamata (art. 3)
+  mercato.py              finestre, svincoli, scambi e lodi (art. 5-8)
+  standings.py            calendario e classifica
   data.py                 accesso ai dati: Supabase o SQLite demo
   vista.py                dai dati grezzi alle tabelle a schermo
-  ui.py                   helper Streamlit (cache, intestazioni, sidebar)
+  ui.py                   helper Streamlit (l'unico modulo che importa st)
   demo_data.py            genera la lega di demo
-  config.py               legge i secret, sceglie il backend
 db/schema.sql             schema Postgres da incollare in Supabase
-tests/                    test di scoring, classifica, dati e viste
-.claude/hooks/            hook di avvio per le sessioni Claude Code sul web
+tests/                    143 test sulle regole, i dati e le viste
 ```
 
-La regola che tiene insieme tutto: **la logica non sa che esiste Streamlit**.
-`scoring.py` e `standings.py` sono Python puro, quindi sono testabili senza
-avviare l'app — ed e' il motivo per cui i test girano in mezzo secondo.
+Due regole tengono insieme il progetto:
 
-### Le regole della lega sono configurabili
+**Il regolamento sta in un posto solo.** Ogni soglia — 66 anni, 100M, 33
+giocatori, 3 portieri, 50% di Dead Money — e' un campo di `ParametriLega`.
+Quando la lega vota un lodo si cambia quel valore, non la logica. E' anche il
+motivo per cui la pagina Regolamento puo' stampare i parametri veri invece di
+una copia scritta a mano che prima o poi diverge.
 
-Bonus, malus, soglia del primo gol e modificatore difesa stanno tutti in
-`RegoleLega` (`fantacalcio/scoring.py`). I default sono quelli classici:
+**La logica non conosce Streamlit.** `regole`, `modelli`, `conformita`,
+`draft`, `mercato` e `vista` sono Python puro. I 143 test girano in poco piu'
+di un secondo senza avviare nulla — ed e' il motivo per cui questa parte
+sopravvivrebbe intatta a un cambio di tecnologia del sito.
 
-| Voce | Default |
-|---|---|
-| Gol segnato | +3 |
-| Assist | +1 |
-| Rigore parato | +3 / sbagliato −3 |
-| Gol subito (portiere) | −1 |
-| Autogol | −2 |
-| Ammonizione / espulsione | −0.5 / −1 |
-| Primo gol a | 66 punti, poi uno ogni 6 |
-| Modificatore difesa | disattivato |
+### La verifica non e' un si'/no
 
-Se la tua lega gioca diverso, si cambia in un punto solo.
+`verifica_rosa()` restituisce sempre **l'elenco completo** delle violazioni,
+ciascuna con l'articolo, la gravita', il valore attuale e il limite. A un
+fantallenatore non serve sapere che la rosa e' irregolare: serve sapere che gli
+mancano 2 contratti annuali e che sfora il cap di 1,4M.
+
+Le stesse regole non sono vincolanti sempre allo stesso modo, e il codice lo
+rispecchia con il parametro `Momento`:
+
+| | Asta di Settembre / riparazione | Stagione in corso |
+|---|---|---|
+| Salary Cap | blocca | avviso (art. 8b: si sana prima dell'asta) |
+| Salary Floor | blocca | non si verifica |
+| Rosa minima, regola 1/3 | blocca | avviso |
+| Rosa massima, portieri, monte anni | blocca | blocca |
 
 ---
 
 ## Passare ai dati veri (Supabase)
 
 1. Crea il progetto su [supabase.com](https://supabase.com) (piano free).
-2. SQL Editor → incolla `db/schema.sql` → Run. Crea tabelle, indici e le
-   policy di lettura pubblica.
+2. SQL Editor → incolla `db/schema.sql` → Run.
 3. Settings → API: copia URL e chiave `anon`.
 4. `cp .streamlit/secrets.toml.example .streamlit/secrets.toml` e compila.
 
 Al riavvio la sidebar passa da "Modalita' demo" a "Dati live da Supabase":
-nessuna modifica al codice, `config.py` sceglie da solo il backend.
+`config.py` sceglie da solo il backend, il codice non cambia.
 
 > La chiave `anon` legge soltanto (la RLS in `schema.sql` blocca le scritture).
-> La `service_role` bypassa la RLS: non metterla mai nel sito pubblico.
-> `.streamlit/secrets.toml` e' in `.gitignore` — non finira' mai su GitHub.
+> `.streamlit/secrets.toml` e' in `.gitignore` e non finira' mai su GitHub.
 
 ---
 
-## Pubblicare il sito
+## Cosa manca per essere "la piattaforma vera"
 
-[Streamlit Community Cloud](https://share.streamlit.io) e' gratis e si collega
-direttamente a GitHub: scegli il repo, come main file `app.py`, e incolla i
-secret in Settings → Secrets. Ogni push sul branch collegato ridispiega da solo.
+Oggi il gestionale **legge e valida**. Perche' i tuoi amici lo usino davvero
+servono le scritture, nell'ordine in cui le farei:
 
----
+1. **Login dei 10 partecipanti** e permessi (ognuno vede tutto, modifica la
+   propria rosa; il presidente ratifica).
+2. **Importazione dei dati veri**: rose, contratti e ingaggi da Capology,
+   risultati di giornata da Leghe Fantacalcio.
+3. **Proposta e ratifica degli scambi** dentro il sito, con il vincolo delle
+   24 ore e lo storico di chi ha proposto cosa.
+4. **Sala draft**: la lottery estratta una volta e registrata, il tabellone
+   che avanza pick per pick durante l'asta al Centro Padel.
+5. **Registro dei lodi**, collegato all'articolo che modificano.
 
-## Come lavorare: dal lavoro e da casa
-
-Il punto della richiesta iniziale. Alcune cose richiedono permessi che una
-sessione cloud non ha, altre no. Ecco la divisione reale.
-
-### Dal lavoro, via Claude web — tutto il codice
-
-Una sessione cloud clona il repo, ha Python e la rete, e all'avvio esegue
-`.claude/hooks/session-start.sh`, che crea il virtualenv e installa tutto.
-Quindi da li' puoi fare, senza installare niente sul PC del lavoro:
-
-- scrivere e modificare pagine, logica, query;
-- far girare test e lint;
-- avviare l'app e guardarla in funzione;
-- commit e push sul branch;
-- aprire e rivedere pull request.
-
-Nessun segreto passa da qui: le sessioni cloud lavorano in modalita' demo.
-
-### Da casa — solo le cose con permessi
-
-Queste operazioni richiedono il tuo account con permessi pieni, e in questa
-sessione infatti sono fallite con un 403:
-
-- **creare il repository** su GitHub (vedi sotto);
-- **creare il progetto Supabase** e lanciare `db/schema.sql`;
-- **inserire i secret** su Streamlit Cloud e collegare il repo;
-- **caricare i dati veri** della lega (rose, voti di giornata).
-
-Sono tutte operazioni una tantum, tranne il caricamento dei voti.
-
-### Perche' funziona
-
-Il segreto e' che l'app parte senza credenziali. Se il codice pretendesse
-Supabase per avviarsi, ogni sessione cloud sarebbe cieca e dovresti lavorare
-solo da casa. Cosi' invece la separazione e' netta: **il codice sta nel cloud,
-i segreti stanno a casa tua.**
+Il punto 1 e' anche il momento in cui va deciso se restare su Streamlit: per
+dieci persone che consultano e propongono scambi puo' bastare, ma per un'asta
+in tempo reale e per l'uso quotidiano da telefono un frontend vero renderebbe
+molto meglio. La logica di regole non andrebbe comunque riscritta.
 
 ---
 
 ## Spostare il progetto nel suo repository
 
-Adesso questa cartella vive dentro il repo `virtual-nutritionist`, perche' la
-sessione cloud non aveva il permesso di crearne uno nuovo. Per darle il repo che
-merita, da casa:
+Questa cartella vive dentro il repo `virtual-nutritionist` perche' la sessione
+cloud non aveva il permesso di crearne uno nuovo. Da casa:
 
-1. Crea su GitHub un repo vuoto `fantacalcio-lega` (senza README).
+1. Crea su GitHub un repo vuoto `fantacalcio-nuovo` (senza README).
 2. Poi:
 
 ```bash
 git clone https://github.com/Tiri6/virtual-nutritionist.git /tmp/vn
 cd /tmp/vn && git checkout claude/fantacalcio-github-setup-j3e4ly
 
-cp -r fantacalcio /percorso/dove/vuoi/fantacalcio-lega
-cd /percorso/dove/vuoi/fantacalcio-lega
+cp -r fantacalcio /percorso/dove/vuoi/fantacalcio-nuovo
+cd /percorso/dove/vuoi/fantacalcio-nuovo
 
 git init -b main
 git add .
-git commit -m "Primo commit: sito della lega di fantacalcio"
-git remote add origin https://github.com/Tiri6/fantacalcio-lega.git
+git commit -m "Primo commit: gestionale FantaCalcio NuoVo"
+git remote add origin https://github.com/Tiri6/fantacalcio-nuovo.git
 git push -u origin main
 ```
 
-Nel nuovo repo `.claude/`, `.github/` e `.gitignore` finiscono alla radice, dove
-devono stare: hook di avvio e CI funzionano subito, senza modifiche.
-
----
-
-## Cosa manca (prossimi passi)
-
-Il sito oggi **legge**. Per gestire la lega servono le scritture:
-
-- inserimento voti di giornata (upload CSV dai voti ufficiali);
-- schieramento formazioni con scadenza;
-- area admin protetta da password per correggere i risultati;
-- asta e mercato di riparazione;
-- storico delle stagioni passate.
+Nel nuovo repo `.claude/`, `.github/` e `.gitignore` finiscono alla radice,
+dove devono stare: hook di avvio e CI funzionano subito, senza modifiche.

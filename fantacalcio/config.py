@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 RADICE = Path(__file__).resolve().parents[1]
-DB_DEMO = RADICE / "data" / "lega_demo.db"
+DB_DEMO = RADICE / "data" / "fantacalcio_nuovo.db"
 
 
 def _da_streamlit(chiave: str) -> str | None:
@@ -56,5 +56,5 @@ def carica_impostazioni() -> Impostazioni:
         supabase_url=leggi_secret("SUPABASE_URL"),
         supabase_key=leggi_secret("SUPABASE_KEY"),
         percorso_db_demo=Path(leggi_secret("FANTA_DB_DEMO") or DB_DEMO),
-        nome_lega=leggi_secret("NOME_LEGA") or "Lega Fantacalcio",
+        nome_lega=leggi_secret("NOME_LEGA") or "FantaCalcio NuoVo",
     )

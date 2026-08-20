@@ -1,109 +1,110 @@
--- Schema della lega di fantacalcio.
--- Da eseguire nel SQL Editor di Supabase (Postgres). Lo stesso schema, in
--- versione SQLite, viene creato automaticamente da src/fantacalcio/demo_data.py
--- per il database di demo usato quando non ci sono credenziali.
+-- FantaCalcio NuoVo - schema Postgres per Supabase.
+-- Da eseguire nel SQL Editor. Lo stesso schema in versione SQLite sta in
+-- fantacalcio/demo_data.py (SCHEMA_SQLITE): se aggiungi una colonna qui,
+-- aggiungila anche li'.
 
 create table if not exists squadre (
-    id          bigserial primary key,
-    nome        text not null unique,
-    allenatore  text not null,
-    crediti     integer not null default 500,
-    creata_il   timestamptz not null default now()
+    id              bigserial primary key,
+    nome            text not null unique,
+    fantallenatore  text not null,
+    creata_il       timestamptz not null default now()
 );
 
 create table if not exists giocatori (
-    id          bigserial primary key,
-    nome        text not null,
-    ruolo       text not null check (ruolo in ('P', 'D', 'C', 'A')),
-    club        text not null,
-    quotazione  integer not null default 1
+    id            bigserial primary key,
+    nome          text not null,
+    club          text not null,
+    -- Ruoli Mantra separati da ';' (es. 'Dd;E'). Un giocatore puo' averne piu' di uno.
+    ruoli         text not null,
+    -- Stipendio annuo lordo, fonte ufficiale Capology (art. 4).
+    ingaggio      numeric(12, 2) not null default 0,
+    nazionalita   text not null default 'Italia',
+    data_nascita  date
 );
 
-create table if not exists rose (
-    squadra_id    bigint not null references squadre(id) on delete cascade,
-    giocatore_id  bigint not null references giocatori(id) on delete cascade,
-    prezzo        integer not null default 1,
-    primary key (squadra_id, giocatore_id)
+-- Un giocatore ha al massimo un contratto: la chiave primaria lo garantisce.
+create table if not exists contratti (
+    giocatore_id            bigint primary key references giocatori(id) on delete cascade,
+    squadra_id              bigint not null references squadre(id) on delete cascade,
+    anni_residui            integer not null check (anni_residui between 1 and 5),
+    -- Lodo Corti: un giocatore puo' essere prolungato una sola volta in lega.
+    prolungato              boolean not null default false,
+    stagione_prolungamento  text
 );
 
--- Un giocatore appartiene a una sola squadra della lega.
-create unique index if not exists rose_giocatore_unico on rose (giocatore_id);
-
-create table if not exists calendario (
+-- Lodo Origi: 50% del valore contrattuale residuo, addebitato in un'unica
+-- soluzione alla prima sessione di mercato utile. Non concorre al Salary Floor.
+create table if not exists dead_money (
     id              bigserial primary key,
-    giornata        integer not null,
-    casa_id         bigint not null references squadre(id) on delete cascade,
-    trasferta_id    bigint not null references squadre(id) on delete cascade,
-    gol_casa        integer,
-    gol_trasferta   integer,
-    punti_casa      numeric(6, 2),
-    punti_trasferta numeric(6, 2),
+    squadra_id      bigint not null references squadre(id) on delete cascade,
+    giocatore_id    bigint references giocatori(id) on delete set null,
+    nome_giocatore  text not null,
+    importo         numeric(12, 2) not null,
+    stagione        text not null,
+    addebitato      boolean not null default false
+);
+
+-- Risultati importati da Leghe Fantacalcio: il gestionale non li calcola.
+create table if not exists calendario (
+    id               bigserial primary key,
+    giornata         integer not null,
+    casa_id          bigint not null references squadre(id) on delete cascade,
+    trasferta_id     bigint not null references squadre(id) on delete cascade,
+    gol_casa         integer,
+    gol_trasferta    integer,
+    punti_casa       numeric(6, 2),
+    punti_trasferta  numeric(6, 2),
     unique (giornata, casa_id, trasferta_id)
 );
 
-create table if not exists prestazioni (
-    giornata          integer not null,
-    giocatore_id      bigint not null references giocatori(id) on delete cascade,
-    voto              numeric(4, 2),
-    gol_segnati       integer not null default 0,
-    gol_su_rigore     integer not null default 0,
-    rigori_sbagliati  integer not null default 0,
-    rigori_parati     integer not null default 0,
-    gol_subiti        integer not null default 0,
-    autogol           integer not null default 0,
-    assist            integer not null default 0,
-    ammonizioni       integer not null default 0,
-    espulsioni        integer not null default 0,
-    primary key (giornata, giocatore_id)
-);
-
-create table if not exists formazioni (
-    giornata         integer not null,
-    squadra_id       bigint not null references squadre(id) on delete cascade,
-    giocatore_id     bigint not null references giocatori(id) on delete cascade,
-    titolare         boolean not null default false,
-    ordine_panchina  integer not null default 0,
-    primary key (giornata, squadra_id, giocatore_id)
-);
-
--- Regole della lega: una riga per chiave, lette da regole_da_dict().
-create table if not exists regole (
+-- Parametri del regolamento: permette di applicare un lodo senza rideployare.
+-- Le chiavi corrispondono ai campi di ParametriLega (fantacalcio/regole.py).
+create table if not exists parametri (
     chiave  text primary key,
     valore  numeric not null
 );
 
+-- Registro dei lodi: le decisioni prese a maggioranza entrano nel regolamento
+-- (principio di tassativita', art. 1).
+create table if not exists lodi (
+    id           bigserial primary key,
+    codice       text not null unique,
+    titolo       text not null,
+    testo        text not null,
+    articolo     text,
+    approvato_il date,
+    stagione     text
+);
+
+create index if not exists idx_contratti_squadra on contratti (squadra_id);
+create index if not exists idx_dead_money_squadra on dead_money (squadra_id);
 create index if not exists idx_calendario_giornata on calendario (giornata);
-create index if not exists idx_prestazioni_giornata on prestazioni (giornata);
-create index if not exists idx_formazioni_giornata on formazioni (giornata, squadra_id);
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------------
--- La lega e' pubblica in lettura (chiunque abbia il link vede classifica e
--- rose) ma scrivibile solo da chi e' autenticato come admin. La scrittura
--- dall'app avviene con la service key, che bypassa la RLS: tienila fuori dal
--- repo e mettila solo nei secret di Streamlit Cloud.
+-- La lega e' pubblica in lettura per i partecipanti; le scritture passano dalla
+-- service key, che bypassa la RLS. Tienila fuori dal repository e mettila solo
+-- nei secret del deploy.
 
 alter table squadre     enable row level security;
 alter table giocatori   enable row level security;
-alter table rose        enable row level security;
+alter table contratti   enable row level security;
+alter table dead_money  enable row level security;
 alter table calendario  enable row level security;
-alter table prestazioni enable row level security;
-alter table formazioni  enable row level security;
-alter table regole      enable row level security;
+alter table parametri   enable row level security;
+alter table lodi        enable row level security;
 
 do $$
 declare
     t text;
 begin
     foreach t in array array[
-        'squadre', 'giocatori', 'rose', 'calendario',
-        'prestazioni', 'formazioni', 'regole'
+        'squadre', 'giocatori', 'contratti', 'dead_money',
+        'calendario', 'parametri', 'lodi'
     ]
     loop
-        execute format(
-            'drop policy if exists "lettura pubblica" on %I', t
-        );
+        execute format('drop policy if exists "lettura pubblica" on %I', t);
         execute format(
             'create policy "lettura pubblica" on %I for select using (true)', t
         );

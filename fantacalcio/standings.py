@@ -60,9 +60,7 @@ class Calendario:
 _RIPOSA = "__riposa__"
 
 
-def genera_calendario(
-    squadre: Sequence[str], andata_ritorno: bool = True
-) -> Calendario:
+def genera_calendario(squadre: Sequence[str], andata_ritorno: bool = True) -> Calendario:
     """Round robin con l'algoritmo del cerchio (Berger).
 
     Con un numero dispari di squadre viene aggiunto un turno di riposo, quindi

@@ -28,9 +28,7 @@ class TestGeneraCalendario:
         cal = genera_calendario(SQUADRE_8)
         for giornata in range(1, cal.giornate + 1):
             impegnate = [
-                nome
-                for p in cal.giornata(giornata)
-                for nome in (p.casa, p.trasferta)
+                nome for p in cal.giornata(giornata) for nome in (p.casa, p.trasferta)
             ]
             assert len(impegnate) == len(set(impegnate))
 

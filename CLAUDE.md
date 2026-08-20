@@ -1,10 +1,15 @@
 # Note per Claude Code
 
+Gestionale di FantaCalcio NuoVo. Il gioco sta su Leghe Fantacalcio: qui si
+gestiscono contratti, monte anni, Salary Cap/Floor, draft e scambi.
+Riferimento normativo: regolamento V2.1 (Agosto 2026), post-redline.
+
 ## Comandi
 
 ```bash
-.venv/bin/pytest          # test (devono restare veloci: < 2s)
-.venv/bin/ruff check .    # lint, deve passare pulito
+.venv/bin/pytest          # test: devono restare sotto i 2 secondi
+.venv/bin/ruff check .    # deve passare pulito
+.venv/bin/ruff format .
 .venv/bin/streamlit run app.py
 .venv/bin/python -m fantacalcio.demo_data   # rigenera il DB di demo
 ```
@@ -14,33 +19,40 @@ all'avvio: non ricrearlo a mano.
 
 ## Regole del progetto
 
-- **La logica non importa Streamlit.** `scoring.py`, `standings.py`, `vista.py`
-  e `demo_data.py` sono Python puro. Solo `ui.py` e i file in `viste/` possono
-  importare `streamlit`. E' quello che tiene i test veloci e senza mock.
-- **Niente parametri di regolamento sparsi nel codice.** Ogni bonus, malus e
-  soglia sta in `RegoleLega`. Se serve un valore nuovo, si aggiunge li'.
-- **Il codice deve funzionare senza credenziali.** `crea_archivio()` cade sul
-  backend SQLite quando mancano i secret: non introdurre percorsi che
-  richiedono Supabase per avviarsi, o le sessioni cloud diventano inutili.
+- **Nessun numero del regolamento fuori da `ParametriLega`.** Se scrivi `66`,
+  `100_000_000`, `33` o `0.5` da qualche altra parte, e' un errore: la lega
+  cambia le regole per votazione e devono restare modificabili in un punto solo.
+- **La logica non importa Streamlit.** Solo `ui.py` e i file in `viste/`
+  possono importare `streamlit`. E' quello che tiene i test veloci e la logica
+  riutilizzabile.
+- **Le verifiche restituiscono violazioni, non booleani.** Ogni controllo nuovo
+  produce una `Violazione` con articolo, gravita', valore e limite: l'utente
+  deve sapere *di quanto* sfora, non solo *che* sfora.
+- **Blocco o avviso dipende dal `Momento`.** Prima di aggiungere un controllo,
+  chiediti se e' vincolante anche in stagione (vedi la tabella nel README).
 - **Lo schema vive in due posti** e vanno tenuti allineati: `db/schema.sql`
-  (Postgres/Supabase) e `SCHEMA_SQLITE` in `demo_data.py`. Se aggiungi una
-  colonna, toccali entrambi.
+  (Postgres) e `SCHEMA_SQLITE` in `demo_data.py`.
+- **La demo deve restare conforme.** `test_ogni_squadra_ha_una_rosa_conforme`
+  lo verifica: se aggiungi un vincolo, aggiorna il generatore.
 - **Mai committare secret.** `.streamlit/secrets.toml` e' in `.gitignore`.
 
-## Modifiche tipiche
+## Dove mettere le mani
 
-| Cosa vuoi fare | Dove mettere le mani |
+| Cosa vuoi fare | Dove |
 |---|---|
-| Cambiare un bonus/malus | `RegoleLega` in `scoring.py` |
-| Aggiungere una schermata | nuovo file in `viste/`, poi registralo in `app.py` |
+| Applicare un lodo che cambia una soglia | `ParametriLega` in `regole.py` |
+| Aggiungere un vincolo di rosa | `conformita.py` + un test in `test_conformita.py` |
+| Cambiare una regola di scambio | `mercato.valida_scambio` + `test_mercato.py` |
+| Toccare l'ordine del draft | `draft.ordine_round` + `test_draft.py` |
+| Aggiungere una schermata | nuovo file in `viste/`, registrato in `app.py` |
 | Nuova tabella o colonna | `db/schema.sql` **e** `SCHEMA_SQLITE`, poi `data.py` |
-| Nuova tabella a schermo | funzione pura in `vista.py`, wrapper in cache in `ui.py` |
 
-Le viste sono script eseguiti da `st.navigation`: il codice a livello di modulo
-e' normale, non e' un errore di stile.
+Le viste sono script eseguiti da `st.navigation`: il codice a livello di
+modulo e' normale, non e' un errore di stile.
 
-## Test
+## Prima di dare per buona una regola
 
-Ogni funzione nuova in `scoring.py`, `standings.py` o `vista.py` vuole il suo
-test. I test dei dati usano `ArchivioSQLite` su una tmp_path, mai il DB in
-`data/`.
+Il regolamento e' un PDF con redline: alcune frasi hanno una versione vecchia
+barrata e una nuova. Vale **sempre la nuova**. I punti ambigui sono elencati in
+`PUNTI_APERTI.md`: se ne incontri uno, non indovinare — aggiungilo li' e
+implementa l'ipotesi piu' vicina a Leghe Fantacalcio, rendendola un parametro.

@@ -1,14 +1,38 @@
-"""Logica della lega di fantacalcio (punteggi, calendario, classifica, dati)."""
+"""FantaCalcio NuoVo: il gestionale della lega.
 
-from .scoring import (
-    RUOLI,
-    Prestazione,
-    RegoleLega,
-    RisultatoFormazione,
-    calcola_formazione,
-    fantavoto,
-    punti_in_gol,
-    regole_da_dict,
+Il gioco (voti, formazioni, risultati) si svolge su Leghe Fantacalcio. Questo
+progetto governa quello che la piattaforma non sa fare: contratti pluriennali,
+monte anni, Salary Cap e Floor, draft con lottery, scambi e svincoli secondo il
+regolamento della lega.
+"""
+
+from .conformita import Gravita, Momento, StatoRosa, Violazione, verifica_rosa
+from .draft import (
+    EsitoLottery,
+    distribuzione_pick,
+    ordine_riparazione,
+    ordine_round,
+    sorteggia_lottery,
+    tabellone_draft,
+)
+from .mercato import (
+    Finestra,
+    PropostaScambio,
+    applica_scambio,
+    calcola_dead_money,
+    scambio_ratificabile,
+    stato_mercato,
+    svincola,
+    valida_scambio,
+)
+from .modelli import Contratto, Giocatore, Rosa, Squadra, VoceDeadMoney
+from .regole import (
+    ETICHETTE_RUOLO,
+    RUOLI_MANTRA,
+    CalendarioStagione,
+    ParametriLega,
+    fasce_gol,
+    parametri_da_dict,
 )
 from .standings import (
     Calendario,
@@ -19,17 +43,39 @@ from .standings import (
 )
 
 __all__ = [
-    "RUOLI",
+    "ETICHETTE_RUOLO",
+    "RUOLI_MANTRA",
     "Calendario",
+    "CalendarioStagione",
+    "Contratto",
+    "EsitoLottery",
+    "Finestra",
+    "Giocatore",
+    "Gravita",
+    "Momento",
+    "ParametriLega",
     "Partita",
-    "Prestazione",
-    "RegoleLega",
+    "PropostaScambio",
     "RigaClassifica",
-    "RisultatoFormazione",
+    "Rosa",
+    "Squadra",
+    "StatoRosa",
+    "Violazione",
+    "VoceDeadMoney",
+    "applica_scambio",
     "calcola_classifica",
-    "calcola_formazione",
-    "fantavoto",
+    "calcola_dead_money",
+    "distribuzione_pick",
+    "fasce_gol",
     "genera_calendario",
-    "punti_in_gol",
-    "regole_da_dict",
+    "ordine_riparazione",
+    "ordine_round",
+    "parametri_da_dict",
+    "scambio_ratificabile",
+    "sorteggia_lottery",
+    "stato_mercato",
+    "svincola",
+    "tabellone_draft",
+    "valida_scambio",
+    "verifica_rosa",
 ]
