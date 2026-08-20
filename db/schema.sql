@@ -88,6 +88,51 @@ create table if not exists lodi (
     stagione     text
 );
 
+
+-- Partecipanti alla lega. La password si conserva come hash scrypt con sale
+-- per utente: vedi fantacalcio/autenticazione.py.
+create table if not exists utenti (
+    id             bigserial primary key,
+    nome_utente    text not null unique,
+    nome           text not null,
+    hash_password  text not null,
+    sale           text not null,
+    ruolo          text not null default 'fantallenatore',
+    squadra_id     bigint references squadre(id) on delete set null,
+    attivo         boolean not null default true,
+    creato_il      timestamptz not null default now()
+);
+
+-- Registro degli scambi (art. 8): proposta, accettazione, ratifica.
+create table if not exists scambi (
+    id                  bigserial primary key,
+    squadra_a_id        bigint not null references squadre(id) on delete cascade,
+    squadra_b_id        bigint not null references squadre(id) on delete cascade,
+    proposto_da         bigint not null references utenti(id),
+    stato               text not null default 'proposto',
+    note                text not null default '',
+    creato_il           timestamptz not null default now(),
+    aggiornato_il       timestamptz,
+    deciso_da           bigint references utenti(id),
+    ratificato_da       bigint references utenti(id),
+    -- Art. 8: senza 24 ore di preavviso lo scambio vale dalla giornata dopo.
+    giornata_efficacia  integer
+);
+
+create table if not exists scambi_movimenti (
+    id              bigserial primary key,
+    scambio_id      bigint not null references scambi(id) on delete cascade,
+    giocatore_id    bigint not null references giocatori(id) on delete cascade,
+    nome_giocatore  text not null,
+    da_squadra_id   bigint not null references squadre(id) on delete cascade,
+    a_squadra_id    bigint not null references squadre(id) on delete cascade,
+    anni_prima      integer not null,
+    anni_dopo       integer not null
+);
+
+create index if not exists idx_scambi_stato on scambi (stato);
+create index if not exists idx_scambi_movimenti on scambi_movimenti (scambio_id);
+
 create index if not exists idx_contratti_squadra on contratti (squadra_id);
 create index if not exists idx_dead_money_squadra on dead_money (squadra_id);
 create index if not exists idx_calendario_giornata on calendario (giornata);
@@ -106,6 +151,10 @@ alter table dead_money  enable row level security;
 alter table calendario  enable row level security;
 alter table parametri   enable row level security;
 alter table lodi        enable row level security;
+alter table scambi      enable row level security;
+alter table scambi_movimenti enable row level security;
+-- `utenti` NON ha lettura pubblica: contiene gli hash delle password.
+alter table utenti      enable row level security;
 
 do $$
 declare
@@ -113,7 +162,7 @@ declare
 begin
     foreach t in array array[
         'squadre', 'giocatori', 'contratti', 'dead_money',
-        'calendario', 'parametri', 'lodi'
+        'calendario', 'parametri', 'lodi', 'scambi', 'scambi_movimenti'
     ]
     loop
         execute format('drop policy if exists "lettura pubblica" on %I', t);

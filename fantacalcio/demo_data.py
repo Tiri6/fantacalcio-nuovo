@@ -13,6 +13,7 @@ import sqlite3
 from datetime import date
 from pathlib import Path
 
+from .autenticazione import Ruolo, crea_credenziali
 from .regole import ParametriLega
 from .standings import genera_calendario
 
@@ -229,6 +230,38 @@ GIORNATE_GIOCATE = 11
 ROSE_AMPLIATE = {3: 34, 6: 35}
 SQUADRE_CON_DEAD_MONEY = (2, 5, 8)
 
+# Password degli utenti di demo. E' scritta qui apposta: vale SOLO per la lega
+# generata in locale, che non contiene dati veri. Su Supabase gli utenti si
+# creano dalla pagina Partecipanti e questa password non esiste.
+PASSWORD_DEMO = "fantanuovo26"
+
+
+def _utenti_demo() -> list[dict]:
+    """Un utente per squadra; il primo (Tiri Team) e' il presidente di lega."""
+    righe = []
+    for indice, (_, presidente, *_) in enumerate(SQUADRE, start=1):
+        credenziali = crea_credenziali(
+            id_=indice,
+            nome_utente=presidente,
+            nome=presidente,
+            password=PASSWORD_DEMO,
+            ruolo=Ruolo.PRESIDENTE if indice == 1 else Ruolo.FANTALLENATORE,
+            squadra_id=indice,
+        )
+        righe.append(
+            {
+                "id": credenziali.utente.id,
+                "nome_utente": credenziali.utente.nome_utente,
+                "nome": credenziali.utente.nome,
+                "hash_password": credenziali.hash_password,
+                "sale": credenziali.sale,
+                "ruolo": credenziali.utente.ruolo.value,
+                "squadra_id": credenziali.utente.squadra_id,
+                "attivo": 1,
+            }
+        )
+    return righe
+
 
 def _impianto_ruoli(dimensione: int) -> list[tuple[str, ...]]:
     """Ruoli Mantra per una rosa di quella dimensione, portieri sempre 3."""
@@ -385,6 +418,7 @@ def genera_lega(rng: random.Random | None = None) -> dict:
         "contratti": contratti,
         "dead_money": dead_money,
         "calendario": calendario,
+        "utenti": _utenti_demo(),
     }
 
 
@@ -464,6 +498,39 @@ create table if not exists dead_money (
     stagione text not null,
     addebitato integer not null default 0
 );
+create table if not exists utenti (
+    id integer primary key,
+    nome_utente text not null unique,
+    nome text not null,
+    hash_password text not null,
+    sale text not null,
+    ruolo text not null default 'fantallenatore',
+    squadra_id integer,
+    attivo integer not null default 1
+);
+create table if not exists scambi (
+    id integer primary key,
+    squadra_a_id integer not null,
+    squadra_b_id integer not null,
+    proposto_da integer not null,
+    stato text not null default 'proposto',
+    note text not null default '',
+    creato_il text,
+    aggiornato_il text,
+    deciso_da integer,
+    ratificato_da integer,
+    giornata_efficacia integer
+);
+create table if not exists scambi_movimenti (
+    id integer primary key,
+    scambio_id integer not null,
+    giocatore_id integer not null,
+    nome_giocatore text not null,
+    da_squadra_id integer not null,
+    a_squadra_id integer not null,
+    anni_prima integer not null,
+    anni_dopo integer not null
+);
 create table if not exists calendario (
     id integer primary key,
     giornata integer not null,
@@ -499,7 +566,7 @@ def costruisci_db(percorso: Path, forza: bool = False) -> Path:
 
     with sqlite3.connect(percorso) as conn:
         conn.executescript(SCHEMA_SQLITE)
-        for tabella in ("squadre", "giocatori", "contratti", "calendario"):
+        for tabella in ("squadre", "giocatori", "contratti", "calendario", "utenti"):
             inserisci(conn, tabella, lega[tabella])
         inserisci(conn, "dead_money", lega["dead_money"])
 

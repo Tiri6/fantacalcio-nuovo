@@ -9,9 +9,10 @@ import pandas as pd
 import streamlit as st
 
 from . import vista
+from .autenticazione import Utente, autentica
 from .config import carica_impostazioni
 from .conformita import Momento
-from .data import archivio, calendario_dettagliato, carica_rose
+from .data import archivio, calendario_dettagliato, carica_credenziali, carica_rose
 from .regole import CalendarioStagione, ParametriLega
 
 TTL = 300  # secondi: la lega cambia al massimo una volta a giornata
@@ -37,10 +38,90 @@ def intestazione(titolo: str, icona: str = "⚽", sottotitolo: str = "") -> None
         st.caption(sottotitolo)
 
 
-def barra_laterale() -> None:
-    """Lega, backend attivo e pulsante per svuotare la cache."""
+CHIAVE_UTENTE = "_utente"
+CHIAVE_TENTATIVI = "_tentativi_login"
+MASSIMI_TENTATIVI = 5
+
+
+def utente_corrente() -> Utente | None:
+    return st.session_state.get(CHIAVE_UTENTE)
+
+
+def esci() -> None:
+    st.session_state.pop(CHIAVE_UTENTE, None)
+
+
+def richiedi_login() -> Utente:
+    """Mostra il login e ferma la pagina finche' non si e' autenticati."""
+    utente = utente_corrente()
+    if utente is not None:
+        return utente
+
     impostazioni = carica_impostazioni()
+    st.title("⚽ " + impostazioni.nome_lega)
+    st.caption("Accedi con le credenziali che ti ha dato il presidente di lega.")
+
+    tentativi = st.session_state.get(CHIAVE_TENTATIVI, 0)
+    if tentativi >= MASSIMI_TENTATIVI:
+        st.error(
+            "Troppi tentativi falliti. Ricarica la pagina per riprovare.",
+            icon="🚫",
+        )
+        st.stop()
+
+    with st.form("accesso"):
+        nome_utente = st.text_input("Nome utente")
+        password = st.text_input("Password", type="password")
+        inviato = st.form_submit_button("Entra", type="primary")
+
+    if inviato:
+        trovato = autentica(carica_credenziali(archivio()), nome_utente, password)
+        if trovato is None:
+            # Messaggio volutamente generico: non deve rivelare quali nomi
+            # utente esistono.
+            st.session_state[CHIAVE_TENTATIVI] = tentativi + 1
+            st.error("Nome utente o password non corretti.", icon="⛔")
+        else:
+            st.session_state[CHIAVE_UTENTE] = trovato
+            st.session_state[CHIAVE_TENTATIVI] = 0
+            st.rerun()
+
+    if not impostazioni.usa_supabase:
+        from .demo_data import PASSWORD_DEMO
+
+        st.info(
+            f"**Modalita' demo.** Utenti di prova: `marco` (presidente), `luca`, "
+            f"`giulia`... — password `{PASSWORD_DEMO}` per tutti. Con i dati veri "
+            f"su Supabase questi utenti non esistono.",
+            icon="🧪",
+        )
+
+    st.stop()
+
+
+def solo_presidente(
+    messaggio: str = "Questa pagina e' riservata al presidente.",
+) -> Utente:
+    """Blocca la pagina se chi guarda non e' il presidente di lega."""
+    utente = richiedi_login()
+    if not utente.puo_importare:
+        st.warning(messaggio, icon="🔒")
+        st.stop()
+    return utente
+
+
+def barra_laterale() -> None:
+    """Utente, lega, backend attivo e ricarica dei dati."""
+    impostazioni = carica_impostazioni()
+    utente = utente_corrente()
     with st.sidebar:
+        if utente is not None:
+            st.markdown(f"**{utente.nome}**")
+            st.caption(utente.ruolo.etichetta)
+            if st.button("Esci", use_container_width=True):
+                esci()
+                st.rerun()
+            st.divider()
         st.caption(impostazioni.nome_lega)
         if impostazioni.usa_supabase:
             st.success("Dati live da Supabase", icon="🟢")
@@ -88,16 +169,26 @@ def in_milioni(tabella: pd.DataFrame) -> pd.DataFrame:
 # con `cache_data.clear()`: svuotare una cache provoca un rerun immediato, che
 # cancellerebbe il messaggio di conferma appena mostrato dopo un salvataggio.
 
-CHIAVE_VERSIONE = "_versione_dati"
+
+@st.cache_resource
+def _contatore_versione() -> dict:
+    """Contatore condiviso da tutte le sessioni del server.
+
+    Deve essere globale, non nel session_state: le cache di Streamlit sono
+    comuni a tutti gli utenti collegati, quindi se il numero di versione fosse
+    per sessione chi entra dopo leggerebbe la fotografia vecchia — per esempio
+    senza lo scambio appena proposto da un altro.
+    """
+    return {"versione": 0}
 
 
 def versione_dati() -> int:
-    return st.session_state.get(CHIAVE_VERSIONE, 0)
+    return _contatore_versione()["versione"]
 
 
 def invalida_dati() -> None:
-    """Da chiamare dopo ogni scrittura: le viste ricaricheranno da sole."""
-    st.session_state[CHIAVE_VERSIONE] = versione_dati() + 1
+    """Da chiamare dopo ogni scrittura: tutte le sessioni ricaricano."""
+    _contatore_versione()["versione"] += 1
 
 
 @st.cache_data(ttl=TTL)
@@ -208,3 +299,25 @@ def pastiglia_colore(colore: str, etichetta: str = "") -> str:
         f"border-radius:3px;background:{colore};border:1px solid #8884;"
         f'vertical-align:-2px;margin-right:6px"></span>{etichetta}'
     )
+
+
+def scambi():
+    """Registro degli scambi, ricaricato quando i dati cambiano."""
+    return _scambi(versione_dati())
+
+
+@st.cache_resource(ttl=TTL)
+def _scambi(versione: int):
+    from .scambi import carica_scambi
+
+    return carica_scambi(archivio())
+
+
+def nomi_squadre() -> dict[int, str]:
+    return {id_: rosa.squadra.nome for id_, rosa in rose().items()}
+
+
+def nomi_utenti() -> dict[int, str]:
+    from .data import carica_credenziali
+
+    return {c.utente.id: c.utente.nome for c in carica_credenziali(archivio()).values()}

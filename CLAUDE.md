@@ -1,5 +1,9 @@
 # Note per Claude Code
 
+> **Leggi prima [MEMORIA.md](MEMORIA.md)**: dice a che punto e' il progetto,
+> cosa e' gia' stato deciso e quali trappole sono gia' costate tempo.
+> A fine sessione aggiornalo con `/memoria`.
+
 Gestionale di FantaCalcio NuoVo. Il gioco sta su Leghe Fantacalcio: qui si
 gestiscono contratti, monte anni, Salary Cap/Floor, draft e scambi.
 Riferimento normativo: regolamento V2.1 (Agosto 2026), post-redline.
@@ -40,6 +44,13 @@ all'avvio: non ricrearlo a mano.
   conferma appena mostrato. Le cache sono indicizzate su un numero di versione.
 - **I messaggi che precedono un `st.rerun()` non si vedono.** Mettili nel
   `session_state` e mostrali in cima alla pagina al giro successivo.
+- **Il contatore di versione delle cache e' globale**, non nel session_state:
+  le cache di Streamlit sono condivise fra tutte le sessioni, quindi con dieci
+  persone collegate un contatore per sessione farebbe leggere dati vecchi a chi
+  entra dopo.
+- **I permessi si controllano nel dominio, non solo nell'interfaccia.**
+  `Utente.puo_gestire()` e le transizioni in `scambi.py` sollevano
+  `TransizioneNonAmmessa`: nascondere un bottone non e' un controllo.
 
 ## Dove mettere le mani
 
@@ -53,6 +64,8 @@ all'avvio: non ricrearlo a mano.
 | Nuova tabella o colonna | `db/schema.sql` **e** `SCHEMA_SQLITE`, poi `data.py` |
 | Toccare colori o maglia | `identita.py` + `test_identita.py` |
 | Cambiare il formato del CSV | `importazione.py` (i sinonimi stanno in `COLONNE_ROSE`) |
+| Toccare login o permessi | `autenticazione.py` + `test_autenticazione.py` |
+| Cambiare il ciclo di uno scambio | `scambi.py` + `test_scambi.py` |
 
 Le viste sono script eseguiti da `st.navigation`: il codice a livello di
 modulo e' normale, non e' un errore di stile.

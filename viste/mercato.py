@@ -7,6 +7,7 @@ fare?" e "quanto mi costa tagliarlo?".
 import streamlit as st
 
 from fantacalcio import ui
+from fantacalcio.data import archivio, prossimo_id
 from fantacalcio.mercato import (
     PropostaScambio,
     applica_scambio,
@@ -18,8 +19,14 @@ from fantacalcio.mercato import (
 
 STAGIONE = "2026/27"
 
+from fantacalcio.scambi import TransizioneNonAmmessa, proponi, salva_scambio
+
+utente = ui.richiedi_login()
 ui.intestazione("Mercato", "🔁", "Scambi e svincoli verificati contro il regolamento.")
 ui.barra_laterale()
+
+if messaggio := st.session_state.get("esito_mercato"):
+    st.success(messaggio, icon="✅")
 
 rose = ui.rose()
 nomi = {rosa.squadra.nome: id_ for id_, rosa in rose.items()}
@@ -39,7 +46,19 @@ with scambi:
     colonna_a, colonna_b = st.columns(2)
 
     with colonna_a:
-        nome_a = st.selectbox("Squadra A", sorted(nomi), index=0, key="squadra_a")
+        if utente.e_presidente:
+            elenco_a = sorted(nomi)
+        else:
+            # Un fantallenatore propone solo per la propria squadra.
+            elenco_a = [n for n, i in nomi.items() if i == utente.squadra_id]
+        if not elenco_a:
+            st.warning(
+                "Non hai una squadra assegnata: chiedi al presidente di "
+                "collegartene una.",
+                icon="🔒",
+            )
+            st.stop()
+        nome_a = st.selectbox("La tua squadra", elenco_a, index=0, key="squadra_a")
         rosa_a = rose[nomi[nome_a]]
         etichette_a = {
             f"{rosa_a.giocatore(c.giocatore_id).nome} · {c.anni_residui} anni · "
@@ -113,6 +132,41 @@ with scambi:
         else:
             st.success("Scambio ammesso dal regolamento.", icon="✅")
         ui.mostra_violazioni(violazioni)
+
+        st.subheader("Invia la proposta")
+        nota = st.text_input(
+            "Nota per la controparte (facoltativa)",
+            placeholder="Ti serve un centrocampista, a me un difensore",
+        )
+        if st.button(
+            "Proponi lo scambio",
+            type="primary",
+            disabled=bool(bloccanti),
+            help=(
+                "La proposta viene registrata e la controparte la trova nella "
+                "pagina Scambi. Il presidente la ratifica."
+            ),
+        ):
+            try:
+                scambio, _ = proponi(
+                    prossimo_id(archivio(), "scambi"),
+                    rosa_a,
+                    rosa_b,
+                    proposta,
+                    utente,
+                    STAGIONE,
+                    note=nota,
+                    parametri=ui.parametri(),
+                )
+            except (TransizioneNonAmmessa, ValueError) as errore:
+                st.error(str(errore), icon="⛔")
+            else:
+                salva_scambio(archivio(), scambio)
+                ui.invalida_dati()
+                st.session_state["esito_mercato"] = (
+                    f"Proposta inviata a {nome_b}. La trovi nella pagina Scambi."
+                )
+                st.rerun()
 
         nuova_a, nuova_b = applica_scambio(rosa_a, rosa_b, proposta, STAGIONE)
         st.subheader("Effetto sulle due rose")

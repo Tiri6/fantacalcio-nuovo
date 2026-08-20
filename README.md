@@ -46,11 +46,12 @@ valido per le regole.
 |---|---|
 | **Cruscotto** | Chi e' in regola e chi no: rosa, monte anni, annuali, cap e floor di tutte e 10 le squadre in una tabella. |
 | **Rose e contratti** | La rosa di una squadra con anni residui, ingaggi, status U21 e quanto costerebbe tagliare ciascun giocatore. |
-| **Mercato** | Simulatore di scambi validato contro i lodi, e calcolo del Dead Money prima di svincolare. |
+| **Mercato** | Componi uno scambio, verifica contro i lodi e invialo alla controparte. Calcolo del Dead Money prima di svincolare. |
 | **Identita' squadre** | Presidente, motto, stadio, colori sociali, maglia e logo. La maglia si disegna dai colori: nessuno resta senza. |
 | **Importa dati** | Il CSV del draft e i risultati di giornata, con anteprima ed errori riga per riga prima di scrivere. |
 | **Draft** | Draft Lottery riproducibile, ordine di chiamata round per round, probabilita' delle pick, draft list delle scadenze. |
 | **Campionato** | Classifica e risultati importati da Leghe: servono a determinare l'ordine del draft. |
+| **Scambi** | Proposte ricevute e inviate, ratifica del presidente, storico di chi ha fatto cosa. |
 | **Regolamento** | I valori che il gestionale applica davvero, articolo per articolo. |
 
 ---
@@ -68,6 +69,8 @@ fantacalcio/
   draft.py                Draft Lottery e ordine di chiamata (art. 3)
   mercato.py              finestre, svincoli, scambi e lodi (art. 5-8)
   importazione.py         lettura e validazione dei CSV
+  autenticazione.py       utenti, password (scrypt) e permessi
+  scambi.py               ciclo di vita di uno scambio e persistenza
   standings.py            calendario e classifica
   data.py                 accesso ai dati: Supabase o SQLite demo
   vista.py                dai dati grezzi alle tabelle a schermo
@@ -147,6 +150,61 @@ e i gol vengono calcolati dalle fasce della lega.
 
 ---
 
+## Chi puo' fare cosa
+
+Si entra con nome utente e password. Ci sono due ruoli:
+
+| | Presidente | Fantallenatore |
+|---|---|---|
+| Vedere tutta la lega | si | si |
+| Modificare la propria squadra | si | si |
+| Modificare le altre squadre | si | no |
+| Proporre scambi | per chiunque | solo per la sua squadra |
+| Accettare o rifiutare | si | solo le proposte ricevute |
+| **Ratificare** uno scambio | si | no |
+| **Importare** i CSV | si | no |
+
+In modalita' demo esistono dieci utenti di prova (`marco` e' il presidente),
+con una password comune mostrata nella pagina di accesso. Sono generati solo
+nel database di demo: **con i dati veri su Supabase quegli utenti non esistono**.
+
+I permessi non sono solo grafici: `Utente.puo_gestire()` e le transizioni in
+`scambi.py` rifiutano l'operazione anche se qualcuno arrivasse alla funzione
+per altre strade. Nascondere un bottone non e' un controllo.
+
+> Onesta' sui limiti: questo login e' proporzionato a dieci amici, non a un
+> servizio pubblico.
+>
+> - **Ricaricare la pagina fa uscire.** La sessione vive nel session_state di
+>   Streamlit: navigando con il menu tutto resta com'e', ma un F5 riporta al
+>   login. Tenerla viva richiederebbe un token in un cookie, che aggiunge
+>   superficie d'attacco per un guadagno modesto: meglio ri-entrare.
+> - Non c'e' recupero password via email: la reimposta il presidente.
+> - Su Streamlit Community Cloud l'indirizzo dell'app e' pubblico, quindi la
+>   pagina di accesso e' raggiungibile da chiunque abbia il link.
+>
+> Le password restano protette da scrypt con sale: anche chi ottenesse il
+> database non le ricava.
+
+---
+
+## Come funziona uno scambio
+
+1. **Componi** la proposta dal Mercato: scegli i giocatori, eventualmente
+   prolunghi i contratti. La validazione contro i lodi Bono, Corti e Longoni
+   e' immediata.
+2. **Invia**: la controparte la trova nella pagina Scambi, sezione *Ricevute*.
+3. **Accetta o rifiuta**. Chi ha proposto puo' ritirare fino alla ratifica.
+4. **Il presidente ratifica**. Qui lo scambio viene **ri-validato**: tra la
+   proposta e la ratifica le rose possono essere cambiate, e uno scambio valido
+   ieri puo' non esserlo oggi. Solo allora i contratti passano davvero.
+5. La **giornata di efficacia** segue l'art. 8: con meno di 24 ore di preavviso
+   sull'inizio della giornata, lo scambio vale da quella successiva.
+
+Ogni passaggio resta nello storico, con chi l'ha fatto e quando.
+
+---
+
 ## Passare ai dati veri (Supabase)
 
 1. Crea il progetto su [supabase.com](https://supabase.com) (piano free).
@@ -164,16 +222,15 @@ Al riavvio la sidebar passa da "Modalita' demo" a "Dati live da Supabase":
 
 ## Cosa manca per essere "la piattaforma vera"
 
-Il gestionale ora **legge, valida e scrive** (identita' squadre e import CSV).
-Perche' i tuoi amici lo usino davvero manca, nell'ordine in cui lo farei:
+Il gestionale **legge, valida e scrive**: identita', import CSV, login e
+scambi. Manca, nell'ordine in cui lo farei:
 
-1. **Login dei 10 partecipanti** e permessi: ognuno vede tutto, modifica solo
-   la propria squadra, il presidente ratifica.
-2. **Proposta e ratifica degli scambi** dentro il sito, con il vincolo delle
-   24 ore e lo storico di chi ha proposto cosa. Oggi lo scambio si simula ma
-   non si registra.
-3. **Svincoli registrati**, che scrivano davvero il Dead Money invece di
-   limitarsi a calcolarlo.
+1. **I dati veri**: appena arriva il CSV della lega, tarare i sinonimi delle
+   intestazioni sul formato reale.
+2. **Svincoli registrati**, che scrivano davvero il Dead Money invece di
+   limitarsi a calcolarlo: stesso flusso degli scambi.
+3. **Gestione utenti** dall'interfaccia: creare i partecipanti, assegnare le
+   squadre, reimpostare le password. Oggi gli utenti esistono solo nella demo.
 4. **Registro dei lodi**, collegato all'articolo che modificano.
 5. **Tabellone del draft** da proiettare durante l'asta al Centro Padel.
 

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -20,7 +21,19 @@ from .demo_data import costruisci_db
 from .identita import IdentitaSquadra, StileMaglia
 from .modelli import Contratto, Giocatore, Rosa, Squadra, VoceDeadMoney
 
-TABELLE = ("squadre", "giocatori", "contratti", "dead_money", "calendario")
+if TYPE_CHECKING:  # pragma: no cover - solo per i type checker
+    from .autenticazione import Credenziali
+
+TABELLE = (
+    "squadre",
+    "giocatori",
+    "contratti",
+    "dead_money",
+    "calendario",
+    "utenti",
+    "scambi",
+    "scambi_movimenti",
+)
 
 
 class Archivio:
@@ -312,3 +325,54 @@ def prossimo_id(arch: Archivio, tabella: str, colonna: str = "id") -> int:
     if esistenti.empty or colonna not in esistenti.columns:
         return 1
     return int(esistenti[colonna].max()) + 1
+
+
+def carica_credenziali(arch: Archivio) -> dict[str, Credenziali]:
+    """Utenti indicizzati per nome utente, pronti per `autentica()`."""
+    from .autenticazione import Credenziali, Ruolo, Utente
+
+    righe = arch.tabella("utenti")
+    if righe.empty:
+        return {}
+
+    credenziali: dict[str, Credenziali] = {}
+    for _, r in righe.iterrows():
+        try:
+            ruolo = Ruolo(str(r["ruolo"]))
+        except ValueError:
+            ruolo = Ruolo.FANTALLENATORE
+        squadra = r.get("squadra_id")
+        utente = Utente(
+            id=int(r["id"]),
+            nome_utente=str(r["nome_utente"]).strip().lower(),
+            nome=str(r["nome"]),
+            ruolo=ruolo,
+            squadra_id=None if squadra is None or pd.isna(squadra) else int(squadra),
+            attivo=bool(r.get("attivo", True)),
+        )
+        credenziali[utente.nome_utente] = Credenziali(
+            utente=utente,
+            hash_password=str(r["hash_password"]),
+            sale=str(r["sale"]),
+        )
+    return credenziali
+
+
+def salva_credenziali(arch: Archivio, credenziali: Credenziali) -> None:
+    utente = credenziali.utente
+    arch.scrivi(
+        "utenti",
+        [
+            {
+                "id": utente.id,
+                "nome_utente": utente.nome_utente,
+                "nome": utente.nome,
+                "hash_password": credenziali.hash_password,
+                "sale": credenziali.sale,
+                "ruolo": utente.ruolo.value,
+                "squadra_id": utente.squadra_id,
+                "attivo": int(utente.attivo),
+            }
+        ],
+        chiave="id",
+    )
