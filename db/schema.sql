@@ -147,9 +147,15 @@ create index if not exists idx_calendario_giornata on calendario (giornata);
 -- ---------------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------------
--- La lega e' pubblica in lettura per i partecipanti; le scritture passano dalla
--- service key, che bypassa la RLS. Tienila fuori dal repository e mettila solo
--- nei secret del deploy.
+-- Le policy qui sotto aprono la lettura, ma l'app usa comunque la chiave
+-- service_role (che bypassa la RLS) perche' deve anche scrivere: creare utenti,
+-- importare rose, ratificare scambi. Streamlit gira sul server, quindi quella
+-- chiave non raggiunge mai il browser; a proteggere le scritture ci pensa il
+-- sistema di permessi in fantacalcio/autenticazione.py.
+-- Tieni la service_role solo nei secret del deploy, mai nel repository.
+--
+-- Nota: `utenti` NON ha lettura pubblica, perche' contiene gli hash delle
+-- password. Con la sola chiave anon il login non funzionerebbe.
 
 alter table squadre     enable row level security;
 alter table giocatori   enable row level security;

@@ -305,20 +305,34 @@ da dare ai partecipanti. Servono due passaggi.
 
 **1. Supabase — il database vero.** Crea il progetto su
 [supabase.com](https://supabase.com) (piano free), apri il SQL Editor e incolla
-`db/schema.sql`. Poi da *Settings → API* copia URL e chiave.
+tutto `db/schema.sql`. Crea 10 tabelle ed e' rieseguibile: se lo lanci due
+volte non rompe niente.
 
 Senza questo passo l'app gira in modalita' demo: dati inventati, e ogni riavvio
 azzera tutto.
+
+Poi da *Project Settings → API* copia l'URL e la chiave **`service_role`**.
+
+> **Serve la `service_role`, non la `anon`.** L'app non legge soltanto: crea
+> utenti, importa rose, ratifica scambi. Con la `anon` la Row Level Security
+> blocca ogni scrittura e la tabella `utenti` non e' nemmeno leggibile — non
+> riusciresti neanche a fare login.
+>
+> La `service_role` bypassa la RLS. Qui va bene perche' **Streamlit gira sul
+> server**: la chiave resta nel backend e non raggiunge mai il browser di chi
+> usa il sito. A proteggere le scritture ci pensa il sistema di permessi
+> dell'app. Non incollarla mai in un file versionato.
 
 Per provarlo prima in locale: `cp .streamlit/secrets.toml.example
 .streamlit/secrets.toml` e compilalo. Al riavvio la sidebar passa da "Modalita'
 demo" a "Dati live da Supabase" — `config.py` sceglie da solo il backend, il
 codice non cambia.
 
-> La chiave `anon` legge soltanto: la RLS in `schema.sql` blocca le scritture.
-> Per importare e ratificare serve la `service_role`, che bypassa la RLS —
-> tienila **solo** nei secret del deploy, mai nel repository.
-> `.streamlit/secrets.toml` e' in `.gitignore`.
+**Il primo accesso.** Un database appena creato non ha utenti: gli account di
+prova esistono solo nella lega di demo. Alla prima apertura l'app se ne accorge
+e mostra una schermata di **prima configurazione** per creare il presidente di
+lega. Da li' in poi si entra normalmente, e sara' il presidente a creare gli
+altri partecipanti.
 
 **2. Streamlit Community Cloud — il sito.** Su
 [share.streamlit.io](https://share.streamlit.io) collega il repository, indica

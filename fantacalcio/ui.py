@@ -9,10 +9,24 @@ import pandas as pd
 import streamlit as st
 
 from . import vista
-from .autenticazione import Utente, autentica
+from .autenticazione import (
+    PasswordNonValida,
+    Ruolo,
+    Utente,
+    UtenteNonValido,
+    autentica,
+    crea_credenziali,
+)
 from .config import carica_impostazioni
 from .conformita import Momento
-from .data import archivio, calendario_dettagliato, carica_credenziali, carica_rose
+from .data import (
+    archivio,
+    calendario_dettagliato,
+    carica_credenziali,
+    carica_rose,
+    prossimo_id,
+    salva_credenziali,
+)
 from .regole import CalendarioStagione, ParametriLega
 
 TTL = 300  # secondi: la lega cambia al massimo una volta a giornata
@@ -51,6 +65,76 @@ def esci() -> None:
     st.session_state.pop(CHIAVE_UTENTE, None)
 
 
+def _leggi_credenziali_o_spiega():
+    """Carica gli utenti, traducendo i guasti del database in messaggi chiari."""
+    try:
+        return carica_credenziali(archivio()), None
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        testo = str(errore)
+        if "utenti" in testo and (
+            "does not exist" in testo or "not find" in testo or "schema cache" in testo
+        ):
+            return None, (
+                "Il database e' raggiungibile ma non ha le tabelle. Apri il SQL "
+                "Editor di Supabase e incolla il contenuto di `db/schema.sql`."
+            )
+        return None, (
+            f"Non riesco a leggere gli utenti dal database: {testo}\n\n"
+            "Controlla SUPABASE_URL e SUPABASE_KEY nei secret. Per scrivere "
+            "serve la chiave `service_role`, non la `anon`."
+        )
+
+
+def _prima_configurazione() -> None:
+    """Crea il primo presidente quando il database non ha ancora utenti.
+
+    Senza questa schermata, collegare un database vuoto chiuderebbe fuori
+    tutti: gli utenti di prova esistono solo nella lega di demo.
+    """
+    st.info(
+        "Database collegato e vuoto: crea l'account del **presidente di lega**. "
+        "Sara' l'unico a poter importare i dati e ratificare gli scambi, e da "
+        "li' creerai gli altri partecipanti.",
+        icon="👋",
+    )
+
+    with st.form("prima_configurazione"):
+        nome = st.text_input("Nome e cognome", placeholder="Marco Tirinato")
+        nome_utente = st.text_input("Nome utente", placeholder="marco")
+        password = st.text_input("Password", type="password")
+        conferma = st.text_input("Ripeti la password", type="password")
+        creato = st.form_submit_button("Crea il presidente", type="primary")
+
+    if not creato:
+        return
+
+    if password != conferma:
+        st.error("Le due password non coincidono.", icon="⛔")
+        return
+
+    try:
+        credenziali = crea_credenziali(
+            id_=prossimo_id(archivio(), "utenti"),
+            nome_utente=nome_utente,
+            nome=nome or nome_utente,
+            password=password,
+            ruolo=Ruolo.PRESIDENTE,
+        )
+        salva_credenziali(archivio(), credenziali)
+    except (PasswordNonValida, UtenteNonValido) as errore:
+        st.error(str(errore), icon="⛔")
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        st.error(
+            f"Non riesco a scrivere sul database: {errore}\n\n"
+            "Con la chiave `anon` le scritture sono bloccate dalla RLS: nei "
+            "secret serve la chiave `service_role`.",
+            icon="⛔",
+        )
+    else:
+        st.session_state["_appena_creato"] = credenziali.utente.nome_utente
+        st.rerun()
+
+
 def richiedi_login() -> Utente:
     """Mostra il login e ferma la pagina finche' non si e' autenticati."""
     utente = utente_corrente()
@@ -59,6 +143,23 @@ def richiedi_login() -> Utente:
 
     impostazioni = carica_impostazioni()
     st.title("⚽ " + impostazioni.nome_lega)
+
+    credenziali, guasto = _leggi_credenziali_o_spiega()
+    if guasto:
+        st.error(guasto, icon="⛔")
+        st.stop()
+
+    if not credenziali:
+        _prima_configurazione()
+        st.stop()
+
+    if appena := st.session_state.pop("_appena_creato", None):
+        st.success(
+            f"Presidente «{appena}» creato. Entra con le credenziali che hai "
+            f"appena scelto.",
+            icon="✅",
+        )
+
     st.caption("Accedi con le credenziali che ti ha dato il presidente di lega.")
 
     tentativi = st.session_state.get(CHIAVE_TENTATIVI, 0)
@@ -75,7 +176,7 @@ def richiedi_login() -> Utente:
         inviato = st.form_submit_button("Entra", type="primary")
 
     if inviato:
-        trovato = autentica(carica_credenziali(archivio()), nome_utente, password)
+        trovato = autentica(credenziali, nome_utente, password)
         if trovato is None:
             # Messaggio volutamente generico: non deve rivelare quali nomi
             # utente esistono.
