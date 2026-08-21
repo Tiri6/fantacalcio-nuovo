@@ -264,7 +264,13 @@ molto meglio. La logica di regole non andrebbe comunque riscritta.
 ## Lavorare in due (o in dieci)
 
 Il repository e' privato: chi collabora va aggiunto da **Settings →
-Collaborators**, con permesso *Write*.
+Collaborators**, con permesso *Write*. Quel permesso vale anche per il deploy:
+su Streamlit Community Cloud e' l'accesso in scrittura alla repo a decidere chi
+puo' amministrare l'app, non un'impostazione di Streamlit.
+
+Da girare a chi entra: **[COLLABORARE.md](COLLABORARE.md)**, che ripercorre
+l'invito, il collegamento a Streamlit e il ciclo di lavoro dal suo punto di
+vista.
 
 Tre regole che evitano il 90% dei problemi:
 
@@ -300,8 +306,8 @@ tempo. A fine sessione, `/memoria` per aggiornarla.
 
 ## Pubblicare il sito
 
-Il sito non e' ancora online: finche' gira solo in locale non c'e' un indirizzo
-da dare ai partecipanti. Servono due passaggi.
+Il sito e' online su Streamlit Community Cloud: ogni push su `main` lo
+riaggiorna da solo, senza rideploy. Chi lo pubblica da zero fa due passaggi.
 
 **1. Supabase — il database vero.** Crea il progetto su
 [supabase.com](https://supabase.com) (piano free), apri il SQL Editor e incolla
