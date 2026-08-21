@@ -59,6 +59,54 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 5. **Registro dei lodi**: la tabella c'e' nello schema, manca la pagina.
 6. **Tabellone del draft** da proiettare durante l'asta.
 
+## In sospeso, con l'innesco
+
+Cose decise ma non ancora eseguibili: manca un dato o un permesso. Quando
+l'innesco scatta, si riprende da qui senza ricostruire il contesto.
+
+### Aggiungere il secondo collaboratore
+
+**Innesco:** Marco sa lo username GitHub dell'amico.
+
+Da fare, in quest'ordine:
+
+1. `github.com/Tiri6/fantacalcio-nuovo` → **Settings** → **Collaborators** →
+   *Add people* → username dell'amico → permesso **Write** (non Admin).
+2. Girargli [COLLABORARE.md](COLLABORARE.md). Copre invito, collegamento a
+   Streamlit, ciclo branch/pull request e le cinque regole.
+3. Ricordargli il permesso sulle **repo private** quando Streamlit chiede
+   l'autorizzazione a GitHub: senza, Streamlit risponde *"This repository does
+   not exist"*, che e' fuorviante.
+
+Perche' Write basta: su Streamlit Community Cloud i permessi dell'app non si
+impostano su Streamlit, li decide l'accesso in scrittura al repository. Un
+invito solo copre codice e deploy. Admin servirebbe solo per cancellare il
+repository o renderlo pubblico — e la cronologia contiene ancora la vecchia
+chiave Supabase al commit `ea2a62c`, quindi pubblico non va bene.
+
+### Leggere le rose da Leghe Fantacalcio
+
+**Innesco:** il dominio `fantacalcio.it` diventa raggiungibile, oppure arriva
+un export del sito.
+
+La lega vera sta su
+`leghe.fantacalcio.it/nuovo-fanta-manageriale`. Dalle sessioni Claude Code su
+cloud **non e' raggiungibile**: il gateway di rete rifiuta la CONNECT con 403
+per policy, su `leghe.`, `www.` e `api.fantacalcio.it`. Non e' un errore
+transitorio e non si aggira: o si allarga la policy dell'environment, o il
+file lo esporta Marco a mano.
+
+**Convenzione della lega da non dimenticare:** nel loro export la colonna
+**`costo` contiene gli anni di contratto residui**, non un prezzo.
+`importazione.py` la riconosce gia' come sinonimo di `anni`.
+
+Quando sara' raggiungibile: creare una Routine settimanale (lunedi mattina)
+che rilegge le rose e segnala le differenze. Lo strumento giusto e'
+`create_trigger` del server MCP di Claude Code, non `CronCreate`: quest'ultimo
+vive solo dentro la sessione e sparisce quando la sessione finisce.
+
+---
+
 ## Punti aperti del regolamento
 
 Stanno in `PUNTI_APERTI.md`. I due che contano: quando si **chiudono** le
