@@ -321,7 +321,13 @@ Poi da *Project Settings → API* copia l'URL e la chiave **`service_role`**.
 > La `service_role` bypassa la RLS. Qui va bene perche' **Streamlit gira sul
 > server**: la chiave resta nel backend e non raggiunge mai il browser di chi
 > usa il sito. A proteggere le scritture ci pensa il sistema di permessi
-> dell'app. Non incollarla mai in un file versionato.
+> dell'app.
+>
+> **Non incollarla mai in un file versionato.** Le chiavi legacy non si
+> possono rigenerare: se ne compromettessi una, l'unico rimedio e' creare una
+> chiave `secret` nuova da *Settings → API Keys* e disattivare le legacy dalla
+> stessa pagina. Chi parte oggi puo' usare direttamente una chiave
+> `sb_secret_...`, che invece si puo' revocare singolarmente.
 
 Per provarlo prima in locale: `cp .streamlit/secrets.toml.example
 .streamlit/secrets.toml` e compilalo. Al riavvio la sidebar passa da "Modalita'

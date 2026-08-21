@@ -2,8 +2,9 @@
 
 Questo test esiste perche' e' successo: una chiave `service_role` di Supabase
 e' stata scritta per errore in `secrets.toml.example`, che e' un modello
-tracciato da Git, ed e' finita su GitHub. Toglierla dal file non basta —
-resta nella cronologia — quindi va rigenerata. Meglio accorgersene qui.
+tracciato da Git, ed e' finita su GitHub. Toglierla dal file non basta: resta
+nella cronologia, e le chiavi legacy di Supabase non si possono rigenerare —
+va creata una chiave nuova e disattivata la vecchia. Meglio accorgersene qui.
 """
 
 from __future__ import annotations
@@ -60,8 +61,9 @@ def test_nessun_token_jwt_nei_file_versionati(tracciati):
     assert not colpevoli, (
         "Token JWT trovati in file versionati: "
         + ", ".join(str(c) for c in colpevoli)
-        + ". Se e' una chiave vera, RIGENERALA da Supabase: toglierla dal file "
-        "non la toglie dalla cronologia di Git."
+        + ". Se e' una chiave vera non basta toglierla dal file: resta nella "
+        "cronologia di Git. Crea una chiave nuova su Supabase (Settings -> API "
+        "Keys) e disattiva quella compromessa."
     )
 
 
