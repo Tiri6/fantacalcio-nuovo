@@ -14,6 +14,7 @@ from datetime import date
 from pathlib import Path
 
 from .autenticazione import Ruolo, crea_credenziali
+from .leghe import OpzioniLega
 from .regole import ParametriLega
 from .standings import genera_calendario
 
@@ -236,6 +237,31 @@ SQUADRE_CON_DEAD_MONEY = (2, 5, 8)
 PASSWORD_DEMO = "fantanuovo26"
 
 
+# Id e codice della lega di demo. Il codice e' fisso di proposito: rigenerare
+# il database non deve cambiare quello che si legge nella barra laterale.
+LEGA_DEMO_ID = 1
+CODICE_DEMO = "DEMO-2627"
+
+
+def _lega_demo() -> list[dict]:
+    """La lega che contiene le squadre di prova.
+
+    Serve perche' l'app ha tre cancelli — accesso, lega, squadra — e senza una
+    lega gli utenti di demo resterebbero fermi sull'onboarding.
+    """
+    return [
+        {
+            "id": LEGA_DEMO_ID,
+            "nome": "FantaCalcio NuoVo (demo)",
+            "codice_invito": CODICE_DEMO,
+            "admin_id": 1,
+            "stagione": ParametriLega().stagione,
+            "opzioni": OpzioniLega().a_json(),
+            "creata_il": "2026-08-01T10:00:00",
+        }
+    ]
+
+
 def _utenti_demo() -> list[dict]:
     """Un utente per squadra; il primo (Tiri Team) e' il presidente di lega."""
     righe = []
@@ -256,7 +282,9 @@ def _utenti_demo() -> list[dict]:
                 "hash_password": credenziali.hash_password,
                 "sale": credenziali.sale,
                 "ruolo": credenziali.utente.ruolo.value,
+                "email": f"{presidente.lower()}@esempio.it",
                 "squadra_id": credenziali.utente.squadra_id,
+                "lega_id": LEGA_DEMO_ID,
                 "attivo": 1,
             }
         )
@@ -332,9 +360,12 @@ def genera_lega(rng: random.Random | None = None) -> dict:
             "colore_primario": primario,
             "colore_secondario": secondario,
             "stile_maglia": stile,
+            "citta": "",
+            "curva": "",
             "logo": None,
             "maglia_caricata": None,
             "anno_fondazione": fondazione,
+            "lega_id": LEGA_DEMO_ID,
         }
         for indice, (
             nome,
@@ -413,6 +444,7 @@ def genera_lega(rng: random.Random | None = None) -> dict:
 
     calendario = _genera_calendario(squadre, rng)
     return {
+        "leghe": _lega_demo(),
         "squadre": squadre,
         "giocatori": giocatori,
         "contratti": contratti,
@@ -460,18 +492,40 @@ def _genera_calendario(squadre: list[dict], rng: random.Random) -> list[dict]:
 
 
 SCHEMA_SQLITE = """
+create table if not exists leghe (
+    id integer primary key,
+    nome text not null,
+    codice_invito text not null unique,
+    admin_id integer,
+    stagione text not null default '2026/27',
+    opzioni text not null default '{}',
+    creata_il text
+);
+create table if not exists inviti (
+    id integer primary key,
+    lega_id integer not null,
+    email text not null,
+    codice text not null,
+    stato text not null default 'in_attesa',
+    creato_da integer,
+    creato_il text,
+    unique (lega_id, email)
+);
 create table if not exists squadre (
     id integer primary key,
     nome text not null unique,
     presidente text not null,
     motto text not null default '',
     stadio text not null default '',
+    citta text not null default '',
+    curva text not null default '',
     colore_primario text not null default '#2e7d32',
     colore_secondario text not null default '#ffffff',
     stile_maglia text not null default 'TINTA_UNITA',
     logo text,
     maglia_caricata text,
-    anno_fondazione integer
+    anno_fondazione integer,
+    lega_id integer
 );
 create table if not exists giocatori (
     id integer primary key,
@@ -508,7 +562,9 @@ create table if not exists utenti (
     hash_password text not null,
     sale text not null,
     ruolo text not null default 'fantallenatore',
+    email text,
     squadra_id integer,
+    lega_id integer,
     attivo integer not null default 1
 );
 create table if not exists scambi (
@@ -547,10 +603,36 @@ create table if not exists calendario (
 """
 
 
+def _schema_aggiornato(percorso: Path) -> bool:
+    """Il file esistente ha tutte le tabelle e colonne che il codice si aspetta?
+
+    Il database di demo si rigenera in un secondo, quindi conviene ricostruirlo
+    invece di migrarlo: senza questo controllo, chi ha gia' un file vecchio
+    vedrebbe fallire l'app su una colonna che non c'e'.
+    """
+    attese = {
+        "leghe": {"id", "nome", "codice_invito", "admin_id", "opzioni"},
+        "inviti": {"id", "lega_id", "email", "codice", "stato"},
+        "squadre": {"citta", "curva", "lega_id"},
+        "utenti": {"email", "lega_id"},
+    }
+    try:
+        with sqlite3.connect(percorso) as conn:
+            for tabella, colonne in attese.items():
+                presenti = {
+                    riga[1] for riga in conn.execute(f"pragma table_info({tabella})")
+                }
+                if not colonne <= presenti:
+                    return False
+    except sqlite3.Error:
+        return False
+    return True
+
+
 def costruisci_db(percorso: Path, forza: bool = False) -> Path:
     """Crea (se serve) il database di demo e lo popola."""
     percorso = Path(percorso)
-    if percorso.exists() and not forza:
+    if percorso.exists() and not forza and _schema_aggiornato(percorso):
         return percorso
 
     percorso.parent.mkdir(parents=True, exist_ok=True)
@@ -569,7 +651,14 @@ def costruisci_db(percorso: Path, forza: bool = False) -> Path:
 
     with sqlite3.connect(percorso) as conn:
         conn.executescript(SCHEMA_SQLITE)
-        for tabella in ("squadre", "giocatori", "contratti", "calendario", "utenti"):
+        for tabella in (
+            "leghe",
+            "squadre",
+            "giocatori",
+            "contratti",
+            "calendario",
+            "utenti",
+        ):
             inserisci(conn, tabella, lega[tabella])
         inserisci(conn, "dead_money", lega["dead_money"])
 

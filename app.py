@@ -1,5 +1,9 @@
 """Punto di ingresso di FantaCalcio NuoVo: configura la pagina e la navigazione.
 
+Prima del menu ci sono tre cancelli, in quest'ordine: accesso, lega, squadra.
+Ognuno ferma la pagina finche' non e' superato, quindi da qui in giu' si puo'
+dare per scontato che ci sia un utente dentro una lega.
+
 Le singole schermate stanno in `viste/`. Si usa `st.navigation` invece della
 cartella magica `pages/` per avere etichette e icone in italiano.
 """
@@ -10,8 +14,9 @@ from fantacalcio import ui
 
 ui.configura_app()
 
-# Niente si vede prima del login: la pagina si ferma qui se non sei entrato.
 utente = ui.richiedi_login()
+lega = ui.richiedi_lega(utente)
+ui.richiedi_squadra(utente, lega)
 
 pagine = [
     st.Page("viste/home.py", title="Cruscotto", icon="🏠", default=True),
@@ -21,6 +26,7 @@ pagine = [
     st.Page("viste/identita.py", title="Identita' squadre", icon="🎨"),
     st.Page("viste/draft.py", title="Draft", icon="🎱"),
     st.Page("viste/campionato.py", title="Campionato", icon="🏆"),
+    st.Page("viste/lega.py", title="La lega", icon="⚙️"),
     st.Page("viste/regolamento.py", title="Regolamento", icon="📖"),
 ]
 

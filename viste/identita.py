@@ -18,7 +18,7 @@ NUOVA = "➕ Crea una squadra nuova"
 ui.intestazione(
     "Identita' delle squadre",
     "🎨",
-    "Presidente, motto, stadio, colori sociali, maglia e logo.",
+    "Presidente, motto, stadio, citta', curva, colori sociali, maglia e logo.",
 )
 ui.barra_laterale()
 
@@ -47,7 +47,14 @@ with galleria:
                 if squadra.motto:
                     st.caption(f"_{squadra.motto}_")
                 if squadra.stadio:
-                    st.caption(f"🏟️ {squadra.stadio}")
+                    casa = squadra.stadio
+                    if squadra.citta:
+                        casa += f", {squadra.citta}"
+                    st.caption(f"🏟️ {casa}")
+                elif squadra.citta:
+                    st.caption(f"📍 {squadra.citta}")
+                if squadra.curva:
+                    st.caption(f"📣 {squadra.curva}")
 
 with scheda:
     scelta = st.selectbox("Squadra", [NUOVA, *sorted(squadre)])
@@ -70,6 +77,17 @@ with scheda:
         )
         stadio = st.text_input(
             "Stadio", value=identita.stadio, max_chars=80, placeholder="Arena del Padel"
+        )
+        affiancate = st.columns(2)
+        citta = affiancate[0].text_input(
+            "Citta'", value=identita.citta, max_chars=60, placeholder="Ginevra"
+        )
+        curva = affiancate[1].text_input(
+            "Curva",
+            value=identita.curva,
+            max_chars=60,
+            placeholder="Curva Nord",
+            help="Come si chiama il settore dei tuoi tifosi.",
         )
         anno = st.number_input(
             "Anno di fondazione",
@@ -119,6 +137,8 @@ with scheda:
             presidente=presidente,
             motto=motto,
             stadio=stadio,
+            citta=citta,
+            curva=curva,
             colore_primario=primario,
             colore_secondario=secondario,
             stile_maglia=stile,
@@ -190,6 +210,8 @@ with scheda:
                 presidente=presidente.strip(),
                 motto=motto.strip(),
                 stadio=stadio.strip(),
+                citta=citta.strip(),
+                curva=curva.strip(),
                 colore_primario=primario,
                 colore_secondario=secondario,
                 stile_maglia=stile,

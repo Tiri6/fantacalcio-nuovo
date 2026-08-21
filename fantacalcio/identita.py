@@ -84,6 +84,8 @@ class IdentitaSquadra:
     presidente: str = ""
     motto: str = ""
     stadio: str = ""
+    citta: str = ""
+    curva: str = ""
     colore_primario: str = "#2e7d32"
     colore_secondario: str = "#ffffff"
     stile_maglia: StileMaglia = StileMaglia.TINTA_UNITA

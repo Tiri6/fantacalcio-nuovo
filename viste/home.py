@@ -34,19 +34,39 @@ mercato = stato_mercato(giornate, ui.CALENDARIO)
 non_conformi = [s for s in stati.values() if not s.conforme]
 parametri = ui.parametri()
 
-colonne = st.columns(4)
-colonne[0].metric("Squadre", len(stati))
-colonne[1].metric("Giornate disputate", giornate)
-colonne[2].metric(
-    "Rose non conformi",
-    len(non_conformi),
-    delta=None if not non_conformi else f"{len(non_conformi)} da sistemare",
-    delta_color="inverse",
-)
-# Il nome completo della finestra verrebbe troncato dentro una metrica.
-colonne[3].metric(
-    "Ultima finestra aperta",
-    mercato.finestra_piu_recente.value.replace("Finestra ", "").capitalize(),
+lega = ui.lega_corrente()
+totale_giornate = lega.opzioni.giornate_totali if lega else ui.CALENDARIO.giornate_totali
+
+ui.griglia_dati(
+    [
+        {
+            "etichetta": "Squadre",
+            "valore": str(len(stati)),
+            "nota": f"su {lega.opzioni.partecipanti} previste" if lega else "",
+            "quota": len(stati) / max(lega.opzioni.partecipanti, 1) if lega else None,
+        },
+        {
+            "etichetta": "Giornate disputate",
+            "valore": f"{giornate}",
+            "nota": f"su {totale_giornate}",
+            "quota": giornate / max(totale_giornate, 1),
+        },
+        {
+            "etichetta": "Rose non conformi",
+            "valore": str(len(non_conformi)),
+            "nota": "tutto in regola" if not non_conformi else "da sistemare",
+            "stato": "ok" if not non_conformi else "male",
+        },
+        {
+            "etichetta": "Ultima finestra",
+            # Il nome per esteso non ci sta nel riquadro.
+            "valore": mercato.finestra_piu_recente.value.replace(
+                "Finestra ", ""
+            ).capitalize(),
+            "nota": "mercato bloccato" if mercato.trade_deadline_superata else "aperta",
+            "stato": "avviso" if mercato.trade_deadline_superata else "ok",
+        },
+    ]
 )
 
 if mercato.trade_deadline_superata:

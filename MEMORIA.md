@@ -15,7 +15,7 @@ serve chiedere "leggi la memoria", basta dire cosa si vuole fare.
 Gestionale della lega: contratti, monte anni, Salary Cap/Floor, draft, scambi.
 Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 
-**Ultimo aggiornamento:** 20 agosto 2026 — migrazione nel repository dedicato, listone ufficiale caricato (509 giocatori).
+**Ultimo aggiornamento:** 21 agosto 2026 — leghe multiple con codice d'invito, registrazione autonoma, creazione squadra, tema grafico.
 
 ---
 
@@ -28,6 +28,11 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 | Stack **Streamlit + Supabase** | scelta iniziale | La logica e' Python puro senza Streamlit: un cambio di frontend non la tocca |
 | Il campo squadra si chiama **presidente** | rinominato da `fantallenatore` | |
 | Maglie **disegnate dai colori sociali** in SVG | | Chi vuole carica un'immagine propria |
+| **Registrazione autonoma**: ognuno si crea l'account | 21 ago | Il primo che si registra diventa presidente |
+| Si entra in una lega con un **codice d'invito** di 8 caratteri | 21 ago | Alfabeto senza O/0 e I/1: si ricopia da uno screenshot |
+| Gli **inviti per email non spediscono niente** | 21 ago | Registrano chi e' atteso. Un server di posta per dieci persone non si giustifica |
+| Le **opzioni di lega** stanno in JSON, non in colonne | 21 ago | Cambiano ogni stagione: una migrazione per casella sarebbe un costo continuo |
+| La **squadra si puo' rimandare** ("Lo faccio dopo") | 21 ago | Chi amministra e basta non deve restare chiuso fuori |
 | Le cache si invalidano con **`ui.invalida_dati()`** | | Vedi le trappole sotto |
 
 ## Cosa c'e' (funziona e ha i test)
@@ -43,6 +48,14 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
   solo la propria squadra.
 - **Registro scambi**: proposta → accettazione → ratifica, con ri-validazione
   al momento della ratifica e applicazione ai contratti.
+- **Leghe multiple**: creazione con tutte le opzioni di gioco (modalita',
+  formato, rosa, asta, moduli, bonus/malus, fasce di gol, modificatori di
+  reparto), codice d'invito, inviti per email, pagina «La lega».
+- **Tre cancelli all'ingresso**: accesso/registrazione → crea o unisciti a una
+  lega → fonda la squadra (nome, citta', stadio, curva, colori, maglia).
+- **Tema grafico** (`tema.py`): fondo scuro, verde campo, testate, schede,
+  riquadri numerici con barra, pastiglie nei colori sociali. Non importa
+  Streamlit: produce stringhe, quindi si prova nei test.
 
 ## Cosa manca (in ordine di utilita')
 
@@ -54,8 +67,9 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
    determinare e l'espansione rosa non si applica.
 3. **Svincoli registrati**: oggi il Dead Money si calcola ma non si scrive.
    Serve un flusso come quello degli scambi.
-4. **Gestione utenti** dall'interfaccia: creare partecipanti, assegnare
-   squadre, reimpostare password. Oggi gli utenti esistono solo nella demo.
+4. **Reimpostare le password** dall'interfaccia. Registrazione e ingresso in
+   lega ora sono autonomi, ma chi dimentica la password resta fuori: serve che
+   il presidente possa azzerarla.
 5. **Registro dei lodi**: la tabella c'e' nello schema, manca la pagina.
 6. **Tabellone del draft** da proiettare durante l'asta.
 
@@ -128,6 +142,15 @@ sara' di 18 o 27 giornate.
   buchi che i dati inventati non mostrano.
 - **Nei CSV separati da `;` i ruoli non vanno scritti `M;C`** ma `M/C`. Il
   lettore ora lo riconosce e lo spiega.
+- **La schermata col codice d'invito va mostrata da *ogni* pagina che puo'
+  venire dopo la creazione.** Appena la lega esiste, il cancello successivo
+  scatta: metterla solo dentro `scegli_lega` significa non mostrarla mai.
+- **`pkill -f "streamlit run app.py"` uccide la propria shell**, perche' il
+  pattern combacia con la riga di comando del comando stesso. Costa un giro di
+  diagnosi su un bug che non esiste.
+- **`create table if not exists` non aggiunge colonne** a una tabella che c'e'
+  gia'. Ogni colonna nuova vuole anche un `alter table ... add column if not
+  exists` in fondo a `schema.sql`.
 - **Ricaricare la pagina fa uscire dal login** (session_state di Streamlit).
   Navigando col menu non succede. Scelta consapevole: un token in cookie
   aggiungerebbe superficie d'attacco per poco guadagno.
