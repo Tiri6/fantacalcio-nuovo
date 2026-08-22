@@ -147,6 +147,12 @@ sara' di 18 o 27 giornate.
   buchi che i dati inventati non mostrano.
 - **Nei CSV separati da `;` i ruoli non vanno scritti `M;C`** ma `M/C`. Il
   lettore ora lo riconosce e lo spiega.
+- **La `service_role` bypassa la RLS ma non sostituisce i GRANT.** Sono due
+  controlli distinti: senza i privilegi di tabella, PostgreSQL rifiuta con
+  «permission denied for table utenti» (42501) prima ancora di guardare le
+  policy. La cura sta in `db/permessi.sql`, che chiude anche gli
+  `alter default privileges` perche' la prossima tabella non ricada nel
+  problema.
 - **Un'app Streamlit pubblicata da una repo privata e' privata**: la vedono
   solo i collaboratori del repository. In incognito risponde "l'app non
   esiste", e i partecipanti vedrebbero lo stesso. Si apre da *Settings ->
