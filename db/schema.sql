@@ -175,6 +175,24 @@ create table if not exists scambi_movimenti (
     anni_dopo       integer not null
 );
 
+-- ---------------------------------------------------------------------------
+-- Aggiornamento di un database gia' esistente
+-- ---------------------------------------------------------------------------
+-- `create table if not exists` non tocca una tabella che c'e' gia': su un
+-- database creato prima delle leghe multiple le colonne nuove non
+-- comparirebbero, e l'app fallirebbe alla prima scrittura. Questi ALTER sono
+-- idempotenti, quindi rilanciare l'intero file e' sempre sicuro.
+--
+-- Vanno PRIMA degli indici: `create index ... on squadre (lega_id)` su un
+-- database vecchio fallirebbe, perche' la colonna non c'e' ancora.
+
+alter table squadre add column if not exists citta   text not null default '';
+alter table squadre add column if not exists curva   text not null default '';
+alter table squadre add column if not exists lega_id bigint references leghe(id) on delete cascade;
+
+alter table utenti  add column if not exists email   text;
+alter table utenti  add column if not exists lega_id bigint references leghe(id) on delete set null;
+
 create index if not exists idx_scambi_stato on scambi (stato);
 create index if not exists idx_scambi_movimenti on scambi_movimenti (scambio_id);
 
@@ -186,21 +204,6 @@ create index if not exists idx_utenti_lega on utenti (lega_id);
 create index if not exists idx_contratti_squadra on contratti (squadra_id);
 create index if not exists idx_dead_money_squadra on dead_money (squadra_id);
 create index if not exists idx_calendario_giornata on calendario (giornata);
-
--- ---------------------------------------------------------------------------
--- Aggiornamento di un database gia' esistente
--- ---------------------------------------------------------------------------
--- `create table if not exists` non tocca una tabella che c'e' gia': su un
--- database creato prima delle leghe multiple le colonne nuove non
--- comparirebbero, e l'app fallirebbe alla prima scrittura. Questi ALTER sono
--- idempotenti, quindi rilanciare l'intero file e' sempre sicuro.
-
-alter table squadre add column if not exists citta   text not null default '';
-alter table squadre add column if not exists curva   text not null default '';
-alter table squadre add column if not exists lega_id bigint references leghe(id) on delete cascade;
-
-alter table utenti  add column if not exists email   text;
-alter table utenti  add column if not exists lega_id bigint references leghe(id) on delete set null;
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security
