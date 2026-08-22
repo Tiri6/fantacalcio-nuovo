@@ -33,6 +33,7 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 | Gli **inviti per email non spediscono niente** | 21 ago | Registrano chi e' atteso. Un server di posta per dieci persone non si giustifica |
 | Le **opzioni di lega** stanno in JSON, non in colonne | 21 ago | Cambiano ogni stagione: una migrazione per casella sarebbe un costo continuo |
 | La **squadra si puo' rimandare** ("Lo faccio dopo") | 21 ago | Chi amministra e basta non deve restare chiuso fuori |
+| **Si resta su Streamlit per la stagione di prova** | 22 ago | La migrazione a un'autenticazione vera si valuta l'anno prossimo, dopo aver visto cosa serve davvero giocando |
 | Le cache si invalidano con **`ui.invalida_dati()`** | | Vedi le trappole sotto |
 
 ## Cosa c'e' (funziona e ha i test)
@@ -59,6 +60,10 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 
 ## Cosa manca (in ordine di utilita')
 
+0. **Reimpostare la password.** Non esiste, e chi la dimentica resta fuori:
+   ora che la registrazione e' autonoma, e' il buco piu' urgente. Servono due
+   cose: "cambia la mia password" per chiunque, e "reimposta quella di X"
+   per chi amministra.
 1. **Assegnazioni, contratti e ingaggi**: il listone e' caricato (509 giocatori
    con ruoli Mantra e quotazioni) ma non dice chi appartiene a quale squadra,
    con quanti anni e con quale ingaggio. Gli ingaggi vanno da Capology
@@ -142,6 +147,13 @@ sara' di 18 o 27 giornate.
   buchi che i dati inventati non mostrano.
 - **Nei CSV separati da `;` i ruoli non vanno scritti `M;C`** ma `M/C`. Il
   lettore ora lo riconosce e lo spiega.
+- **Un'app Streamlit pubblicata da una repo privata e' privata**: la vedono
+  solo i collaboratori del repository. In incognito risponde "l'app non
+  esiste", e i partecipanti vedrebbero lo stesso. Si apre da *Settings ->
+  Sharing -> Who can view this app*.
+- **Streamlit non ridispiega sempre da solo.** Se dopo un push il sito mostra
+  ancora la versione vecchia, e' il deploy fermo, non il codice: *Reboot app*.
+  Prima di cercare un bug, verificare quale versione sta girando davvero.
 - **La schermata col codice d'invito va mostrata da *ogni* pagina che puo'
   venire dopo la creazione.** Appena la lega esiste, il cancello successivo
   scatta: metterla solo dentro `scegli_lega` significa non mostrarla mai.
