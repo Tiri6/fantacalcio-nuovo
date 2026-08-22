@@ -85,7 +85,10 @@ l'innesco scatta, si riprende da qui senza ricostruire il contesto.
 
 ### Aggiungere il secondo collaboratore
 
-**Innesco:** Marco sa lo username GitHub dell'amico.
+**Innesco:** scattato il 22 agosto — l'username e' `kakkaboom`
+(github.com/kakkaboom). Resta da eseguire il punto 1: l'invito lo deve
+mandare Marco, il token di sessione non ha il permesso di aggiungere
+collaboratori.
 
 Da fare, in quest'ordine:
 
