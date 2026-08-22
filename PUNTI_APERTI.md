@@ -116,3 +116,38 @@ collegarli all'articolo che modificano.
 
 E' probabilmente la cosa piu' utile da aggiungere subito dopo le scritture:
 oggi un lodo vive in una chat, e fra due stagioni nessuno ricorda perche'.
+
+## 7. Soglie dei modificatori di reparto
+
+La creazione lega permette di accendere i modificatori di **difesa**,
+**centrocampo** e **attacco**, come fa Leghe Fantacalcio. Quello che il
+regolamento non dice — e che io non ho potuto verificare, perche' da questo
+ambiente il sito della lega non e' raggiungibile — sono **le soglie esatte**:
+a quale media voto scatta quale bonus.
+
+**Oggi il codice** parte da queste tabelle (`FASCE_DIFESA`,
+`FASCE_CENTROCAMPO`, `FASCE_ATTACCO` in `fantacalcio/leghe.py`):
+
+| Media difesa | Bonus | | Media centrocampo | Bonus | | Media attacco | Bonus |
+|---|---|---|---|---|---|---|---|
+| 6,00 | +1 | | 6,50 | +1 | | 7,00 | +1 |
+| 6,25 | +2 | | 7,00 | +2 | | 7,50 | +2 |
+| 6,50 | +3 | | 7,50 | +3 | | 8,00 | +3 |
+| 6,75 | +4 | | | | | | |
+| 7,00 | +5 | | | | | | |
+| 7,25 | +6 | | | | | | |
+
+**Da decidere:** confermare o correggere queste soglie confrontandole con
+quelle in vigore sulla piattaforma. Sono `FasciaModificatore(soglia, bonus)`,
+quindi si cambiano modificando una riga: `bonus_modificatore()` ordina le fasce
+da sola, e l'ordine in cui le si scrive non conta.
+
+Finche' i voti di giornata non entrano nel gestionale (oggi arrivano gia'
+aggregati da Leghe Fantacalcio), la scelta non cambia nessun risultato: e' una
+scheda di configurazione che il sito conserva, non un calcolo che esegue.
+
+## 8. Numero di giornate
+
+`OpzioniLega.giornate_totali` parte da 27, come `CalendarioStagione`. Resta il
+punto aperto gia' annotato altrove: 18 o 27. Ora che e' un'opzione di lega, la
+decisione si applica dalla schermata di creazione senza toccare il codice.

@@ -3,16 +3,20 @@ import pytest
 from fantacalcio.autenticazione import (
     LUNGHEZZA_MINIMA_PASSWORD,
     Credenziali,
+    NomeUtenteOccupato,
     PasswordNonValida,
     Ruolo,
     Utente,
     UtenteNonValido,
+    assegna_squadra,
     autentica,
     cifra_password,
     con_nuova_password,
     controlla_password,
     crea_credenziali,
+    entra_in_lega,
     normalizza_nome_utente,
+    registra,
     verifica_password,
 )
 
@@ -161,3 +165,87 @@ class TestUtentiDelDatabaseDiDemo:
 
         righe = ArchivioSQLite(tmp_path / "u3.db").tabella("utenti")
         assert PASSWORD_DEMO not in righe.to_string()
+
+
+class TestRegistrazione:
+    """Chi arriva si crea l'account da solo: il presidente non lo crea a mano."""
+
+    def test_crea_un_utente_nuovo(self):
+        nuove = registra({}, 1, "luca", "Luca Rossi", "password1", "password1")
+        assert nuove.utente.nome_utente == "luca"
+        assert nuove.utente.ruolo is Ruolo.FANTALLENATORE
+        assert nuove.corrisponde("password1")
+
+    def test_il_nome_utente_si_normalizza(self):
+        assert (
+            registra({}, 1, "  LuCa  ", "Luca", "password1").utente.nome_utente == "luca"
+        )
+
+    def test_nome_gia_preso(self):
+        esistenti = {"luca": registra({}, 1, "luca", "Luca", "password1")}
+        with pytest.raises(NomeUtenteOccupato, match="luca"):
+            registra(esistenti, 2, "LUCA", "Luca Bis", "password2")
+
+    def test_il_conflitto_si_dice_apertamente(self):
+        """Al contrario del login: qui tacere lascerebbe l'utente bloccato."""
+        esistenti = {"luca": registra({}, 1, "luca", "Luca", "password1")}
+        with pytest.raises(NomeUtenteOccupato) as errore:
+            registra(esistenti, 2, "luca", "Altro", "password2")
+        assert "gia' preso" in str(errore.value)
+
+    def test_password_non_coincidenti(self):
+        with pytest.raises(PasswordNonValida, match="non coincidono"):
+            registra({}, 1, "luca", "Luca", "password1", "password2")
+
+    def test_senza_conferma_non_si_controlla(self):
+        assert registra({}, 1, "luca", "Luca", "password1") is not None
+
+    def test_password_troppo_corta(self):
+        with pytest.raises(PasswordNonValida):
+            registra({}, 1, "luca", "Luca", "corta", "corta")
+
+    def test_email_conservata(self):
+        nuove = registra({}, 1, "luca", "Luca", "password1", email="luca@esempio.it")
+        assert nuove.utente.email == "luca@esempio.it"
+
+    def test_chi_si_registra_non_ha_ne_lega_ne_squadra(self):
+        utente = registra({}, 1, "luca", "Luca", "password1").utente
+        assert not utente.ha_lega
+        assert not utente.ha_squadra
+
+
+class TestIngressoInLega:
+    def test_entrare_assegna_la_lega(self):
+        credenziali = registra({}, 1, "luca", "Luca", "password1")
+        dentro = entra_in_lega(credenziali, lega_id=7)
+        assert dentro.utente.lega_id == 7
+        assert dentro.utente.ha_lega
+
+    def test_si_puo_entrare_come_presidente(self):
+        credenziali = registra({}, 1, "marco", "Marco", "password1")
+        dentro = entra_in_lega(credenziali, 7, Ruolo.PRESIDENTE)
+        assert dentro.utente.e_presidente
+        assert dentro.utente.puo_importare
+
+    def test_il_ruolo_resta_quello_se_non_lo_cambi(self):
+        credenziali = registra({}, 1, "luca", "Luca", "password1")
+        assert entra_in_lega(credenziali, 7).utente.ruolo is Ruolo.FANTALLENATORE
+
+    def test_entrare_non_tocca_la_password(self):
+        credenziali = registra({}, 1, "luca", "Luca", "password1")
+        assert entra_in_lega(credenziali, 7).corrisponde("password1")
+
+    def test_assegnare_la_squadra(self):
+        credenziali = registra({}, 1, "luca", "Luca", "password1")
+        con_squadra = assegna_squadra(entra_in_lega(credenziali, 7), squadra_id=3)
+        assert con_squadra.utente.squadra_id == 3
+        assert con_squadra.utente.ha_squadra
+        assert con_squadra.utente.lega_id == 7
+        assert con_squadra.utente.puo_gestire(3)
+        assert not con_squadra.utente.puo_gestire(4)
+
+    def test_l_originale_non_cambia(self):
+        """Le credenziali sono immutabili: chi le tiene in mano non se le vede mutare."""
+        credenziali = registra({}, 1, "luca", "Luca", "password1")
+        entra_in_lega(credenziali, 7)
+        assert credenziali.utente.lega_id is None

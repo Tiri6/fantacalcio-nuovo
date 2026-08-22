@@ -52,11 +52,22 @@ class Utente:
     nome: str
     ruolo: Ruolo
     squadra_id: int | None = None
+    # None = registrato ma non ancora dentro nessuna lega: vede l'onboarding.
+    lega_id: int | None = None
+    email: str | None = None
     attivo: bool = True
 
     @property
     def e_presidente(self) -> bool:
         return self.ruolo is Ruolo.PRESIDENTE
+
+    @property
+    def ha_lega(self) -> bool:
+        return self.lega_id is not None
+
+    @property
+    def ha_squadra(self) -> bool:
+        return self.squadra_id is not None
 
     def puo_gestire(self, squadra_id: int | None) -> bool:
         """Il presidente gestisce tutte le squadre, gli altri solo la propria."""
@@ -145,6 +156,8 @@ def crea_credenziali(
     password: str,
     ruolo: Ruolo = Ruolo.FANTALLENATORE,
     squadra_id: int | None = None,
+    lega_id: int | None = None,
+    email: str | None = None,
 ) -> Credenziali:
     """Costruisce un utente nuovo, validando nome e password."""
     hash_password, sale = cifra_password(password)
@@ -155,10 +168,68 @@ def crea_credenziali(
             nome=nome.strip() or nome_utente,
             ruolo=ruolo,
             squadra_id=squadra_id,
+            lega_id=lega_id,
+            email=email,
         ),
         hash_password=hash_password,
         sale=sale,
     )
+
+
+class NomeUtenteOccupato(UtenteNonValido):
+    """Nome utente gia' preso: e' l'unico errore di registrazione da mostrare.
+
+    Al contrario del login, qui *bisogna* dire che il nome esiste: senza,
+    chi si registra non saprebbe come sbloccarsi. E' un'asimmetria voluta.
+    """
+
+
+def registra(
+    credenziali_esistenti: dict[str, Credenziali],
+    id_: int,
+    nome_utente: str,
+    nome: str,
+    password: str,
+    conferma: str | None = None,
+    email: str | None = None,
+    ruolo: Ruolo = Ruolo.FANTALLENATORE,
+) -> Credenziali:
+    """Registra un utente nuovo, rifiutando i nomi gia' presi.
+
+    La conferma password si controlla qui e non nell'interfaccia: e' una
+    regola, non una decorazione della schermata.
+    """
+    chiave = normalizza_nome_utente(nome_utente)
+    if chiave in credenziali_esistenti:
+        raise NomeUtenteOccupato(
+            f"Il nome utente «{chiave}» e' gia' preso. Scegline un altro."
+        )
+    if conferma is not None and password != conferma:
+        raise PasswordNonValida("Le due password non coincidono")
+    return crea_credenziali(
+        id_=id_,
+        nome_utente=chiave,
+        nome=nome,
+        password=password,
+        ruolo=ruolo,
+        email=email,
+    )
+
+
+def entra_in_lega(
+    credenziali: Credenziali, lega_id: int, ruolo: Ruolo | None = None
+) -> Credenziali:
+    """Associa l'utente a una lega, eventualmente promuovendolo ad admin."""
+    utente = replace(
+        credenziali.utente,
+        lega_id=lega_id,
+        ruolo=ruolo or credenziali.utente.ruolo,
+    )
+    return replace(credenziali, utente=utente)
+
+
+def assegna_squadra(credenziali: Credenziali, squadra_id: int) -> Credenziali:
+    return replace(credenziali, utente=replace(credenziali.utente, squadra_id=squadra_id))
 
 
 def con_nuova_password(credenziali: Credenziali, password: str) -> Credenziali:

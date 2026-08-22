@@ -88,6 +88,8 @@ class Squadra:
     nome: str
     presidente: str
     identita: IdentitaSquadra = field(default_factory=IdentitaSquadra)
+    # None per le squadre create prima delle leghe multiple (la demo storica).
+    lega_id: int | None = None
 
     @property
     def motto(self) -> str:
@@ -96,6 +98,14 @@ class Squadra:
     @property
     def stadio(self) -> str:
         return self.identita.stadio
+
+    @property
+    def citta(self) -> str:
+        return self.identita.citta
+
+    @property
+    def curva(self) -> str:
+        return self.identita.curva
 
     def maglia(self, larghezza: int = 180) -> str:
         return self.identita.maglia(larghezza)

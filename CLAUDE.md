@@ -26,16 +26,22 @@ all'avvio: non ricrearlo a mano.
 - **Nessun numero del regolamento fuori da `ParametriLega`.** Se scrivi `66`,
   `100_000_000`, `33` o `0.5` da qualche altra parte, e' un errore: la lega
   cambia le regole per votazione e devono restare modificabili in un punto solo.
-- **La logica non importa Streamlit.** Solo `ui.py` e i file in `viste/`
-  possono importare `streamlit`. E' quello che tiene i test veloci e la logica
-  riutilizzabile.
+- **La logica non importa Streamlit.** Possono farlo solo `ui.py`,
+  `schermate.py` e i file in `viste/`. E' quello che tiene i test veloci e la
+  logica riutilizzabile. Nota che `tema.py` **non** importa Streamlit: produce
+  stringhe di CSS e HTML, e' `ui.py` a iniettarle. Cosi' l'aspetto grafico si
+  prova senza far girare un server.
 - **Le verifiche restituiscono violazioni, non booleani.** Ogni controllo nuovo
   produce una `Violazione` con articolo, gravita', valore e limite: l'utente
   deve sapere *di quanto* sfora, non solo *che* sfora.
 - **Blocco o avviso dipende dal `Momento`.** Prima di aggiungere un controllo,
   chiediti se e' vincolante anche in stagione (vedi la tabella nel README).
 - **Lo schema vive in due posti** e vanno tenuti allineati: `db/schema.sql`
-  (Postgres) e `SCHEMA_SQLITE` in `demo_data.py`.
+  (Postgres) e `SCHEMA_SQLITE` in `demo_data.py`. Una colonna nuova va aggiunta
+  in tre punti: le due copie dello schema, **piu'** un `alter table ... add
+  column if not exists` in fondo a `schema.sql`, altrimenti chi ha gia' un
+  database non la vedra' mai. Nel demo SQLite ci pensa `_schema_aggiornato()`,
+  che ricostruisce il file quando manca qualcosa.
 - **La demo deve restare conforme.** `test_ogni_squadra_ha_una_rosa_conforme`
   lo verifica: se aggiungi un vincolo, aggiorna il generatore.
 - **Mai committare secret.** `.streamlit/secrets.toml` e' in `.gitignore`.
@@ -48,6 +54,17 @@ all'avvio: non ricrearlo a mano.
   le cache di Streamlit sono condivise fra tutte le sessioni, quindi con dieci
   persone collegate un contatore per sessione farebbe leggere dati vecchi a chi
   entra dopo.
+- **I tre cancelli hanno un ordine.** `app.py` chiama in sequenza
+  `richiedi_login` → `richiedi_lega` → `richiedi_squadra`. Ognuno ferma la
+  pagina finche' non e' superato: da li' in giu' c'e' sempre un utente dentro
+  una lega. Aggiungere un cancello vuol dire aggiungerlo li', non dentro una
+  vista.
+- **La sessione conserva il nome utente, non l'oggetto `Utente`.** Appena entri
+  in una lega o fondi la squadra la riga cambia: un oggetto congelato al
+  momento del login mostrerebbe ancora lo stato vecchio.
+- **Il testo scritto dagli utenti passa da `tema._scudo()`** prima di finire in
+  un `unsafe_allow_html`. Nome squadra, motto e curva li scrivono i
+  partecipanti: senza, chi mette `<script>` come motto lo fa eseguire agli altri.
 - **I permessi si controllano nel dominio, non solo nell'interfaccia.**
   `Utente.puo_gestire()` e le transizioni in `scambi.py` sollevano
   `TransizioneNonAmmessa`: nascondere un bottone non e' un controllo.
@@ -64,6 +81,9 @@ all'avvio: non ricrearlo a mano.
 | Nuova tabella o colonna | `db/schema.sql` **e** `SCHEMA_SQLITE`, poi `data.py` |
 | Toccare colori o maglia | `identita.py` + `test_identita.py` |
 | Cambiare il formato del CSV | `importazione.py` (i sinonimi stanno in `COLONNE_ROSE`) |
+| Aggiungere un'opzione di lega | `OpzioniLega` in `leghe.py` + il modulo in `schermate.py` |
+| Toccare colori, schede o testate | `tema.py` + `test_tema.py` |
+| Cambiare accesso, registrazione o onboarding | `schermate.py` + `ui.py` |
 | Toccare login o permessi | `autenticazione.py` + `test_autenticazione.py` |
 | Cambiare il ciclo di uno scambio | `scambi.py` + `test_scambi.py` |
 

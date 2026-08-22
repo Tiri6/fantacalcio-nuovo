@@ -3,13 +3,33 @@
 import pytest
 
 from fantacalcio.conformita import Momento, verifica_rosa
-from fantacalcio.data import ArchivioSQLite, calendario_dettagliato, carica_rose
+from fantacalcio.data import (
+    ArchivioSQLite,
+    calendario_dettagliato,
+    carica_credenziali,
+    carica_inviti,
+    carica_leghe,
+    carica_rose,
+    carica_squadre,
+    salva_invito,
+    salva_lega,
+    salva_squadra,
+)
 from fantacalcio.demo_data import (
     DATA_DRAFT,
     GIORNATE_GIOCATE,
     SQUADRE,
     SQUADRE_CON_DEAD_MONEY,
 )
+from fantacalcio.identita import IdentitaSquadra
+from fantacalcio.leghe import (
+    Modalita,
+    OpzioniLega,
+    crea_invito,
+    crea_lega,
+    trova_per_codice,
+)
+from fantacalcio.modelli import Squadra
 from fantacalcio.regole import ParametriLega
 
 
@@ -103,3 +123,128 @@ def test_i_giocatori_hanno_ruoli_mantra(archivio):
 
     for ruoli in archivio.giocatori()["ruoli"]:
         assert all(r in RUOLI_MANTRA for r in ruoli.split(";"))
+
+
+class TestLegheEInviti:
+    """La lega deve sopravvivere al giro completo attraverso il database."""
+
+    def test_salva_e_rilegge_una_lega(self, archivio):
+        lega = crea_lega(
+            id_=90,
+            nome="Lega di Prova",
+            admin_id=1,
+            opzioni=OpzioniLega(modalita=Modalita.CLASSIC, moduli_ammessi=("4-4-2",)),
+        )
+        salva_lega(archivio, lega)
+        riletta = carica_leghe(archivio)[90]
+        assert riletta.nome == "Lega di Prova"
+        assert riletta.codice_invito == lega.codice_invito
+        assert riletta.opzioni.modalita is Modalita.CLASSIC
+        assert riletta.opzioni.moduli_ammessi == ("4-4-2",)
+
+    def test_la_lega_di_demo_esiste_gia(self, archivio):
+        """Senza, gli utenti di demo resterebbero fermi sull'onboarding."""
+        leghe = carica_leghe(archivio)
+        assert leghe, "la demo deve contenere una lega"
+        assert all(u.utente.lega_id for u in carica_credenziali(archivio).values())
+
+    def test_si_ritrova_dal_codice(self, archivio):
+        lega = crea_lega(91, "Cercami", 1, codice="abcd2345")
+        salva_lega(archivio, lega)
+        trovata = trova_per_codice(carica_leghe(archivio), "  AbCd 2345 ")
+        assert trovata is not None and trovata.id == 91
+
+    def test_riscrivere_la_stessa_lega_non_la_duplica(self, archivio):
+        lega = crea_lega(92, "Una sola", 1)
+        salva_lega(archivio, lega)
+        salva_lega(archivio, lega.con_opzioni(OpzioniLega(partecipanti=12)))
+        leghe = carica_leghe(archivio)
+        assert len([id_ for id_ in leghe if id_ == 92]) == 1
+        assert leghe[92].opzioni.partecipanti == 12
+
+    def test_salva_e_rilegge_un_invito(self, archivio):
+        lega = crea_lega(93, "Con inviti", 1)
+        salva_lega(archivio, lega)
+        salva_invito(archivio, crea_invito(50, lega, "Luca@Esempio.IT", creato_da=1))
+        inviti = carica_inviti(archivio, 93)
+        assert len(inviti) == 1
+        assert inviti[0].email == "luca@esempio.it"
+        assert inviti[0].codice == lega.codice_invito
+        assert inviti[0].in_attesa
+
+    def test_gli_inviti_si_filtrano_per_lega(self, archivio):
+        prima = crea_lega(94, "Prima", 1)
+        seconda = crea_lega(95, "Seconda", 1)
+        salva_lega(archivio, prima)
+        salva_lega(archivio, seconda)
+        salva_invito(archivio, crea_invito(60, prima, "a@esempio.it"))
+        salva_invito(archivio, crea_invito(61, seconda, "b@esempio.it"))
+        assert [i.email for i in carica_inviti(archivio, 94)] == ["a@esempio.it"]
+
+    def test_una_riga_malformata_non_impedisce_di_leggere_le_altre(self, archivio):
+        """Una lega scritta male non deve chiudere fuori chi gioca nelle altre."""
+        buona = crea_lega(96, "Buona", 1)
+        salva_lega(archivio, buona)
+        archivio.scrivi(
+            "leghe",
+            [{"id": 97, "nome": "x", "codice_invito": "TROPPOCORTO", "admin_id": 1}],
+            chiave="id",
+        )
+        leghe = carica_leghe(archivio)
+        assert 96 in leghe
+        assert 97 not in leghe
+
+
+class TestIdentitaEstesa:
+    def test_citta_e_curva_sopravvivono_al_salvataggio(self, archivio):
+        squadra = Squadra(
+            id=80,
+            nome="Nuovi Colori",
+            presidente="Luca",
+            identita=IdentitaSquadra(
+                presidente="Luca",
+                citta="Ginevra",
+                curva="Curva Nord",
+                stadio="Arena",
+                colore_primario="#123456",
+                colore_secondario="#fedcba",
+            ),
+            lega_id=1,
+        )
+        salva_squadra(archivio, squadra)
+        riletta = carica_squadre(archivio)[80]
+        assert riletta.citta == "Ginevra"
+        assert riletta.curva == "Curva Nord"
+        assert riletta.lega_id == 1
+
+
+def test_un_database_di_demo_vecchio_si_ricostruisce(tmp_path):
+    """Un file creato prima delle leghe non deve far fallire l'app all'avvio."""
+    import sqlite3
+
+    from fantacalcio.demo_data import costruisci_db
+
+    percorso = tmp_path / "vecchio.db"
+    with sqlite3.connect(percorso) as conn:
+        conn.execute("create table squadre (id integer primary key, nome text)")
+
+    costruisci_db(percorso)
+
+    with sqlite3.connect(percorso) as conn:
+        tabelle = {
+            r[0]
+            for r in conn.execute("select name from sqlite_master where type='table'")
+        }
+        colonne = {r[1] for r in conn.execute("pragma table_info(squadre)")}
+    assert "leghe" in tabelle and "inviti" in tabelle
+    assert {"citta", "curva", "lega_id"} <= colonne
+
+
+def test_un_database_gia_aggiornato_non_si_rigenera(tmp_path):
+    """Rigenerare a ogni avvio cancellerebbe i dati di chi prova in locale."""
+    from fantacalcio.demo_data import costruisci_db
+
+    percorso = costruisci_db(tmp_path / "buono.db")
+    impronta = percorso.stat().st_mtime_ns
+    costruisci_db(percorso)
+    assert percorso.stat().st_mtime_ns == impronta

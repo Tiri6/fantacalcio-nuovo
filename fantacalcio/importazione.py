@@ -35,7 +35,16 @@ COLONNE_ROSE = {
     "club": ("club", "squadraseriea", "squadrareale", "seriea"),
     "ruoli": ("ruoli", "ruolo", "rm", "ruolomantra", "mantra"),
     "ingaggio": ("ingaggio", "stipendio", "salario", "salary", "capology"),
-    "anni": ("anni", "anniresidui", "annicontratto", "durata", "contratto"),
+    # "costo": nell'export di Leghe Fantacalcio la lega ci scrive gli anni
+    # residui, non un prezzo. Convenzione loro, non del sito d'origine.
+    "anni": (
+        "anni",
+        "anniresidui",
+        "annicontratto",
+        "durata",
+        "contratto",
+        "costo",
+    ),
     "nazionalita": ("nazionalita", "nazione", "paese", "country"),
     "data_nascita": ("datanascita", "nascita", "datadinascita", "compleanno"),
     "prolungato": ("prolungato", "giaprolungato", "prolungamento"),

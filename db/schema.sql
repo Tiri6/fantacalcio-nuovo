@@ -3,6 +3,36 @@
 -- fantacalcio/demo_data.py (SCHEMA_SQLITE): se aggiungi una colonna qui,
 -- aggiungila anche li'.
 
+-- Una lega e i suoi partecipanti. Il codice d'invito e' cio' che si gira agli
+-- amici perche' possano entrare senza che l'admin li crei a mano.
+create table if not exists leghe (
+    id             bigserial primary key,
+    nome           text not null,
+    -- Formato XXXX-XXXX, alfabeto senza caratteri confondibili (fantacalcio/leghe.py).
+    codice_invito  text not null unique,
+    admin_id       bigint,
+    stagione       text not null default '2026/27',
+    -- Opzioni di gioco (modalita', moduli, bonus, modificatori) come JSON.
+    -- Sono decine di caselle e cambiano ogni stagione: una colonna per ognuna
+    -- vorrebbe dire una migrazione di schema a ogni casella nuova. I vincoli
+    -- *del regolamento* restano invece tipizzati in ParametriLega.
+    opzioni        text not null default '{}',
+    creata_il      timestamptz not null default now()
+);
+
+-- Posti riservati a un indirizzo email. L'app non spedisce mail: registra chi
+-- e' atteso, cosi' chi arriva con quell'email trova il posto gia' pronto.
+create table if not exists inviti (
+    id          bigserial primary key,
+    lega_id     bigint not null references leghe(id) on delete cascade,
+    email       text not null,
+    codice      text not null,
+    stato       text not null default 'in_attesa',
+    creato_da   bigint,
+    creato_il   timestamptz not null default now(),
+    unique (lega_id, email)
+);
+
 create table if not exists squadre (
     id                  bigserial primary key,
     nome                text not null unique,
@@ -10,6 +40,9 @@ create table if not exists squadre (
     -- Identita' della squadra: motto, stadio e colori sociali.
     motto               text not null default '',
     stadio              text not null default '',
+    -- Citta' e curva: identita' che i partecipanti scrivono creando la squadra.
+    citta               text not null default '',
+    curva               text not null default '',
     colore_primario     text not null default '#2e7d32',
     colore_secondario   text not null default '#ffffff',
     -- Nome del membro di StileMaglia (TINTA_UNITA, STRISCE, BANDE, ...).
@@ -19,6 +52,7 @@ create table if not exists squadre (
     logo                text,
     maglia_caricata     text,
     anno_fondazione     integer,
+    lega_id             bigint references leghe(id) on delete cascade,
     creata_il           timestamptz not null default now()
 );
 
@@ -105,7 +139,11 @@ create table if not exists utenti (
     hash_password  text not null,
     sale           text not null,
     ruolo          text not null default 'fantallenatore',
+    -- L'email serve a far combaciare chi si registra con l'invito che lo attende.
+    email          text,
     squadra_id     bigint references squadre(id) on delete set null,
+    -- NULL = registrato ma non ancora dentro nessuna lega: vede l'onboarding.
+    lega_id        bigint references leghe(id) on delete set null,
     attivo         boolean not null default true,
     creato_il      timestamptz not null default now()
 );
@@ -137,8 +175,31 @@ create table if not exists scambi_movimenti (
     anni_dopo       integer not null
 );
 
+-- ---------------------------------------------------------------------------
+-- Aggiornamento di un database gia' esistente
+-- ---------------------------------------------------------------------------
+-- `create table if not exists` non tocca una tabella che c'e' gia': su un
+-- database creato prima delle leghe multiple le colonne nuove non
+-- comparirebbero, e l'app fallirebbe alla prima scrittura. Questi ALTER sono
+-- idempotenti, quindi rilanciare l'intero file e' sempre sicuro.
+--
+-- Vanno PRIMA degli indici: `create index ... on squadre (lega_id)` su un
+-- database vecchio fallirebbe, perche' la colonna non c'e' ancora.
+
+alter table squadre add column if not exists citta   text not null default '';
+alter table squadre add column if not exists curva   text not null default '';
+alter table squadre add column if not exists lega_id bigint references leghe(id) on delete cascade;
+
+alter table utenti  add column if not exists email   text;
+alter table utenti  add column if not exists lega_id bigint references leghe(id) on delete set null;
+
 create index if not exists idx_scambi_stato on scambi (stato);
 create index if not exists idx_scambi_movimenti on scambi_movimenti (scambio_id);
+
+create index if not exists idx_leghe_codice on leghe (codice_invito);
+create index if not exists idx_inviti_lega on inviti (lega_id);
+create index if not exists idx_squadre_lega on squadre (lega_id);
+create index if not exists idx_utenti_lega on utenti (lega_id);
 
 create index if not exists idx_contratti_squadra on contratti (squadra_id);
 create index if not exists idx_dead_money_squadra on dead_money (squadra_id);
@@ -157,6 +218,9 @@ create index if not exists idx_calendario_giornata on calendario (giornata);
 -- Nota: `utenti` NON ha lettura pubblica, perche' contiene gli hash delle
 -- password. Con la sola chiave anon il login non funzionerebbe.
 
+alter table leghe       enable row level security;
+-- `inviti` NON ha lettura pubblica: contiene gli indirizzi email dei partecipanti.
+alter table inviti      enable row level security;
 alter table squadre     enable row level security;
 alter table giocatori   enable row level security;
 alter table contratti   enable row level security;
@@ -174,7 +238,7 @@ declare
     t text;
 begin
     foreach t in array array[
-        'squadre', 'giocatori', 'contratti', 'dead_money',
+        'leghe', 'squadre', 'giocatori', 'contratti', 'dead_money',
         'calendario', 'parametri', 'lodi', 'scambi', 'scambi_movimenti'
     ]
     loop

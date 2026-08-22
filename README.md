@@ -47,7 +47,8 @@ valido per le regole.
 | **Cruscotto** | Chi e' in regola e chi no: rosa, monte anni, annuali, cap e floor di tutte e 10 le squadre in una tabella. |
 | **Rose e contratti** | La rosa di una squadra con anni residui, ingaggi, status U21 e quanto costerebbe tagliare ciascun giocatore. |
 | **Mercato** | Componi uno scambio, verifica contro i lodi e invialo alla controparte. Calcolo del Dead Money prima di svincolare. |
-| **Identita' squadre** | Presidente, motto, stadio, colori sociali, maglia e logo. La maglia si disegna dai colori: nessuno resta senza. |
+| **Identita' squadre** | Presidente, motto, stadio, citta', curva, colori sociali, maglia e logo. La maglia si disegna dai colori: nessuno resta senza. |
+| **La lega** | Codice d'invito, chi c'e', inviti per email e tutte le regole di gioco scelte creando la lega. |
 | **Importa dati** | Il CSV del draft e i risultati di giornata, con anteprima ed errori riga per riga prima di scrivere. |
 | **Draft** | Draft Lottery riproducibile, ordine di chiamata round per round, probabilita' delle pick, draft list delle scadenze. |
 | **Campionato** | Classifica e risultati importati da Leghe: servono a determinare l'ordine del draft. |
@@ -185,9 +186,44 @@ e i gol vengono calcolati dalle fasce della lega.
 
 ---
 
+## Entrare: i tre cancelli
+
+Prima del menu ci sono tre passaggi, ognuno una volta sola.
+
+**1. Registrati.** Chi arriva si crea l'account da solo: nome utente, password
+e, se vuole, un'email. **Il primo che si registra su un database vuoto diventa
+presidente** — senza, non ci sarebbe nessuno a creare la lega.
+
+**2. Crea una lega o unisciti.**
+
+- *Crea*: scegli nome, modalita' (Mantra o Classic), formato, giornate, rosa
+  per reparto, tipo di asta, moduli ammessi, panchinari, bonus e malus, fasce
+  di gol e modificatori di reparto. Alla fine ricevi un **codice d'invito** di
+  otto caratteri, del tipo `E57Z-9JBZ`.
+- *Unisciti*: incolli il codice che ti hanno passato e sei dentro.
+
+Il codice usa un alfabeto senza `O`/`0` e `I`/`1`: e' fatto per essere
+ricopiato da uno screenshot su WhatsApp senza sbagliare.
+
+In alternativa l'admin puo' **riservare un posto a un indirizzo email** dalla
+pagina «La lega». Attenzione a cosa fa davvero: **non spedisce nessuna mail**.
+L'app non ha un server di posta, e montarne uno per dieci persone non si
+giustifica. L'invito registra *chi e' atteso*, cosi' quando quella persona si
+registra con quell'indirizzo trova la lega gia' pronta e le basta un bottone.
+Il codice va comunque girato a mano.
+
+**3. Fonda la squadra.** Nome, citta', stadio, nome della curva, motto e colori
+sociali, con la maglia disegnata in anteprima mentre scegli. Si puo' rimandare
+("Lo faccio dopo"): chi amministra e basta non deve restare chiuso fuori dal
+proprio gestionale.
+
+Da qui in poi si entra con nome utente e password, e si va dritti al cruscotto.
+
+---
+
 ## Chi puo' fare cosa
 
-Si entra con nome utente e password. Ci sono due ruoli:
+Ci sono due ruoli:
 
 | | Presidente | Fantallenatore |
 |---|---|---|
@@ -214,7 +250,9 @@ per altre strade. Nascondere un bottone non e' un controllo.
 >   Streamlit: navigando con il menu tutto resta com'e', ma un F5 riporta al
 >   login. Tenerla viva richiederebbe un token in un cookie, che aggiunge
 >   superficie d'attacco per un guadagno modesto: meglio ri-entrare.
-> - Non c'e' recupero password via email: la reimposta il presidente.
+> - **Non c'e' recupero password.** Nemmeno via email, visto che l'app non
+>   spedisce niente. Chi dimentica la password oggi resta fuori: la
+>   reimpostazione da parte del presidente e' la prima cosa che manca.
 > - Su Streamlit Community Cloud l'indirizzo dell'app e' pubblico, quindi la
 >   pagina di accesso e' raggiungibile da chiunque abbia il link.
 >
@@ -264,7 +302,13 @@ molto meglio. La logica di regole non andrebbe comunque riscritta.
 ## Lavorare in due (o in dieci)
 
 Il repository e' privato: chi collabora va aggiunto da **Settings →
-Collaborators**, con permesso *Write*.
+Collaborators**, con permesso *Write*. Quel permesso vale anche per il deploy:
+su Streamlit Community Cloud e' l'accesso in scrittura alla repo a decidere chi
+puo' amministrare l'app, non un'impostazione di Streamlit.
+
+Da girare a chi entra: **[COLLABORARE.md](COLLABORARE.md)**, che ripercorre
+l'invito, il collegamento a Streamlit e il ciclo di lavoro dal suo punto di
+vista.
 
 Tre regole che evitano il 90% dei problemi:
 
@@ -300,8 +344,8 @@ tempo. A fine sessione, `/memoria` per aggiornarla.
 
 ## Pubblicare il sito
 
-Il sito non e' ancora online: finche' gira solo in locale non c'e' un indirizzo
-da dare ai partecipanti. Servono due passaggi.
+Il sito e' online su Streamlit Community Cloud: ogni push su `main` lo
+riaggiorna da solo, senza rideploy. Chi lo pubblica da zero fa due passaggi.
 
 **1. Supabase — il database vero.** Crea il progetto su
 [supabase.com](https://supabase.com) (piano free), apri il SQL Editor e incolla

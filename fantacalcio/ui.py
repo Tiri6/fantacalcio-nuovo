@@ -8,25 +8,18 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-from . import vista
-from .autenticazione import (
-    PasswordNonValida,
-    Ruolo,
-    Utente,
-    UtenteNonValido,
-    autentica,
-    crea_credenziali,
-)
+from . import tema, vista
+from .autenticazione import Credenziali, Utente, autentica
 from .config import carica_impostazioni
 from .conformita import Momento
 from .data import (
     archivio,
     calendario_dettagliato,
     carica_credenziali,
+    carica_leghe,
     carica_rose,
-    prossimo_id,
-    salva_credenziali,
 )
+from .leghe import Lega
 from .regole import CalendarioStagione, ParametriLega
 
 TTL = 300  # secondi: la lega cambia al massimo una volta a giornata
@@ -44,12 +37,31 @@ def configura_app() -> None:
     st.set_page_config(
         page_title=carica_impostazioni().nome_lega, page_icon="⚽", layout="wide"
     )
+    st.markdown(tema.CSS, unsafe_allow_html=True)
 
 
 def intestazione(titolo: str, icona: str = "⚽", sottotitolo: str = "") -> None:
-    st.title(f"{icona} {titolo}")
-    if sottotitolo:
-        st.caption(sottotitolo)
+    """Testata di pagina: fascia scura, occhiello e sottotitolo."""
+    st.markdown(
+        tema.testata(f"{icona} {titolo}".strip(), sottotitolo), unsafe_allow_html=True
+    )
+
+
+def griglia_dati(voci: list[dict]) -> None:
+    """Fila di riquadri numerici. Ogni voce: etichetta, valore, nota, stato, quota."""
+    if not voci:
+        return
+    for colonna, voce in zip(st.columns(len(voci)), voci, strict=True):
+        colonna.markdown(
+            tema.dato(
+                voce.get("etichetta", ""),
+                voce.get("valore", ""),
+                voce.get("nota", ""),
+                voce.get("stato", "ok"),
+                voce.get("quota"),
+            ),
+            unsafe_allow_html=True,
+        )
 
 
 CHIAVE_UTENTE = "_utente"
@@ -57,18 +69,55 @@ CHIAVE_TENTATIVI = "_tentativi_login"
 MASSIMI_TENTATIVI = 5
 
 
+# I dati della sessione sono il *nome utente*, non l'oggetto Utente: appena
+# entri in una lega o fondi la squadra la riga cambia, e un oggetto congelato
+# al momento del login mostrerebbe ancora lo stato vecchio.
+
+
+@st.cache_data(ttl=TTL)
+def _credenziali(versione: int) -> dict:
+    return carica_credenziali(archivio())
+
+
+def tutte_le_credenziali() -> dict[str, Credenziali]:
+    return _credenziali(versione_dati())
+
+
+def credenziali_correnti() -> Credenziali | None:
+    nome = st.session_state.get(CHIAVE_UTENTE)
+    return tutte_le_credenziali().get(nome) if nome else None
+
+
 def utente_corrente() -> Utente | None:
-    return st.session_state.get(CHIAVE_UTENTE)
+    trovate = credenziali_correnti()
+    return trovate.utente if trovate else None
 
 
 def esci() -> None:
-    st.session_state.pop(CHIAVE_UTENTE, None)
+    for chiave in (CHIAVE_UTENTE, "_salta_squadra"):
+        st.session_state.pop(chiave, None)
+
+
+@st.cache_data(ttl=TTL)
+def _leghe(versione: int) -> dict:
+    return carica_leghe(archivio())
+
+
+def leghe() -> dict[int, Lega]:
+    return _leghe(versione_dati())
+
+
+def lega_corrente() -> Lega | None:
+    utente = utente_corrente()
+    if utente is None or utente.lega_id is None:
+        return None
+    return leghe().get(utente.lega_id)
 
 
 def _leggi_credenziali_o_spiega():
     """Carica gli utenti, traducendo i guasti del database in messaggi chiari."""
     try:
-        return carica_credenziali(archivio()), None
+        return tutte_le_credenziali(), None
     except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
         testo = str(errore)
         if "utenti" in testo and (
@@ -78,6 +127,12 @@ def _leggi_credenziali_o_spiega():
                 "Il database e' raggiungibile ma non ha le tabelle. Apri il SQL "
                 "Editor di Supabase e incolla il contenuto di `db/schema.sql`."
             )
+        if "leghe" in testo or "inviti" in testo:
+            return None, (
+                "Il database ha le tabelle vecchie ma non `leghe` e `inviti`. "
+                "Rilancia `db/schema.sql` nel SQL Editor di Supabase: e' "
+                "rieseguibile, non cancella niente."
+            )
         return None, (
             f"Non riesco a leggere gli utenti dal database: {testo}\n\n"
             "Controlla SUPABASE_URL e SUPABASE_KEY nei secret. Per scrivere "
@@ -85,107 +140,45 @@ def _leggi_credenziali_o_spiega():
         )
 
 
-def _prima_configurazione() -> None:
-    """Crea il primo presidente quando il database non ha ancora utenti.
-
-    Senza questa schermata, collegare un database vuoto chiuderebbe fuori
-    tutti: gli utenti di prova esistono solo nella lega di demo.
-    """
-    st.info(
-        "Database collegato e vuoto: crea l'account del **presidente di lega**. "
-        "Sara' l'unico a poter importare i dati e ratificare gli scambi, e da "
-        "li' creerai gli altri partecipanti.",
-        icon="👋",
-    )
-
-    with st.form("prima_configurazione"):
-        nome = st.text_input("Nome e cognome", placeholder="Marco Tirinato")
-        nome_utente = st.text_input("Nome utente", placeholder="marco")
-        password = st.text_input("Password", type="password")
-        conferma = st.text_input("Ripeti la password", type="password")
-        creato = st.form_submit_button("Crea il presidente", type="primary")
-
-    if not creato:
-        return
-
-    if password != conferma:
-        st.error("Le due password non coincidono.", icon="⛔")
-        return
-
-    try:
-        credenziali = crea_credenziali(
-            id_=prossimo_id(archivio(), "utenti"),
-            nome_utente=nome_utente,
-            nome=nome or nome_utente,
-            password=password,
-            ruolo=Ruolo.PRESIDENTE,
-        )
-        salva_credenziali(archivio(), credenziali)
-    except (PasswordNonValida, UtenteNonValido) as errore:
-        st.error(str(errore), icon="⛔")
-    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
-        st.error(
-            f"Non riesco a scrivere sul database: {errore}\n\n"
-            "Con la chiave `anon` le scritture sono bloccate dalla RLS: nei "
-            "secret serve la chiave `service_role`.",
-            icon="⛔",
-        )
-    else:
-        st.session_state["_appena_creato"] = credenziali.utente.nome_utente
-        st.rerun()
-
-
 def richiedi_login() -> Utente:
-    """Mostra il login e ferma la pagina finche' non si e' autenticati."""
+    """Mostra accesso e registrazione, e ferma la pagina finche' non sei entrato."""
     utente = utente_corrente()
     if utente is not None:
         return utente
 
+    from . import schermate
+
     impostazioni = carica_impostazioni()
-    st.title("⚽ " + impostazioni.nome_lega)
+    st.markdown(
+        tema.testata(
+            impostazioni.nome_lega,
+            "Il gestionale della lega: contratti, monte anni, Salary Cap, "
+            "draft e scambi.",
+            occhiello="Fantacalcio manageriale",
+        ),
+        unsafe_allow_html=True,
+    )
 
     credenziali, guasto = _leggi_credenziali_o_spiega()
     if guasto:
         st.error(guasto, icon="⛔")
         st.stop()
 
-    if not credenziali:
-        _prima_configurazione()
+    schermate.mostra_messaggio()
+
+    primo_utente = not credenziali
+    if primo_utente:
+        # Database vuoto: c'e' solo una cosa sensata da fare, registrarsi.
+        schermate.modulo_registrazione(credenziali, primo_utente=True)
         st.stop()
 
-    if appena := st.session_state.pop("_appena_creato", None):
-        st.success(
-            f"Presidente «{appena}» creato. Entra con le credenziali che hai "
-            f"appena scelto.",
-            icon="✅",
-        )
+    accedi, registrati = st.tabs(["🔓 Accedi", "✍️ Registrati"])
 
-    st.caption("Accedi con le credenziali che ti ha dato il presidente di lega.")
+    with registrati:
+        schermate.modulo_registrazione(credenziali, primo_utente=False)
 
-    tentativi = st.session_state.get(CHIAVE_TENTATIVI, 0)
-    if tentativi >= MASSIMI_TENTATIVI:
-        st.error(
-            "Troppi tentativi falliti. Ricarica la pagina per riprovare.",
-            icon="🚫",
-        )
-        st.stop()
-
-    with st.form("accesso"):
-        nome_utente = st.text_input("Nome utente")
-        password = st.text_input("Password", type="password")
-        inviato = st.form_submit_button("Entra", type="primary")
-
-    if inviato:
-        trovato = autentica(credenziali, nome_utente, password)
-        if trovato is None:
-            # Messaggio volutamente generico: non deve rivelare quali nomi
-            # utente esistono.
-            st.session_state[CHIAVE_TENTATIVI] = tentativi + 1
-            st.error("Nome utente o password non corretti.", icon="⛔")
-        else:
-            st.session_state[CHIAVE_UTENTE] = trovato
-            st.session_state[CHIAVE_TENTATIVI] = 0
-            st.rerun()
+    with accedi:
+        _modulo_accesso(credenziali)
 
     if not impostazioni.usa_supabase:
         from .demo_data import PASSWORD_DEMO
@@ -197,6 +190,77 @@ def richiedi_login() -> Utente:
             icon="🧪",
         )
 
+    st.stop()
+
+
+def _modulo_accesso(credenziali: dict[str, Credenziali]) -> None:
+    tentativi = st.session_state.get(CHIAVE_TENTATIVI, 0)
+    if tentativi >= MASSIMI_TENTATIVI:
+        st.error(
+            "Troppi tentativi falliti. Ricarica la pagina per riprovare.",
+            icon="🚫",
+        )
+        return
+
+    with st.form("accesso"):
+        nome_utente = st.text_input("Nome utente")
+        password = st.text_input("Password", type="password")
+        inviato = st.form_submit_button("Entra", type="primary")
+
+    if not inviato:
+        return
+
+    trovato = autentica(credenziali, nome_utente, password)
+    if trovato is None:
+        # Messaggio volutamente generico: non deve rivelare quali nomi
+        # utente esistono.
+        st.session_state[CHIAVE_TENTATIVI] = tentativi + 1
+        st.error("Nome utente o password non corretti.", icon="⛔")
+        return
+
+    st.session_state[CHIAVE_UTENTE] = trovato.nome_utente
+    st.session_state[CHIAVE_TENTATIVI] = 0
+    st.rerun()
+
+
+def richiedi_lega(utente: Utente) -> Lega:
+    """Secondo cancello: senza una lega non c'e' niente da amministrare."""
+    from . import schermate
+
+    lega = lega_corrente()
+    if lega is not None:
+        return lega
+
+    credenziali = credenziali_correnti()
+    if credenziali is None:  # pragma: no cover - la sessione e' appena caduta
+        esci()
+        st.rerun()
+
+    barra_laterale()
+    schermate.mostra_messaggio()
+    schermate.scegli_lega(utente, credenziali)
+    st.stop()
+
+
+def richiedi_squadra(utente: Utente, lega: Lega) -> None:
+    """Terzo cancello: si puo' rimandare, ma senza squadra il sito e' vuoto.
+
+    Rimandabile di proposito: chi amministra e basta non e' obbligato ad avere
+    una squadra, e obbligarlo lo bloccherebbe fuori dal proprio gestionale.
+    """
+    from . import schermate
+
+    if utente.ha_squadra or st.session_state.get("_salta_squadra"):
+        return
+
+    credenziali = credenziali_correnti()
+    if credenziali is None:  # pragma: no cover - la sessione e' appena caduta
+        esci()
+        st.rerun()
+
+    barra_laterale()
+    schermate.mostra_messaggio()
+    schermate.crea_squadra(utente, credenziali, lega)
     st.stop()
 
 
@@ -215,6 +279,7 @@ def barra_laterale() -> None:
     """Utente, lega, backend attivo e ricarica dei dati."""
     impostazioni = carica_impostazioni()
     utente = utente_corrente()
+    lega = lega_corrente()
     with st.sidebar:
         if utente is not None:
             st.markdown(f"**{utente.nome}**")
@@ -222,6 +287,15 @@ def barra_laterale() -> None:
             if st.button("Esci", use_container_width=True):
                 esci()
                 st.rerun()
+            st.divider()
+        if lega is not None:
+            st.markdown(f"🏆 **{lega.nome}**")
+            st.caption(
+                f"{lega.stagione} · {lega.opzioni.modalita.etichetta} · "
+                f"{lega.opzioni.partecipanti} squadre"
+            )
+            st.code(lega.codice_invito, language=None)
+            st.caption("Codice d'invito: giralo a chi deve entrare.")
             st.divider()
         st.caption(impostazioni.nome_lega)
         if impostazioni.usa_supabase:

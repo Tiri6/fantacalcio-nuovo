@@ -19,12 +19,23 @@ import pandas as pd
 from .config import Impostazioni, carica_impostazioni
 from .demo_data import costruisci_db
 from .identita import IdentitaSquadra, StileMaglia
+from .leghe import (
+    CodiceNonValido,
+    EmailNonValida,
+    Invito,
+    Lega,
+    LegaNonValida,
+    OpzioniLega,
+    StatoInvito,
+)
 from .modelli import Contratto, Giocatore, Rosa, Squadra, VoceDeadMoney
 
 if TYPE_CHECKING:  # pragma: no cover - solo per i type checker
     from .autenticazione import Credenziali
 
 TABELLE = (
+    "leghe",
+    "inviti",
     "squadre",
     "giocatori",
     "contratti",
@@ -191,6 +202,8 @@ def costruisci_squadra(riga) -> Squadra:
         presidente=_testo(riga.get("presidente")),
         motto=_testo(riga.get("motto")),
         stadio=_testo(riga.get("stadio")),
+        citta=_testo(riga.get("citta")),
+        curva=_testo(riga.get("curva")),
         colore_primario=_testo(riga.get("colore_primario"), "#2e7d32"),
         colore_secondario=_testo(riga.get("colore_secondario"), "#ffffff"),
         stile_maglia=stile_maglia,
@@ -198,11 +211,13 @@ def costruisci_squadra(riga) -> Squadra:
         maglia_caricata=_testo(riga.get("maglia_caricata")) or None,
         anno_fondazione=None if anno is None or pd.isna(anno) else int(anno),
     )
+    lega = riga.get("lega_id")
     return Squadra(
         id=int(riga["id"]),
         nome=riga["nome"],
         presidente=identita.presidente,
         identita=identita,
+        lega_id=None if lega is None or pd.isna(lega) else int(lega),
     )
 
 
@@ -321,12 +336,15 @@ def salva_squadra(arch: Archivio, squadra: Squadra) -> None:
                 "presidente": identita.presidente,
                 "motto": identita.motto,
                 "stadio": identita.stadio,
+                "citta": identita.citta,
+                "curva": identita.curva,
                 "colore_primario": identita.colore_primario,
                 "colore_secondario": identita.colore_secondario,
                 "stile_maglia": identita.stile_maglia.name,
                 "logo": identita.logo,
                 "maglia_caricata": identita.maglia_caricata,
                 "anno_fondazione": identita.anno_fondazione,
+                "lega_id": squadra.lega_id,
             }
         ],
         chiave="id",
@@ -356,12 +374,15 @@ def carica_credenziali(arch: Archivio) -> dict[str, Credenziali]:
         except ValueError:
             ruolo = Ruolo.FANTALLENATORE
         squadra = r.get("squadra_id")
+        lega = r.get("lega_id")
         utente = Utente(
             id=int(r["id"]),
             nome_utente=str(r["nome_utente"]).strip().lower(),
             nome=str(r["nome"]),
             ruolo=ruolo,
             squadra_id=None if squadra is None or pd.isna(squadra) else int(squadra),
+            lega_id=None if lega is None or pd.isna(lega) else int(lega),
+            email=_testo(r.get("email")) or None,
             attivo=bool(r.get("attivo", True)),
         )
         credenziali[utente.nome_utente] = Credenziali(
@@ -384,8 +405,116 @@ def salva_credenziali(arch: Archivio, credenziali: Credenziali) -> None:
                 "hash_password": credenziali.hash_password,
                 "sale": credenziali.sale,
                 "ruolo": utente.ruolo.value,
+                "email": utente.email,
                 "squadra_id": utente.squadra_id,
+                "lega_id": utente.lega_id,
                 "attivo": int(utente.attivo),
+            }
+        ],
+        chiave="id",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Leghe e inviti
+# ---------------------------------------------------------------------------
+
+
+def carica_leghe(arch: Archivio) -> dict[int, Lega]:
+    """Tutte le leghe, indicizzate per id. Le righe illeggibili si saltano.
+
+    Saltare invece di esplodere e' voluto: una lega scritta male non deve
+    impedire a chi gioca nelle altre di entrare.
+    """
+    righe = arch.tabella("leghe")
+    if righe.empty:
+        return {}
+
+    leghe: dict[int, Lega] = {}
+    for _, r in righe.iterrows():
+        admin = r.get("admin_id")
+        try:
+            lega = Lega(
+                id=int(r["id"]),
+                nome=str(r["nome"]),
+                codice_invito=str(r["codice_invito"]),
+                admin_id=0 if admin is None or pd.isna(admin) else int(admin),
+                stagione=_testo(r.get("stagione"), "2026/27"),
+                opzioni=OpzioniLega.da_json(_testo(r.get("opzioni")) or None),
+                creata_il=_testo(r.get("creata_il")),
+            )
+        except (LegaNonValida, CodiceNonValido, KeyError, TypeError, ValueError):
+            continue
+        leghe[lega.id] = lega
+    return leghe
+
+
+def salva_lega(arch: Archivio, lega: Lega) -> None:
+    arch.scrivi(
+        "leghe",
+        [
+            {
+                "id": lega.id,
+                "nome": lega.nome,
+                "codice_invito": lega.codice_invito,
+                "admin_id": lega.admin_id,
+                "stagione": lega.stagione,
+                "opzioni": lega.opzioni.a_json(),
+                "creata_il": lega.creata_il,
+            }
+        ],
+        chiave="id",
+    )
+
+
+def carica_inviti(arch: Archivio, lega_id: int | None = None) -> list[Invito]:
+    """Inviti registrati, eventualmente filtrati su una lega sola."""
+    righe = arch.tabella("inviti")
+    if righe.empty:
+        return []
+
+    inviti: list[Invito] = []
+    for _, r in righe.iterrows():
+        if lega_id is not None and int(r["lega_id"]) != lega_id:
+            continue
+        try:
+            stato = StatoInvito(str(r.get("stato", "in_attesa")))
+        except ValueError:
+            stato = StatoInvito.IN_ATTESA
+        creato_da = r.get("creato_da")
+        try:
+            inviti.append(
+                Invito(
+                    id=int(r["id"]),
+                    lega_id=int(r["lega_id"]),
+                    email=str(r["email"]),
+                    codice=str(r["codice"]),
+                    stato=stato,
+                    creato_da=(
+                        None
+                        if creato_da is None or pd.isna(creato_da)
+                        else int(creato_da)
+                    ),
+                    creato_il=_testo(r.get("creato_il")),
+                )
+            )
+        except (EmailNonValida, CodiceNonValido, KeyError, TypeError, ValueError):
+            continue
+    return inviti
+
+
+def salva_invito(arch: Archivio, invito: Invito) -> None:
+    arch.scrivi(
+        "inviti",
+        [
+            {
+                "id": invito.id,
+                "lega_id": invito.lega_id,
+                "email": invito.email,
+                "codice": invito.codice,
+                "stato": invito.stato.value,
+                "creato_da": invito.creato_da,
+                "creato_il": invito.creato_il,
             }
         ],
         chiave="id",

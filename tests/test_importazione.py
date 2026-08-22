@@ -70,6 +70,11 @@ class TestNormalizzazione:
         assert colonne["ruoli"] == "RM"
         assert ignorate == ["Note"]
 
+    def test_costo_sono_gli_anni_di_contratto(self):
+        """Convenzione della lega: nel loro export 'costo' e' la durata."""
+        colonne, _ = mappa_colonne(["Squadra", "Giocatore", "Costo"], COLONNE_ROSE)
+        assert colonne["anni"] == "Costo"
+
 
 class TestLetturaValori:
     @pytest.mark.parametrize(
