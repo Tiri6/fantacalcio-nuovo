@@ -19,12 +19,16 @@ lega = ui.richiedi_lega(utente)
 ui.richiedi_squadra(utente, lega)
 
 pagine = [
-    st.Page("viste/home.py", title="Cruscotto", icon="🏠", default=True),
+    # La bacheca e' la pagina d'ingresso: chi entra vuole sapere cosa e'
+    # successo, non leggere una tabella di contratti.
+    st.Page("viste/bacheca.py", title="Bacheca", icon="📣", default=True),
+    st.Page("viste/home.py", title="Cruscotto", icon="🏠"),
     st.Page("viste/squadra.py", title="Rose e contratti", icon="📋"),
     st.Page("viste/mercato.py", title="Mercato", icon="🔁"),
     st.Page("viste/scambi.py", title="Scambi", icon="🤝"),
     st.Page("viste/identita.py", title="Identita' squadre", icon="🎨"),
     st.Page("viste/draft.py", title="Draft", icon="🎱"),
+    st.Page("viste/calendario.py", title="Calendario", icon="📅"),
     st.Page("viste/campionato.py", title="Campionato", icon="🏆"),
     st.Page("viste/lega.py", title="La lega", icon="⚙️"),
     st.Page("viste/regolamento.py", title="Regolamento", icon="📖"),
@@ -32,6 +36,6 @@ pagine = [
 
 # L'importazione riscrive intere rose: la vede solo il presidente (art. 1).
 if utente.puo_importare:
-    pagine.insert(5, st.Page("viste/importa.py", title="Importa dati", icon="📥"))
+    pagine.insert(6, st.Page("viste/importa.py", title="Importa dati", icon="📥"))
 
 st.navigation(pagine).run()

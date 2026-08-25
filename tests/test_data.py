@@ -248,3 +248,73 @@ def test_un_database_gia_aggiornato_non_si_rigenera(tmp_path):
     impronta = percorso.stat().st_mtime_ns
     costruisci_db(percorso)
     assert percorso.stat().st_mtime_ns == impronta
+
+
+class TestBachecaPersistita:
+    def test_salva_e_rilegge_un_annuncio(self, archivio):
+        from types import SimpleNamespace
+
+        from fantacalcio.bacheca import TipoAnnuncio, crea_annuncio
+        from fantacalcio.data import carica_annunci, salva_annuncio
+
+        lega = SimpleNamespace(id=1, admin_id=1)
+        admin = SimpleNamespace(id=1, nome="Marco", attivo=True, e_presidente=True)
+        nuovo = crea_annuncio(
+            id_=500,
+            lega=lega,
+            utente=admin,
+            titolo="Recap 3a giornata",
+            testo="**Sorpresa** a Cuneo.",
+            tipo=TipoAnnuncio.RECAP,
+            giornata=3,
+            in_evidenza=True,
+        )
+        salva_annuncio(archivio, nuovo)
+
+        riletto = next(a for a in carica_annunci(archivio, 1) if a.id == 500)
+        assert riletto.titolo == "Recap 3a giornata"
+        assert riletto.testo == "**Sorpresa** a Cuneo."
+        assert riletto.tipo is TipoAnnuncio.RECAP
+        assert riletto.giornata == 3
+        assert riletto.in_evidenza
+        assert riletto.pubblicato
+        assert riletto.autore_nome == "Marco"
+
+    def test_una_bozza_resta_bozza_dopo_il_giro(self, archivio):
+        from types import SimpleNamespace
+
+        from fantacalcio.bacheca import crea_annuncio
+        from fantacalcio.data import carica_annunci, salva_annuncio
+
+        lega = SimpleNamespace(id=1, admin_id=1)
+        admin = SimpleNamespace(id=1, nome="Marco", attivo=True, e_presidente=True)
+        salva_annuncio(
+            archivio,
+            crea_annuncio(501, lega, admin, "Bozza", "Non pronta", pubblicato=False),
+        )
+        riletto = next(a for a in carica_annunci(archivio, 1) if a.id == 501)
+        assert riletto.e_bozza
+
+    def test_eliminare_un_annuncio(self, archivio):
+        from types import SimpleNamespace
+
+        from fantacalcio.bacheca import crea_annuncio
+        from fantacalcio.data import carica_annunci, elimina_annuncio, salva_annuncio
+
+        lega = SimpleNamespace(id=1, admin_id=1)
+        admin = SimpleNamespace(id=1, nome="Marco", attivo=True, e_presidente=True)
+        salva_annuncio(archivio, crea_annuncio(502, lega, admin, "Da togliere", "x"))
+        elimina_annuncio(archivio, 502)
+        assert not [a for a in carica_annunci(archivio, 1) if a.id == 502]
+
+    def test_una_riga_malformata_non_impedisce_di_leggere_le_altre(self, archivio):
+        from fantacalcio.data import carica_annunci
+
+        archivio.scrivi(
+            "annunci",
+            [{"id": 503, "lega_id": 1, "titolo": "x", "testo": ""}],
+            chiave="id",
+        )
+        # titolo troppo corto e testo vuoto: la riga si salta, le altre no.
+        assert not [a for a in carica_annunci(archivio, 1) if a.id == 503]
+        assert carica_annunci(archivio, 1)

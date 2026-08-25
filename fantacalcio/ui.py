@@ -488,6 +488,19 @@ def _scambi(versione: int):
     return carica_scambi(archivio())
 
 
+@st.cache_data(ttl=TTL)
+def _annunci(versione: int) -> list:
+    from .data import carica_annunci
+
+    lega = lega_corrente()
+    return carica_annunci(archivio(), lega.id if lega else None)
+
+
+def annunci() -> list:
+    """Annunci della bacheca della lega corrente."""
+    return _annunci(versione_dati())
+
+
 def nomi_squadre() -> dict[int, str]:
     return {id_: rosa.squadra.nome for id_, rosa in rose().items()}
 

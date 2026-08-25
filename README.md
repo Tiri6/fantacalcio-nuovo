@@ -44,6 +44,8 @@ valido per le regole.
 
 | Pagina | A cosa serve |
 |---|---|
+| **Bacheca** | Notizie, comunicazioni e recap di giornata. Scrive chi amministra, leggono tutti. E' la pagina d'ingresso. |
+| **Calendario** | Tutti gli incroci della stagione: per giornata, la griglia degli scontri diretti, e la stagione di una singola squadra. |
 | **Cruscotto** | Chi e' in regola e chi no: rosa, monte anni, annuali, cap e floor di tutte e 10 le squadre in una tabella. |
 | **Rose e contratti** | La rosa di una squadra con anni residui, ingaggi, status U21 e quanto costerebbe tagliare ciascun giocatore. |
 | **Mercato** | Componi uno scambio, verifica contro i lodi e invialo alla controparte. Calcolo del Dead Money prima di svincolare. |

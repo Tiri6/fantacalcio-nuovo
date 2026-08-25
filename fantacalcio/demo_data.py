@@ -511,6 +511,20 @@ create table if not exists inviti (
     creato_il text,
     unique (lega_id, email)
 );
+create table if not exists annunci (
+    id integer primary key,
+    lega_id integer not null,
+    titolo text not null,
+    testo text not null,
+    tipo text not null default 'NOTIZIA',
+    autore_id integer,
+    autore_nome text not null default '',
+    giornata integer,
+    pubblicato integer not null default 1,
+    in_evidenza integer not null default 0,
+    creato_il text,
+    aggiornato_il text
+);
 create table if not exists squadre (
     id integer primary key,
     nome text not null unique,
@@ -613,6 +627,7 @@ def _schema_aggiornato(percorso: Path) -> bool:
     attese = {
         "leghe": {"id", "nome", "codice_invito", "admin_id", "opzioni"},
         "inviti": {"id", "lega_id", "email", "codice", "stato"},
+        "annunci": {"id", "lega_id", "titolo", "testo", "tipo", "pubblicato"},
         "squadre": {"citta", "curva", "lega_id"},
         "utenti": {"email", "lega_id"},
     }

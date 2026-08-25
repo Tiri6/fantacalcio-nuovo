@@ -148,6 +148,26 @@ create table if not exists utenti (
     creato_il      timestamptz not null default now()
 );
 
+-- Bacheca della lega: notizie, comunicazioni e recap di giornata.
+-- Scrive chi amministra, leggono tutti. `pubblicato` a false = bozza.
+create table if not exists annunci (
+    id            bigserial primary key,
+    lega_id       bigint not null references leghe(id) on delete cascade,
+    titolo        text not null,
+    -- Markdown. Non viene mai reso con unsafe_allow_html: lo rende Streamlit,
+    -- che scuda l'HTML, quindi un annuncio non puo' iniettare markup.
+    testo         text not null,
+    tipo          text not null default 'NOTIZIA',
+    autore_id     bigint,
+    autore_nome   text not null default '',
+    -- Valorizzata sui recap: dice a quale giornata si riferisce l'annuncio.
+    giornata      integer,
+    pubblicato    boolean not null default true,
+    in_evidenza   boolean not null default false,
+    creato_il     timestamptz not null default now(),
+    aggiornato_il timestamptz
+);
+
 -- Registro degli scambi (art. 8): proposta, accettazione, ratifica.
 create table if not exists scambi (
     id                  bigserial primary key,
@@ -198,6 +218,7 @@ create index if not exists idx_scambi_movimenti on scambi_movimenti (scambio_id)
 
 create index if not exists idx_leghe_codice on leghe (codice_invito);
 create index if not exists idx_inviti_lega on inviti (lega_id);
+create index if not exists idx_annunci_lega on annunci (lega_id, pubblicato);
 create index if not exists idx_squadre_lega on squadre (lega_id);
 create index if not exists idx_utenti_lega on utenti (lega_id);
 
@@ -221,6 +242,7 @@ create index if not exists idx_calendario_giornata on calendario (giornata);
 alter table leghe       enable row level security;
 -- `inviti` NON ha lettura pubblica: contiene gli indirizzi email dei partecipanti.
 alter table inviti      enable row level security;
+alter table annunci     enable row level security;
 alter table squadre     enable row level security;
 alter table giocatori   enable row level security;
 alter table contratti   enable row level security;
@@ -238,7 +260,7 @@ declare
     t text;
 begin
     foreach t in array array[
-        'leghe', 'squadre', 'giocatori', 'contratti', 'dead_money',
+        'leghe', 'annunci', 'squadre', 'giocatori', 'contratti', 'dead_money',
         'calendario', 'parametri', 'lodi', 'scambi', 'scambi_movimenti'
     ]
     loop

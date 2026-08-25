@@ -62,6 +62,10 @@ all'avvio: non ricrearlo a mano.
 - **La sessione conserva il nome utente, non l'oggetto `Utente`.** Appena entri
   in una lega o fondi la squadra la riga cambia: un oggetto congelato al
   momento del login mostrerebbe ancora lo stato vecchio.
+- **Il testo degli annunci si rende con `st.markdown` senza
+  `unsafe_allow_html`.** Lo scrive una persona: Streamlit gli scuda l'HTML
+  da solo, e passarlo a `unsafe_allow_html` renderebbe la bacheca un modo
+  per iniettare markup nella pagina di tutti gli altri.
 - **Il testo scritto dagli utenti passa da `tema._scudo()`** prima di finire in
   un `unsafe_allow_html`. Nome squadra, motto e curva li scrivono i
   partecipanti: senza, chi mette `<script>` come motto lo fa eseguire agli altri.
@@ -83,6 +87,8 @@ all'avvio: non ricrearlo a mano.
 | Cambiare il formato del CSV | `importazione.py` (i sinonimi stanno in `COLONNE_ROSE`) |
 | Aggiungere un'opzione di lega | `OpzioniLega` in `leghe.py` + il modulo in `schermate.py` |
 | Toccare colori, schede o testate | `tema.py` + `test_tema.py` |
+| Toccare la bacheca o i permessi di scrittura | `bacheca.py` + `test_bacheca.py` |
+| Cambiare le viste del calendario | `viste/calendario.py` |
 | Cambiare accesso, registrazione o onboarding | `schermate.py` + `ui.py` |
 | Toccare login o permessi | `autenticazione.py` + `test_autenticazione.py` |
 | Cambiare il ciclo di uno scambio | `scambi.py` + `test_scambi.py` |

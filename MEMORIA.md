@@ -54,6 +54,12 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
   reparto), codice d'invito, inviti per email, pagina «La lega».
 - **Tre cancelli all'ingresso**: accesso/registrazione → crea o unisciti a una
   lega → fonda la squadra (nome, citta', stadio, curva, colori, maglia).
+- **Bacheca**: notizie, comunicazioni e recap di giornata, con bozze e
+  annunci in evidenza. Scrive chi amministra la lega, leggono tutti. E' la
+  pagina d'ingresso.
+- **Calendario**: tutti gli incroci in tre viste — per giornata, griglia
+  degli scontri diretti squadra per squadra, e la stagione di una singola
+  squadra con il bilancio.
 - **Tema grafico** (`tema.py`): fondo scuro, verde campo, testate, schede,
   riquadri numerici con barra, pastiglie nei colori sociali. Non importa
   Streamlit: produce stringhe, quindi si prova nei test.

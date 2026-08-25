@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from .bacheca import Annuncio, AnnuncioNonValido, TipoAnnuncio
 from .config import Impostazioni, carica_impostazioni
 from .demo_data import costruisci_db
 from .identita import IdentitaSquadra, StileMaglia
@@ -36,6 +37,7 @@ if TYPE_CHECKING:  # pragma: no cover - solo per i type checker
 TABELLE = (
     "leghe",
     "inviti",
+    "annunci",
     "squadre",
     "giocatori",
     "contratti",
@@ -519,3 +521,80 @@ def salva_invito(arch: Archivio, invito: Invito) -> None:
         ],
         chiave="id",
     )
+
+
+# ---------------------------------------------------------------------------
+# Bacheca
+# ---------------------------------------------------------------------------
+
+
+def carica_annunci(arch: Archivio, lega_id: int | None = None) -> list[Annuncio]:
+    """Annunci della bacheca. Le righe illeggibili si saltano, non esplodono."""
+    righe = arch.tabella("annunci")
+    if righe.empty:
+        return []
+
+    annunci: list[Annuncio] = []
+    for _, r in righe.iterrows():
+        if lega_id is not None and int(r["lega_id"]) != lega_id:
+            continue
+        try:
+            tipo = TipoAnnuncio[str(r.get("tipo", "NOTIZIA"))]
+        except KeyError:
+            tipo = TipoAnnuncio.NOTIZIA
+        giornata = r.get("giornata")
+        autore = r.get("autore_id")
+        try:
+            annunci.append(
+                Annuncio(
+                    id=int(r["id"]),
+                    lega_id=int(r["lega_id"]),
+                    titolo=str(r["titolo"]),
+                    testo=str(r["testo"]),
+                    tipo=tipo,
+                    autore_id=(0 if autore is None or pd.isna(autore) else int(autore)),
+                    autore_nome=_testo(r.get("autore_nome")),
+                    giornata=(
+                        None if giornata is None or pd.isna(giornata) else int(giornata)
+                    ),
+                    pubblicato=bool(r.get("pubblicato", True)),
+                    in_evidenza=bool(r.get("in_evidenza", False)),
+                    creato_il=_testo(r.get("creato_il")),
+                    aggiornato_il=_testo(r.get("aggiornato_il")),
+                )
+            )
+        except (AnnuncioNonValido, KeyError, TypeError, ValueError):
+            continue
+    return annunci
+
+
+def salva_annuncio(arch: Archivio, annuncio: Annuncio) -> None:
+    arch.scrivi(
+        "annunci",
+        [
+            {
+                "id": annuncio.id,
+                "lega_id": annuncio.lega_id,
+                "titolo": annuncio.titolo,
+                "testo": annuncio.testo,
+                "tipo": annuncio.tipo.name,
+                "autore_id": annuncio.autore_id,
+                "autore_nome": annuncio.autore_nome,
+                "giornata": annuncio.giornata,
+                "pubblicato": int(annuncio.pubblicato),
+                "in_evidenza": int(annuncio.in_evidenza),
+                "creato_il": annuncio.creato_il,
+                "aggiornato_il": annuncio.aggiornato_il,
+            }
+        ],
+        chiave="id",
+    )
+
+
+def elimina_annuncio(arch: Archivio, annuncio_id: int) -> None:
+    """Cancella un annuncio. Il backend demo e Supabase cancellano diversamente."""
+    if isinstance(arch, ArchivioSQLite):
+        with sqlite3.connect(arch.percorso) as conn:
+            conn.execute("delete from annunci where id = ?", (annuncio_id,))
+        return
+    arch._client.table("annunci").delete().eq("id", annuncio_id).execute()
