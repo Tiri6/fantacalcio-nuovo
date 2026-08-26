@@ -9,6 +9,7 @@ import streamlit as st
 
 from fantacalcio import schermate, tema, ui
 from fantacalcio.data import archivio, carica_inviti
+from fantacalcio.diagnostica import sql_di_riparazione
 from fantacalcio.leghe import moduli_disponibili
 
 ui.barra_laterale()
@@ -95,6 +96,28 @@ if amministra:
         )
         schermate.modulo_reimposta_password(utente, lega)
 
+# --- stato del database -----------------------------------------------------
+
+problemi = ui.problemi_schema()
+if problemi:
+    st.divider()
+    st.subheader("⚠️ Il database non e' aggiornato")
+    st.write(
+        "Il sito si aspetta tabelle o colonne che nel database non ci sono. "
+        "Finche' restano assenti, alcune pagine mostrano errori."
+    )
+    for problema in problemi:
+        st.markdown(f"- {problema.messaggio}")
+    if amministra:
+        st.write("Incolla questa query nel **SQL Editor** di Supabase:")
+        st.code(sql_di_riparazione(problemi), language="sql")
+        st.caption(
+            "E' rieseguibile e non cancella niente. Dopo, riavvia l'app "
+            "(menu ⋮ → Reboot app)."
+        )
+    else:
+        st.caption("Segnalalo a chi amministra la lega.")
+
 st.divider()
 
 # --- chi c'e' ---------------------------------------------------------------
@@ -146,25 +169,69 @@ with generali:
     )
     st.caption(
         f"Vittoria {opzioni.punti_vittoria} punti · pareggio "
-        f"{opzioni.punti_pareggio} · crediti iniziali {opzioni.crediti_iniziali}"
+        f"{opzioni.punti_pareggio} · contratti fino a "
+        f"{opzioni.anni_contratto_massimi} anni"
     )
 
 with formazione:
+    if opzioni.limiti_per_ruolo:
+        valore_rosa = str(opzioni.rosa_totale) if opzioni.rosa_totale else "—"
+        nota_rosa = " · ".join(
+            f"{limite if limite is not None else '∞'} {sigla}"
+            for limite, sigla in (
+                (opzioni.rosa_portieri, "Por"),
+                (opzioni.rosa_difensori, "Dif"),
+                (opzioni.rosa_centrocampisti, "Cen"),
+                (opzioni.rosa_attaccanti, "Att"),
+            )
+        )
+    else:
+        valore_rosa = "Libera"
+        nota_rosa = "nessun tetto per ruolo"
+
     ui.griglia_dati(
         [
-            {
-                "etichetta": "Rosa",
-                "valore": str(opzioni.rosa_totale),
-                "nota": (
-                    f"{opzioni.rosa_portieri} Por · {opzioni.rosa_difensori} Dif · "
-                    f"{opzioni.rosa_centrocampisti} Cen · {opzioni.rosa_attaccanti} Att"
-                ),
-            },
+            {"etichetta": "Rosa", "valore": valore_rosa, "nota": nota_rosa},
             {"etichetta": "Panchinari", "valore": str(opzioni.panchinari)},
             {
                 "etichetta": "Moduli ammessi",
                 "valore": f"{len(opzioni.moduli_ammessi)}",
                 "nota": f"su {len(moduli_disponibili(opzioni.modalita))} possibili",
+            },
+        ]
+    )
+
+    st.markdown("**Vincoli di rosa e di mercato**")
+    ui.griglia_dati(
+        [
+            {
+                "etichetta": "Minimo italiani",
+                "valore": str(opzioni.minimo_italiani)
+                if opzioni.minimo_italiani
+                else "—",
+                "nota": "nessun vincolo" if not opzioni.minimo_italiani else "in rosa",
+            },
+            {
+                "etichetta": "Minimo U21 italiani",
+                "valore": (
+                    str(opzioni.minimo_u21_italiani)
+                    if opzioni.minimo_u21_italiani
+                    else "—"
+                ),
+                "nota": (
+                    "nessun vincolo"
+                    if not opzioni.minimo_u21_italiani
+                    else "contano anche come italiani"
+                ),
+            },
+            {
+                "etichetta": "Scambi a stagione",
+                "valore": (
+                    "Illimitati"
+                    if opzioni.scambi_illimitati
+                    else str(opzioni.scambi_per_stagione)
+                ),
+                "nota": "per squadra",
             },
         ]
     )

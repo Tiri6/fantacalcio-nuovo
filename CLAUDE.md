@@ -92,6 +92,7 @@ all'avvio: non ricrearlo a mano.
 | Toccare colori, schede o testate | `tema.py` + `test_tema.py` |
 | Toccare la bacheca o i permessi di scrittura | `bacheca.py` + `test_bacheca.py` |
 | Toccare i dati anagrafici o la squadra del cuore | `anagrafica.py` + `test_anagrafica.py` |
+| Aggiungere una tabella o colonna che l'app scrive | anche `ATTESO` in `diagnostica.py` |
 | Cambiare le viste del calendario | `viste/calendario.py` |
 | Cambiare accesso, registrazione o onboarding | `schermate.py` + `ui.py` |
 | Toccare login o permessi | `autenticazione.py` + `test_autenticazione.py` |

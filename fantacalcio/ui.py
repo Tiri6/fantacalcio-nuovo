@@ -340,6 +340,15 @@ def barra_laterale() -> None:
             invalida_dati()
             st.rerun()
 
+        # Un solo avviso chiaro invece di un errore rosso su ogni pagina.
+        if problemi := problemi_schema():
+            st.warning(
+                f"Il database non e' aggiornato: {len(problemi)} "
+                + ("problema" if len(problemi) == 1 else "problemi")
+                + ". Apri «La lega» per la query da eseguire.",
+                icon="🗄️",
+            )
+
 
 def milioni(importo: float) -> str:
     return f"{importo / 1_000_000:.2f}M"
@@ -529,6 +538,21 @@ def _annunci(versione: int) -> list:
 def annunci() -> list:
     """Annunci della bacheca della lega corrente."""
     return _annunci(versione_dati())
+
+
+@st.cache_data(ttl=TTL)
+def _problemi_schema(versione: int) -> list:
+    from .diagnostica import verifica
+
+    try:
+        return verifica(archivio())
+    except Exception:  # noqa: BLE001 - la diagnostica non deve mai rompere la pagina
+        return []
+
+
+def problemi_schema() -> list:
+    """Cosa manca nel database rispetto a quello che il codice si aspetta."""
+    return _problemi_schema(versione_dati())
 
 
 def nomi_squadre() -> dict[int, str]:

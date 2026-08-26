@@ -225,13 +225,23 @@ class OpzioniLega:
     formato: FormatoCampionato = FormatoCampionato.ANDATA_RITORNO
     giornate_totali: int = 27
 
-    # Rosa e asta
+    # Rosa e mercato
     tipo_asta: TipoAsta = TipoAsta.DRAFT
-    crediti_iniziali: int = 500
-    rosa_portieri: int = 3
-    rosa_difensori: int = 8
-    rosa_centrocampisti: int = 8
-    rosa_attaccanti: int = 6
+    # Durata massima di un contratto, in anni: e' la leva manageriale della
+    # lega, molto piu' dei crediti d'asta che qui non si usano.
+    anni_contratto_massimi: int = 5
+    # `None` = nessun limite per quel ruolo. Il fantacalcio manageriale spesso
+    # non li impone: conta il monte anni, non quanti difensori hai.
+    rosa_portieri: int | None = 3
+    rosa_difensori: int | None = 8
+    rosa_centrocampisti: int | None = 8
+    rosa_attaccanti: int | None = 6
+
+    # Vincoli di composizione della rosa
+    minimo_italiani: int = 0
+    minimo_u21_italiani: int = 0
+    # Quanti scambi puo' fare una squadra in una stagione. 0 = illimitati.
+    scambi_per_stagione: int = 0
 
     # Formazione
     moduli_ammessi: tuple[str, ...] = MODULI_MANTRA
@@ -276,15 +286,67 @@ class OpzioniLega:
             raise LegaNonValida(
                 "Il passo fra una fascia di gol e l'altra dev'essere positivo"
             )
+        if not 1 <= self.anni_contratto_massimi <= 10:
+            raise LegaNonValida("Gli anni di contratto massimi vanno da 1 a 10")
+        for etichetta, valore in (
+            ("minimo di giocatori italiani", self.minimo_italiani),
+            ("minimo di Under 21 italiani", self.minimo_u21_italiani),
+            ("numero di scambi per stagione", self.scambi_per_stagione),
+        ):
+            if valore < 0:
+                raise LegaNonValida(f"Il {etichetta} non puo' essere negativo")
+        if self.minimo_u21_italiani > self.minimo_italiani > 0:
+            raise LegaNonValida(
+                f"Gli Under 21 italiani richiesti ({self.minimo_u21_italiani}) "
+                f"sono piu' del minimo di italiani ({self.minimo_italiani}): "
+                f"un Under 21 italiano e' gia' un italiano"
+            )
+        totale = self.rosa_totale
+        if totale is not None and self.minimo_italiani > totale:
+            raise LegaNonValida(
+                f"Servono {self.minimo_italiani} italiani ma la rosa e' di "
+                f"{totale} giocatori"
+            )
 
     @property
-    def rosa_totale(self) -> int:
-        return (
-            self.rosa_portieri
-            + self.rosa_difensori
-            + self.rosa_centrocampisti
-            + self.rosa_attaccanti
+    def limiti_per_ruolo(self) -> bool:
+        """Vero se almeno un ruolo ha un tetto."""
+        return any(
+            limite is not None
+            for limite in (
+                self.rosa_portieri,
+                self.rosa_difensori,
+                self.rosa_centrocampisti,
+                self.rosa_attaccanti,
+            )
         )
+
+    @property
+    def rosa_totale(self) -> int | None:
+        """Somma dei limiti di ruolo. `None` se anche uno solo non ha limite.
+
+        Restituire un numero sarebbe peggio che restituire niente: sommare
+        ignorando i ruoli liberi darebbe un totale che non vincola nulla.
+        """
+        limiti = (
+            self.rosa_portieri,
+            self.rosa_difensori,
+            self.rosa_centrocampisti,
+            self.rosa_attaccanti,
+        )
+        if any(limite is None for limite in limiti):
+            return None
+        return sum(limiti)
+
+    @property
+    def scambi_illimitati(self) -> bool:
+        return self.scambi_per_stagione <= 0
+
+    def scambi_residui(self, gia_fatti: int) -> int | None:
+        """Quanti scambi restano a una squadra. `None` se sono illimitati."""
+        if self.scambi_illimitati:
+            return None
+        return max(0, self.scambi_per_stagione - max(0, gia_fatti))
 
     def gol_da_punti(self, punti: float) -> int:
         """Quanti gol valgono questi fantapunti, secondo le fasce della lega."""

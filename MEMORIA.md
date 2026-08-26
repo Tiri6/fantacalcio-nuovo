@@ -60,6 +60,9 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 - **Calendario**: tutti gli incroci in tre viste — per giornata, griglia
   degli scontri diretti squadra per squadra, e la stagione di una singola
   squadra con il bilancio.
+- **Diagnostica dello schema** (`diagnostica.py`): confronta il database con
+  quello che il codice si aspetta e produce la query di riparazione. Un
+  avviso solo nella barra laterale invece di errori rossi su ogni pagina.
 - **Registrazione completa**: nome, cognome, data di nascita all'italiana,
   sesso, citta', squadra del cuore (Serie A dal listone + Serie B + le due
   voci «Altro»). Email **obbligatoria** e unica.
@@ -164,6 +167,9 @@ sara' di 18 o 27 giornate.
   policy. La cura sta in `db/permessi.sql`, che chiude anche gli
   `alter default privileges` perche' la prossima tabella non ricada nel
   problema.
+- **Una colonna mancante su Supabase si vede come errore su piu' pagine.**
+  PostgREST e' severo dove SQLite e' indulgente: provare una migrazione sul
+  demo SQLite non dimostra niente. La diagnostica esiste per questo.
 - **Una regola di validazione non scritta nel modulo e' una trappola.** La
   password minima di 8 caratteri non era dichiarata da nessuna parte:
   scrivendone una corta la registrazione falliva *prima* della scrittura,

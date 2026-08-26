@@ -265,9 +265,14 @@ def modulo_registrazione(credenziali: dict[str, Credenziali], primo_utente: bool
 
 
 def _riassunto_opzioni(opzioni: OpzioniLega) -> str:
+    rosa = (
+        f"rosa da {opzioni.rosa_totale}"
+        if opzioni.rosa_totale is not None
+        else "rosa senza limiti di ruolo"
+    )
     return (
         f"{opzioni.modalita.etichetta} · {opzioni.partecipanti} squadre · "
-        f"rosa da {opzioni.rosa_totale} · primo gol a {opzioni.soglia_primo_gol:g}"
+        f"{rosa} · primo gol a {opzioni.soglia_primo_gol:g}"
     )
 
 
@@ -318,18 +323,68 @@ def _modulo_opzioni() -> OpzioniLega | None:
         help="«Draft» significa che l'assegnazione avviene fuori dalla "
         "piattaforma e i risultati si caricano via CSV.",
     )
-    crediti = riga[1].number_input(
-        "Crediti iniziali", min_value=0, max_value=10_000, value=500, step=50
+    anni_contratto = riga[1].number_input(
+        "Anni di contratto (massimo)",
+        min_value=1,
+        max_value=10,
+        value=5,
+        step=1,
+        help="Durata massima di un contratto. E' la leva del fantacalcio "
+        "manageriale: quanto a lungo puoi legare a te un giocatore.",
     )
     stagione = riga[2].text_input("Stagione", value="2026/27")
 
-    riga = st.columns(4)
-    portieri = riga[0].number_input("Portieri", 1, 6, 3)
-    difensori = riga[1].number_input("Difensori", 3, 15, 8)
-    centrocampisti = riga[2].number_input("Centrocampisti", 3, 15, 8)
-    attaccanti = riga[3].number_input("Attaccanti", 2, 12, 6)
-    totale_rosa = portieri + difensori + centrocampisti + attaccanti
-    st.caption(f"Rosa complessiva: **{totale_rosa}** giocatori")
+    st.markdown("**Limite di giocatori per ruolo**")
+    con_limiti = st.radio(
+        "Limite di giocatori per ruolo",
+        [True, False],
+        format_func=lambda x: "Imposta un limite per ruolo" if x else "Nessun limite",
+        horizontal=True,
+        label_visibility="collapsed",
+        help="Senza limiti conta solo il monte anni: puoi tesserare i ruoli "
+        "che vuoi, nelle proporzioni che vuoi.",
+    )
+
+    if con_limiti:
+        riga = st.columns(4)
+        portieri = riga[0].number_input("Portieri", 1, 6, 3)
+        difensori = riga[1].number_input("Difensori", 3, 15, 8)
+        centrocampisti = riga[2].number_input("Centrocampisti", 3, 15, 8)
+        attaccanti = riga[3].number_input("Attaccanti", 2, 12, 6)
+        totale_rosa = portieri + difensori + centrocampisti + attaccanti
+        st.caption(f"Rosa complessiva: **{totale_rosa}** giocatori")
+    else:
+        portieri = difensori = centrocampisti = attaccanti = None
+        totale_rosa = None
+        st.caption("Nessun tetto per ruolo: la rosa la limita il monte anni.")
+
+    st.markdown("**Vincoli di rosa e di mercato**")
+    riga = st.columns(3)
+    minimo_italiani = riga[0].number_input(
+        "Minimo giocatori italiani",
+        min_value=0,
+        max_value=40,
+        value=0,
+        step=1,
+        help="0 = nessun vincolo.",
+    )
+    minimo_u21 = riga[1].number_input(
+        "Minimo Under 21 italiani",
+        min_value=0,
+        max_value=20,
+        value=0,
+        step=1,
+        help="Sottoinsieme del vincolo qui accanto: un Under 21 italiano "
+        "conta anche come italiano. 0 = nessun vincolo.",
+    )
+    scambi_stagione = riga[2].number_input(
+        "Scambi permessi a stagione",
+        min_value=0,
+        max_value=50,
+        value=0,
+        step=1,
+        help="Per squadra, nell'arco della stagione. 0 = illimitati.",
+    )
 
     st.markdown("#### Formazione")
     disponibili = moduli_disponibili(modalita)
@@ -406,11 +461,14 @@ def _modulo_opzioni() -> OpzioniLega | None:
             formato=formato,
             giornate_totali=int(giornate),
             tipo_asta=tipo_asta,
-            crediti_iniziali=int(crediti),
-            rosa_portieri=int(portieri),
-            rosa_difensori=int(difensori),
-            rosa_centrocampisti=int(centrocampisti),
-            rosa_attaccanti=int(attaccanti),
+            anni_contratto_massimi=int(anni_contratto),
+            rosa_portieri=None if portieri is None else int(portieri),
+            rosa_difensori=None if difensori is None else int(difensori),
+            rosa_centrocampisti=(None if centrocampisti is None else int(centrocampisti)),
+            rosa_attaccanti=None if attaccanti is None else int(attaccanti),
+            minimo_italiani=int(minimo_italiani),
+            minimo_u21_italiani=int(minimo_u21),
+            scambi_per_stagione=int(scambi_stagione),
             moduli_ammessi=tuple(moduli),
             panchinari=int(panchinari),
             sostituzioni_automatiche=bool(sostituzioni),

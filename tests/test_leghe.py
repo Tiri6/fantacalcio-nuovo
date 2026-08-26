@@ -270,3 +270,108 @@ def test_una_lega_resta_uguale_a_se_stessa_dopo_il_giro_completo():
         creata_il=lega.creata_il,
     )
     assert ricostruita == lega
+
+
+class TestLimitiDiRuolo:
+    def test_senza_limiti_il_totale_non_esiste(self):
+        """Sommare ignorando i ruoli liberi darebbe un totale che non vincola."""
+        opzioni = OpzioniLega(
+            rosa_portieri=None,
+            rosa_difensori=None,
+            rosa_centrocampisti=None,
+            rosa_attaccanti=None,
+        )
+        assert opzioni.rosa_totale is None
+        assert not opzioni.limiti_per_ruolo
+
+    def test_basta_un_ruolo_libero_perche_il_totale_sparisca(self):
+        opzioni = OpzioniLega(rosa_portieri=None)
+        assert opzioni.rosa_totale is None
+        assert opzioni.limiti_per_ruolo
+
+    def test_con_tutti_i_limiti_il_totale_e_la_somma(self):
+        opzioni = OpzioniLega(
+            rosa_portieri=3, rosa_difensori=8, rosa_centrocampisti=8, rosa_attaccanti=6
+        )
+        assert opzioni.rosa_totale == 25
+        assert opzioni.limiti_per_ruolo
+
+    def test_senza_limiti_sopravvive_al_json(self):
+        originali = OpzioniLega(
+            rosa_portieri=None,
+            rosa_difensori=None,
+            rosa_centrocampisti=None,
+            rosa_attaccanti=None,
+        )
+        assert OpzioniLega.da_json(originali.a_json()).rosa_totale is None
+
+
+class TestVincoliDiRosa:
+    def test_default_nessun_vincolo(self):
+        opzioni = OpzioniLega()
+        assert opzioni.minimo_italiani == 0
+        assert opzioni.minimo_u21_italiani == 0
+        assert opzioni.scambi_illimitati
+
+    @pytest.mark.parametrize(
+        "campo", ["minimo_italiani", "minimo_u21_italiani", "scambi_per_stagione"]
+    )
+    def test_numeri_negativi_rifiutati(self, campo):
+        with pytest.raises(LegaNonValida):
+            OpzioniLega(**{campo: -1})
+
+    def test_gli_u21_non_possono_superare_gli_italiani(self):
+        """Un Under 21 italiano e' gia' un italiano: il contrario e' incoerente."""
+        with pytest.raises(LegaNonValida, match="gia' un italiano"):
+            OpzioniLega(minimo_italiani=3, minimo_u21_italiani=5)
+
+    def test_senza_minimo_italiani_gli_u21_sono_liberi(self):
+        """Con 0 italiani richiesti il vincolo U21 vale da solo."""
+        assert (
+            OpzioniLega(minimo_italiani=0, minimo_u21_italiani=3).minimo_u21_italiani == 3
+        )
+
+    def test_non_si_possono_chiedere_piu_italiani_della_rosa(self):
+        with pytest.raises(LegaNonValida, match="rosa e' di"):
+            OpzioniLega(
+                rosa_portieri=3,
+                rosa_difensori=8,
+                rosa_centrocampisti=8,
+                rosa_attaccanti=6,
+                minimo_italiani=30,
+            )
+
+    def test_senza_limiti_di_ruolo_il_minimo_italiani_non_si_puo_verificare(self):
+        """Senza un totale non c'e' niente con cui confrontare: si accetta."""
+        assert OpzioniLega(rosa_portieri=None, minimo_italiani=30).minimo_italiani == 30
+
+
+class TestScambiPerStagione:
+    def test_illimitati_per_default(self):
+        assert OpzioniLega().scambi_residui(99) is None
+
+    def test_residui_scalano(self):
+        opzioni = OpzioniLega(scambi_per_stagione=5)
+        assert opzioni.scambi_residui(0) == 5
+        assert opzioni.scambi_residui(3) == 2
+        assert opzioni.scambi_residui(5) == 0
+
+    def test_non_diventano_negativi(self):
+        assert OpzioniLega(scambi_per_stagione=5).scambi_residui(9) == 0
+
+    def test_un_conteggio_negativo_non_regala_scambi(self):
+        assert OpzioniLega(scambi_per_stagione=5).scambi_residui(-3) == 5
+
+
+class TestAnniContratto:
+    def test_default_cinque(self):
+        assert OpzioniLega().anni_contratto_massimi == 5
+
+    @pytest.mark.parametrize("anni", [0, -1, 11])
+    def test_fuori_scala(self, anni):
+        with pytest.raises(LegaNonValida, match="anni di contratto"):
+            OpzioniLega(anni_contratto_massimi=anni)
+
+    def test_sopravvive_al_json(self):
+        originali = OpzioniLega(anni_contratto_massimi=3)
+        assert OpzioniLega.da_json(originali.a_json()).anni_contratto_massimi == 3
