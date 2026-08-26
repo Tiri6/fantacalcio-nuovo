@@ -56,6 +56,9 @@ class Utente:
     lega_id: int | None = None
     email: str | None = None
     attivo: bool = True
+    # Alzato quando la password l'ha scelta qualcun altro (una reimpostazione):
+    # al primo accesso il sito obbliga a sostituirla.
+    deve_cambiare_password: bool = False
 
     @property
     def e_presidente(self) -> bool:
@@ -260,6 +263,100 @@ def autentica(
     if not trovato.utente.attivo or not trovato.corrisponde(password):
         return None
     return trovato.utente
+
+
+# ---------------------------------------------------------------------------
+# Cambio e reimpostazione della password
+# ---------------------------------------------------------------------------
+#
+# Non c'e' recupero via email: l'app non ha un server di posta, e montarne uno
+# per una lega di amici non si giustifica. Al suo posto ci sono due strade che
+# non richiedono di spedire niente:
+#
+#   1. chi conosce la propria password se la cambia da solo;
+#   2. chi l'ha dimenticata la fa reimpostare a chi amministra, che gli
+#      consegna a voce una password temporanea. Al primo accesso il sito
+#      obbliga a sostituirla, cosi' quella temporanea vive pochi minuti.
+#
+# La differenza rispetto al link via email e' che serve fidarsi di chi
+# amministra. In una lega di dieci amici e' un requisito gia' soddisfatto.
+
+# Alfabeto senza caratteri confondibili: la password temporanea viene dettata
+# a voce o scritta su WhatsApp, e O/0 e I/1 sono il modo classico di sbagliarla.
+ALFABETO_TEMPORANEA = "ABCDEFGHJKMNPQRSTWXYZabcdefghjkmnpqrstwxyz23456789"
+LUNGHEZZA_TEMPORANEA = 12
+
+
+class PermessoNegato(PermissionError):
+    """Solo chi amministra la lega reimposta le password altrui."""
+
+
+def genera_password_temporanea() -> str:
+    """Password usa e getta per una reimpostazione."""
+    return "".join(
+        secrets.choice(ALFABETO_TEMPORANEA) for _ in range(LUNGHEZZA_TEMPORANEA)
+    )
+
+
+def cambia_password(
+    credenziali: Credenziali,
+    password_attuale: str,
+    nuova: str,
+    conferma: str | None = None,
+) -> Credenziali:
+    """Cambio autonomo: serve conoscere la password attuale.
+
+    Richiederla non e' una formalita': senza, chiunque trovasse una sessione
+    aperta potrebbe prendersi l'account per sempre.
+    """
+    if not credenziali.corrisponde(password_attuale):
+        raise PasswordNonValida("La password attuale non e' corretta")
+    if conferma is not None and nuova != conferma:
+        raise PasswordNonValida("Le due password non coincidono")
+    controlla_password(nuova)
+    if credenziali.corrisponde(nuova):
+        raise PasswordNonValida("La password nuova e' uguale a quella attuale")
+    aggiornate = con_nuova_password(credenziali, nuova)
+    return replace(
+        aggiornate,
+        utente=replace(aggiornate.utente, deve_cambiare_password=False),
+    )
+
+
+def puo_reimpostare(chi: Utente | None, bersaglio: Utente | None) -> bool:
+    """Chi amministra reimposta le password della propria lega, non di altre."""
+    if chi is None or bersaglio is None or not chi.attivo:
+        return False
+    if not chi.e_presidente:
+        return False
+    return chi.lega_id is not None and chi.lega_id == bersaglio.lega_id
+
+
+def reimposta_password(
+    credenziali: Credenziali,
+    chi_reimposta: Utente,
+    password: str | None = None,
+) -> tuple[Credenziali, str]:
+    """Reimpostazione fatta da chi amministra.
+
+    Restituisce le credenziali nuove **e** la password in chiaro: e' l'unico
+    momento in cui esiste leggibile, perche' va consegnata alla persona. Da
+    quel momento in poi resta solo l'hash.
+    """
+    if not puo_reimpostare(chi_reimposta, credenziali.utente):
+        raise PermessoNegato(
+            "Solo il presidente della lega puo' reimpostare le password."
+        )
+    temporanea = password or genera_password_temporanea()
+    controlla_password(temporanea)
+    aggiornate = con_nuova_password(credenziali, temporanea)
+    return (
+        replace(
+            aggiornate,
+            utente=replace(aggiornate.utente, deve_cambiare_password=True),
+        ),
+        temporanea,
+    )
 
 
 # LIMITI, detti chiaramente

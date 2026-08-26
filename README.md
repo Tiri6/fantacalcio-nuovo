@@ -44,6 +44,7 @@ valido per le regole.
 
 | Pagina | A cosa serve |
 |---|---|
+| **Il mio profilo** | Chi sei nella lega e dove si cambia la password. |
 | **Bacheca** | Notizie, comunicazioni e recap di giornata. Scrive chi amministra, leggono tutti. E' la pagina d'ingresso. |
 | **Calendario** | Tutti gli incroci della stagione: per giornata, la griglia degli scontri diretti, e la stagione di una singola squadra. |
 | **Cruscotto** | Chi e' in regola e chi no: rosa, monte anni, annuali, cap e floor di tutte e 10 le squadre in una tabella. |
@@ -252,9 +253,12 @@ per altre strade. Nascondere un bottone non e' un controllo.
 >   Streamlit: navigando con il menu tutto resta com'e', ma un F5 riporta al
 >   login. Tenerla viva richiederebbe un token in un cookie, che aggiunge
 >   superficie d'attacco per un guadagno modesto: meglio ri-entrare.
-> - **Non c'e' recupero password.** Nemmeno via email, visto che l'app non
->   spedisce niente. Chi dimentica la password oggi resta fuori: la
->   reimpostazione da parte del presidente e' la prima cosa che manca.
+> - **Il recupero password non passa da un'email**, perche' l'app non ne
+>   spedisce. Chi dimentica la password la fa reimpostare dal presidente, che
+>   genera una temporanea e gliela consegna a voce; al primo accesso il sito
+>   obbliga a sostituirla. La differenza rispetto a un link via email e' che
+>   bisogna fidarsi di chi amministra — in una lega di dieci amici e' un
+>   requisito gia' soddisfatto.
 > - Su Streamlit Community Cloud l'indirizzo dell'app e' pubblico, quindi la
 >   pagina di accesso e' raggiungibile da chiunque abbia il link.
 >

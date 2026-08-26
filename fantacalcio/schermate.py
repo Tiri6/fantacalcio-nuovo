@@ -17,15 +17,19 @@ from .autenticazione import (
     Credenziali,
     NomeUtenteOccupato,
     PasswordNonValida,
+    PermessoNegato,
     Ruolo,
     Utente,
     UtenteNonValido,
     assegna_squadra,
+    cambia_password,
     entra_in_lega,
     registra,
+    reimposta_password,
 )
 from .data import (
     archivio,
+    carica_credenziali,
     carica_inviti,
     carica_leghe,
     prossimo_id,
@@ -672,4 +676,107 @@ def modulo_invito(lega: Lega, utente: Utente) -> None:
         f"Posto riservato per {invito.email}. Mandagli il codice "
         f"{lega.codice_invito} e potra' entrare."
     )
+    st.rerun()
+
+
+# ===========================================================================
+# 4. Password
+# ===========================================================================
+
+
+def modulo_cambio_password(credenziali: Credenziali, obbligatorio: bool = False) -> None:
+    """Cambio autonomo della password. Serve conoscere quella attuale.
+
+    `obbligatorio` e' il caso di chi arriva da una reimpostazione: la password
+    che ha in mano l'ha scelta qualcun altro, e finche' non la sostituisce non
+    entra.
+    """
+    if obbligatorio:
+        st.warning(
+            "La tua password e' stata reimpostata da chi amministra la lega. "
+            "Scegline una tua per continuare.",
+            icon="🔐",
+        )
+
+    with st.form("cambio_password"):
+        attuale = st.text_input(
+            "Password attuale",
+            type="password",
+            help="Quella che hai usato per entrare adesso.",
+        )
+        nuova = st.text_input("Password nuova", type="password")
+        conferma = st.text_input("Ripeti la password nuova", type="password")
+        inviato = st.form_submit_button("Cambia password", type="primary")
+
+    if not inviato:
+        return
+
+    try:
+        aggiornate = cambia_password(credenziali, attuale, nuova, conferma)
+    except PasswordNonValida as errore:
+        st.error(str(errore), icon="⛔")
+        return
+
+    try:
+        salva_credenziali(archivio(), aggiornate)
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        st.error(f"Non riesco a salvare la password: {errore}", icon="⛔")
+        return
+
+    _dati_cambiati()
+    _ricorda("Password cambiata.")
+    st.rerun()
+
+
+def modulo_reimposta_password(utente: Utente, lega: Lega) -> None:
+    """Il presidente genera una password temporanea per un partecipante.
+
+    Non parte nessuna mail: la password compare a schermo una volta sola e va
+    consegnata a voce o su un canale privato. Al primo accesso chi la riceve e'
+    obbligato a sostituirla.
+    """
+    tutte = carica_credenziali(archivio())
+    altri = {
+        c.utente.nome_utente: c
+        for c in tutte.values()
+        if c.utente.lega_id == lega.id and c.utente.id != utente.id
+    }
+
+    if not altri:
+        st.info("Non c'e' nessun altro partecipante in questa lega.", icon="👤")
+        return
+
+    if fatto := st.session_state.pop("_password_generata", None):
+        nome, temporanea = fatto
+        st.success(f"Password nuova per **{nome}**:", icon="🔑")
+        st.code(temporanea, language=None)
+        st.caption(
+            "Compare **una volta sola**: copiala adesso e passagliela a voce o "
+            "in privato. Al primo accesso dovra' sceglierne una sua."
+        )
+        st.divider()
+
+    scelto = st.selectbox(
+        "Partecipante",
+        sorted(altri),
+        format_func=lambda n: f"{altri[n].utente.nome} ({n})",
+    )
+
+    if not st.button("Genera una password temporanea", use_container_width=True):
+        return
+
+    try:
+        aggiornate, temporanea = reimposta_password(altri[scelto], utente)
+    except (PermessoNegato, PasswordNonValida) as errore:
+        st.error(str(errore), icon="⛔")
+        return
+
+    try:
+        salva_credenziali(archivio(), aggiornate)
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        st.error(f"Non riesco a salvare la password: {errore}", icon="⛔")
+        return
+
+    _dati_cambiati()
+    st.session_state["_password_generata"] = (aggiornate.utente.nome, temporanea)
     st.rerun()

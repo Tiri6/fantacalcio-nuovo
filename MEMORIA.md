@@ -60,16 +60,15 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 - **Calendario**: tutti gli incroci in tre viste — per giornata, griglia
   degli scontri diretti squadra per squadra, e la stagione di una singola
   squadra con il bilancio.
+- **Password**: cambio autonomo da «Il mio profilo», e reimpostazione da
+  parte del presidente che genera una temporanea mostrata una volta sola.
+  Chi la riceve e' obbligato a sostituirla al primo accesso.
 - **Tema grafico** (`tema.py`): fondo scuro, verde campo, testate, schede,
   riquadri numerici con barra, pastiglie nei colori sociali. Non importa
   Streamlit: produce stringhe, quindi si prova nei test.
 
 ## Cosa manca (in ordine di utilita')
 
-0. **Reimpostare la password.** Non esiste, e chi la dimentica resta fuori:
-   ora che la registrazione e' autonoma, e' il buco piu' urgente. Servono due
-   cose: "cambia la mia password" per chiunque, e "reimposta quella di X"
-   per chi amministra.
 1. **Assegnazioni, contratti e ingaggi**: il listone e' caricato (509 giocatori
    con ruoli Mantra e quotazioni) ma non dice chi appartiene a quale squadra,
    con quanti anni e con quale ingaggio. Gli ingaggi vanno da Capology
@@ -162,6 +161,9 @@ sara' di 18 o 27 giornate.
   policy. La cura sta in `db/permessi.sql`, che chiude anche gli
   `alter default privileges` perche' la prossima tabella non ricada nel
   problema.
+- **Oltre la decina di pagine `st.navigation` tronca il menu** e nasconde
+  le ultime dietro un «altro»: le voci in fondo sembrano non esistere. Le
+  sezioni non bastano, serve `expanded=True`.
 - **Un'app Streamlit pubblicata da una repo privata e' privata**: la vedono
   solo i collaboratori del repository. In incognito risponde "l'app non
   esiste", e i partecipanti vedrebbero lo stesso. Si apre da *Settings ->

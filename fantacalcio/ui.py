@@ -223,6 +223,36 @@ def _modulo_accesso(credenziali: dict[str, Credenziali]) -> None:
     st.rerun()
 
 
+def richiedi_password_nuova(utente: Utente) -> None:
+    """Cancello: chi ha una password scelta da altri deve sostituirla.
+
+    Sta prima della lega e della squadra di proposito: una password
+    temporanea, consegnata a voce, non deve restare valida piu' del necessario.
+    """
+    from . import schermate
+
+    if not utente.deve_cambiare_password:
+        return
+
+    credenziali = credenziali_correnti()
+    if credenziali is None:  # pragma: no cover - la sessione e' appena caduta
+        esci()
+        st.rerun()
+
+    barra_laterale()
+    st.markdown(
+        tema.testata(
+            "Scegli una password tua",
+            "Quella che hai usato adesso l'ha generata chi amministra la lega.",
+            occhiello="Primo accesso",
+        ),
+        unsafe_allow_html=True,
+    )
+    schermate.mostra_messaggio()
+    schermate.modulo_cambio_password(credenziali, obbligatorio=True)
+    st.stop()
+
+
 def richiedi_lega(utente: Utente) -> Lega:
     """Secondo cancello: senza una lega non c'e' niente da amministrare."""
     from . import schermate

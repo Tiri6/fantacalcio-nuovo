@@ -579,6 +579,7 @@ create table if not exists utenti (
     email text,
     squadra_id integer,
     lega_id integer,
+    deve_cambiare_password integer not null default 0,
     attivo integer not null default 1
 );
 create table if not exists scambi (
@@ -629,7 +630,7 @@ def _schema_aggiornato(percorso: Path) -> bool:
         "inviti": {"id", "lega_id", "email", "codice", "stato"},
         "annunci": {"id", "lega_id", "titolo", "testo", "tipo", "pubblicato"},
         "squadre": {"citta", "curva", "lega_id"},
-        "utenti": {"email", "lega_id"},
+        "utenti": {"email", "lega_id", "deve_cambiare_password"},
     }
     try:
         with sqlite3.connect(percorso) as conn:

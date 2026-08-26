@@ -85,6 +85,16 @@ if amministra:
                 use_container_width=True,
             )
 
+if amministra:
+    with st.expander("🔐 Reimposta la password di un partecipante"):
+        st.caption(
+            "Non parte nessuna mail: il sito genera una password temporanea, "
+            "te la mostra **una volta sola** e tu la consegni a voce o in "
+            "privato. Al primo accesso chi la riceve e' obbligato a "
+            "sostituirla, quindi vive pochi minuti."
+        )
+        schermate.modulo_reimposta_password(utente, lega)
+
 st.divider()
 
 # --- chi c'e' ---------------------------------------------------------------

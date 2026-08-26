@@ -144,6 +144,9 @@ create table if not exists utenti (
     squadra_id     bigint references squadre(id) on delete set null,
     -- NULL = registrato ma non ancora dentro nessuna lega: vede l'onboarding.
     lega_id        bigint references leghe(id) on delete set null,
+    -- Alzato da una reimpostazione: al primo accesso il sito obbliga a
+    -- sostituire la password scelta da qualcun altro.
+    deve_cambiare_password boolean not null default false,
     attivo         boolean not null default true,
     creato_il      timestamptz not null default now()
 );
@@ -211,6 +214,7 @@ alter table squadre add column if not exists curva   text not null default '';
 alter table squadre add column if not exists lega_id bigint references leghe(id) on delete cascade;
 
 alter table utenti  add column if not exists email   text;
+alter table utenti  add column if not exists deve_cambiare_password boolean not null default false;
 alter table utenti  add column if not exists lega_id bigint references leghe(id) on delete set null;
 
 create index if not exists idx_scambi_stato on scambi (stato);

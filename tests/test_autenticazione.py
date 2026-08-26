@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from fantacalcio.autenticazione import (
@@ -5,18 +7,23 @@ from fantacalcio.autenticazione import (
     Credenziali,
     NomeUtenteOccupato,
     PasswordNonValida,
+    PermessoNegato,
     Ruolo,
     Utente,
     UtenteNonValido,
     assegna_squadra,
     autentica,
+    cambia_password,
     cifra_password,
     con_nuova_password,
     controlla_password,
     crea_credenziali,
     entra_in_lega,
+    genera_password_temporanea,
     normalizza_nome_utente,
+    puo_reimpostare,
     registra,
+    reimposta_password,
     verifica_password,
 )
 
@@ -120,8 +127,6 @@ class TestAutenticazione:
         assert autentica(elenco, "", "unapasswordlunga") is None
 
     def test_utente_disattivato_non_entra(self, elenco):
-        from dataclasses import replace
-
         credenziali = elenco["marco"]
         spento = replace(credenziali, utente=replace(credenziali.utente, attivo=False))
         assert autentica({"marco": spento}, "marco", "unapasswordlunga") is None
@@ -249,3 +254,108 @@ class TestIngressoInLega:
         credenziali = registra({}, 1, "luca", "Luca", "password1")
         entra_in_lega(credenziali, 7)
         assert credenziali.utente.lega_id is None
+
+
+class TestCambioPassword:
+    def credenziali(self):
+        return registra({}, 1, "luca", "Luca", "password1")
+
+    def test_cambio_riuscito(self):
+        nuove = cambia_password(self.credenziali(), "password1", "password2", "password2")
+        assert nuove.corrisponde("password2")
+        assert not nuove.corrisponde("password1")
+
+    def test_serve_la_password_attuale(self):
+        """Senza, chi trovasse una sessione aperta si prenderebbe l'account."""
+        with pytest.raises(PasswordNonValida, match="attuale"):
+            cambia_password(self.credenziali(), "sbagliata", "password2", "password2")
+
+    def test_le_due_nuove_devono_coincidere(self):
+        with pytest.raises(PasswordNonValida, match="coincidono"):
+            cambia_password(self.credenziali(), "password1", "password2", "password3")
+
+    def test_la_nuova_deve_essere_robusta(self):
+        with pytest.raises(PasswordNonValida):
+            cambia_password(self.credenziali(), "password1", "corta", "corta")
+
+    def test_non_si_puo_rimettere_la_stessa(self):
+        with pytest.raises(PasswordNonValida, match="uguale"):
+            cambia_password(self.credenziali(), "password1", "password1", "password1")
+
+    def test_il_sale_cambia_a_ogni_cambio(self):
+        """Due password uguali non devono produrre lo stesso hash."""
+        prime = self.credenziali()
+        seconde = cambia_password(prime, "password1", "password2", "password2")
+        terze = cambia_password(seconde, "password2", "password1", "password1")
+        assert terze.sale != prime.sale
+        assert terze.hash_password != prime.hash_password
+
+    def test_cambiare_spegne_l_obbligo(self):
+        """Il senso del flag: si spegne solo quando la password la scegli tu."""
+        di_lega = replace(
+            self.credenziali(),
+            utente=replace(self.credenziali().utente, lega_id=1),
+        )
+        temporanee, temporanea = reimposta_password(di_lega, PRESIDENTE_DI_LEGA)
+        assert temporanee.utente.deve_cambiare_password
+
+        nuove = cambia_password(temporanee, temporanea, "password3", "password3")
+        assert not nuove.utente.deve_cambiare_password
+        assert nuove.corrisponde("password3")
+
+    def test_l_originale_non_cambia(self):
+        prime = self.credenziali()
+        cambia_password(prime, "password1", "password2", "password2")
+        assert prime.corrisponde("password1")
+
+
+class TestReimpostazione:
+    def bersaglio(self):
+        """Un partecipante della lega 1, con password nota."""
+        credenziali = registra({}, 2, "luca", "Luca", "password1")
+        return replace(credenziali, utente=replace(credenziali.utente, lega_id=1))
+
+    def test_genera_una_password_usabile(self):
+        nuove, temporanea = reimposta_password(self.bersaglio(), PRESIDENTE_DI_LEGA)
+        assert len(temporanea) >= LUNGHEZZA_MINIMA_PASSWORD
+        assert nuove.corrisponde(temporanea)
+        assert nuove.utente.deve_cambiare_password
+
+    def test_la_temporanea_non_contiene_caratteri_confondibili(self):
+        """Viene dettata a voce: O/0 e I/1 sono il modo classico di sbagliarla."""
+        insieme = "".join(genera_password_temporanea() for _ in range(100))
+        assert not set(insieme) & set("OIl01")
+
+    def test_due_password_temporanee_sono_diverse(self):
+        assert len({genera_password_temporanea() for _ in range(50)}) > 45
+
+    def test_un_fantallenatore_non_reimposta(self):
+        estraneo = replace(
+            registra({}, 3, "mario", "Mario", "password1").utente, lega_id=1
+        )
+        with pytest.raises(PermessoNegato):
+            reimposta_password(self.bersaglio(), estraneo)
+
+    def test_il_presidente_di_un_altra_lega_non_reimposta(self):
+        altrove = replace(PRESIDENTE_DI_LEGA, lega_id=99)
+        with pytest.raises(PermessoNegato):
+            reimposta_password(self.bersaglio(), altrove)
+
+    def test_un_presidente_disattivato_non_reimposta(self):
+        sospeso = replace(PRESIDENTE_DI_LEGA, attivo=False)
+        with pytest.raises(PermessoNegato):
+            reimposta_password(self.bersaglio(), sospeso)
+
+    def test_permesso_senza_lega_negato(self):
+        senza = replace(PRESIDENTE_DI_LEGA, lega_id=None)
+        assert not puo_reimpostare(senza, self.bersaglio().utente)
+
+    def test_la_vecchia_password_smette_di_funzionare(self):
+        nuove, _ = reimposta_password(self.bersaglio(), PRESIDENTE_DI_LEGA)
+        assert not nuove.corrisponde("password1")
+
+
+# Un presidente valido della lega 1, usato dalle prove sui permessi.
+PRESIDENTE_DI_LEGA = Utente(
+    id=1, nome_utente="marco", nome="Marco", ruolo=Ruolo.PRESIDENTE, lega_id=1
+)

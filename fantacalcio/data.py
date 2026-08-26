@@ -386,6 +386,7 @@ def carica_credenziali(arch: Archivio) -> dict[str, Credenziali]:
             lega_id=None if lega is None or pd.isna(lega) else int(lega),
             email=_testo(r.get("email")) or None,
             attivo=bool(r.get("attivo", True)),
+            deve_cambiare_password=bool(r.get("deve_cambiare_password", False)),
         )
         credenziali[utente.nome_utente] = Credenziali(
             utente=utente,
@@ -410,6 +411,7 @@ def salva_credenziali(arch: Archivio, credenziali: Credenziali) -> None:
                 "email": utente.email,
                 "squadra_id": utente.squadra_id,
                 "lega_id": utente.lega_id,
+                "deve_cambiare_password": int(utente.deve_cambiare_password),
                 "attivo": int(utente.attivo),
             }
         ],
