@@ -150,7 +150,11 @@ def puo_pubblicare(utente, lega) -> bool:
         lega, "admin_id", None
     ):
         return True
-    return bool(getattr(utente, "e_presidente", False))
+    # Il presidente puo' delegare: chi ha il ruolo editor scrive in bacheca
+    # e basta, senza ratificare scambi ne' importare dati.
+    return bool(
+        getattr(utente, "e_presidente", False) or getattr(utente, "e_editor", False)
+    )
 
 
 def crea_annuncio(

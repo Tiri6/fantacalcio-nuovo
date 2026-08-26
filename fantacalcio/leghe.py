@@ -21,6 +21,14 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 
+from .competizioni import (
+    CriterioSupercoppa,
+    FormatoCoppa,
+    RegoleCoppa,
+    RegoleSupercoppa,
+    TipoCompetizione,
+)
+
 # --- Codice d'invito --------------------------------------------------------
 #
 # Alfabeto senza caratteri che si confondono quando il codice viene letto ad
@@ -230,6 +238,9 @@ class OpzioniLega:
     # Durata massima di un contratto, in anni: e' la leva manageriale della
     # lega, molto piu' dei crediti d'asta che qui non si usano.
     anni_contratto_massimi: int = 5
+    # Tetto salariale annuo, in euro. Si sceglie in milioni e si conserva
+    # intero: i decimali su cifre a nove zeri sono un modo per perdere euro.
+    budget_cap: float = 100_000_000.0
     # `None` = nessun limite per quel ruolo. Il fantacalcio manageriale spesso
     # non li impone: conta il monte anni, non quanti difensori hai.
     rosa_portieri: int | None = 3
@@ -259,6 +270,12 @@ class OpzioniLega:
     # Fasce di gol: il primo gol scatta alla soglia, poi uno ogni passo.
     soglia_primo_gol: float = 66.0
     passo_gol: float = 6.0
+
+    # Competizioni. Il campionato c'e' sempre; le altre si accendono qui.
+    coppa_italia: bool = False
+    supercoppa: bool = False
+    regole_coppa: RegoleCoppa = field(default_factory=RegoleCoppa)
+    regole_supercoppa: RegoleSupercoppa = field(default_factory=RegoleSupercoppa)
 
     # Modificatori di reparto
     modificatore_difesa: bool = True
@@ -301,6 +318,22 @@ class OpzioniLega:
                 f"sono piu' del minimo di italiani ({self.minimo_italiani}): "
                 f"un Under 21 italiano e' gia' un italiano"
             )
+        if self.budget_cap < 0:
+            raise LegaNonValida("Il budget cap non puo' essere negativo")
+        if self.coppa_italia and self.regole_coppa.squadre_ammesse > self.partecipanti:
+            raise LegaNonValida(
+                f"La coppa ammette {self.regole_coppa.squadre_ammesse} squadre "
+                f"ma la lega ne ha {self.partecipanti}"
+            )
+        if (
+            self.supercoppa
+            and not self.coppa_italia
+            and self.regole_supercoppa.criterio is CriterioSupercoppa.CAMPIONE_E_COPPA
+        ):
+            raise LegaNonValida(
+                "La Supercoppa fra campione e vincitrice di coppa richiede che "
+                "la Coppa Italia sia attiva. Scegli un altro criterio."
+            )
         totale = self.rosa_totale
         if totale is not None and self.minimo_italiani > totale:
             raise LegaNonValida(
@@ -337,6 +370,20 @@ class OpzioniLega:
         if any(limite is None for limite in limiti):
             return None
         return sum(limiti)
+
+    @property
+    def budget_cap_milioni(self) -> float:
+        return self.budget_cap / 1_000_000
+
+    @property
+    def competizioni(self) -> tuple[TipoCompetizione, ...]:
+        """Quali competizioni si giocano. Il campionato c'e' sempre."""
+        attive = [TipoCompetizione.CAMPIONATO]
+        if self.coppa_italia:
+            attive.append(TipoCompetizione.COPPA_ITALIA)
+        if self.supercoppa:
+            attive.append(TipoCompetizione.SUPERCOPPA)
+        return tuple(attive)
 
     @property
     def scambi_illimitati(self) -> bool:
@@ -383,9 +430,39 @@ def _serializza(opzioni: OpzioniLega) -> dict:
     dati["formato"] = opzioni.formato.name
     dati["tipo_asta"] = opzioni.tipo_asta.name
     dati["moduli_ammessi"] = list(opzioni.moduli_ammessi)
+    dati["regole_coppa"] = {
+        **asdict(opzioni.regole_coppa),
+        "formato": opzioni.regole_coppa.formato.name,
+    }
+    dati["regole_supercoppa"] = {
+        **asdict(opzioni.regole_supercoppa),
+        "criterio": opzioni.regole_supercoppa.criterio.name,
+    }
     for campo in ("fasce_difesa", "fasce_centrocampo", "fasce_attacco"):
         dati[campo] = [asdict(f) for f in getattr(opzioni, campo)]
     return dati
+
+
+def _ricostruisci(grezzo, classe, enumerazioni: dict):
+    """Ricostruisce una dataclass annidata, saltando le chiavi che non conosce.
+
+    Restituisce None se il pezzo e' illeggibile: chi chiama usa il default,
+    invece di far fallire tutta la lega per un campo scritto male.
+    """
+    if not isinstance(grezzo, dict):
+        return None
+    noti = set(classe.__dataclass_fields__)
+    valori = {k: v for k, v in grezzo.items() if k in noti}
+    for chiave, tipo in enumerazioni.items():
+        if chiave in valori:
+            try:
+                valori[chiave] = tipo[str(valori[chiave])]
+            except KeyError:
+                valori.pop(chiave)
+    try:
+        return classe(**valori)
+    except (TypeError, ValueError):
+        return None
 
 
 def _deserializza(grezzo: dict) -> dict:
@@ -415,6 +492,17 @@ def _deserializza(grezzo: dict) -> dict:
             )
         else:
             valori.pop("bonus")
+
+    for chiave, classe, enumerazioni in (
+        ("regole_coppa", RegoleCoppa, {"formato": FormatoCoppa}),
+        ("regole_supercoppa", RegoleSupercoppa, {"criterio": CriterioSupercoppa}),
+    ):
+        if chiave in valori:
+            ricostruito = _ricostruisci(valori[chiave], classe, enumerazioni)
+            if ricostruito is None:
+                valori.pop(chiave)
+            else:
+                valori[chiave] = ricostruito
 
     for campo in ("fasce_difesa", "fasce_centrocampo", "fasce_attacco"):
         if campo in valori:

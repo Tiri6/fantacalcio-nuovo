@@ -31,6 +31,9 @@ LUNGHEZZA_MINIMA_PASSWORD = 8
 
 class Ruolo(Enum):
     PRESIDENTE = "presidente"
+    # Chi il presidente autorizza a scrivere in bacheca, senza dargli il
+    # resto dei suoi poteri: non ratifica scambi e non importa dati.
+    EDITOR = "editor"
     FANTALLENATORE = "fantallenatore"
 
     @property
@@ -97,9 +100,18 @@ class Utente:
         return squadra_id is not None and squadra_id == self.squadra_id
 
     @property
+    def e_editor(self) -> bool:
+        return self.ruolo is Ruolo.EDITOR
+
+    @property
     def puo_importare(self) -> bool:
         """Import e ratifiche sono prerogativa del presidente (art. 1)."""
         return self.attivo and self.e_presidente
+
+    @property
+    def puo_scrivere_in_bacheca(self) -> bool:
+        """Il presidente e chi lui autorizza. Vedi `bacheca.puo_pubblicare`."""
+        return self.attivo and (self.e_presidente or self.e_editor)
 
 
 def normalizza_nome_utente(valore: str) -> str:

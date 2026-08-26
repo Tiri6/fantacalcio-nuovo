@@ -60,6 +60,17 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 - **Calendario**: tutti gli incroci in tre viste — per giornata, griglia
   degli scontri diretti squadra per squadra, e la stagione di una singola
   squadra con il bilancio.
+- **Competizioni**: campionato sempre, Coppa Italia e Supercoppa a scelta
+  creando la lega. Tabellone della coppa, finaliste di supercoppa dedotte
+  dall'albo d'oro (a mano il primo anno), albo d'oro storicizzato.
+- **Calendario dei weekend**: la corrispondenza fra giornata di Serie A e
+  giornata di lega. Un turno di coppa occupa un weekend e fa **slittare**
+  il campionato, non lo salta.
+- **Lista giocatori** con proprietario o svincolato, flag Ita e U21.
+- **Squadre**: identita', rosa con nazionalita'/eta'/U21, anni di
+  contratto residui e budget cap residuo.
+- **Assegnazioni**: draft giocatore per giocatore, o modello CSV.
+- **Ruolo editor**: chi il presidente autorizza a scrivere in bacheca.
 - **Diagnostica dello schema** (`diagnostica.py`): confronta il database con
   quello che il codice si aspetta e produce la query di riparazione. Un
   avviso solo nella barra laterale invece di errori rossi su ogni pagina.
@@ -167,6 +178,10 @@ sara' di 18 o 27 giornate.
   policy. La cura sta in `db/permessi.sql`, che chiude anche gli
   `alter default privileges` perche' la prossima tabella non ricada nel
   problema.
+- **Un turno di coppa non cancella una giornata di campionato**: la fa
+  slittare. Il contatore del campionato non avanza nei weekend di coppa,
+  altrimenti una giornata sparisce dal calendario senza che nessuno se ne
+  accorga.
 - **Una colonna mancante su Supabase si vede come errore su piu' pagine.**
   PostgREST e' severo dove SQLite e' indulgente: provare una migrazione sul
   demo SQLite non dimostra niente. La diagnostica esiste per questo.

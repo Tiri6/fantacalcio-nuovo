@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from .bacheca import Annuncio, AnnuncioNonValido, TipoAnnuncio
+from .competizioni import CompetizioneNonValida, TipoCompetizione, Titolo
 from .config import Impostazioni, carica_impostazioni
 from .demo_data import costruisci_db
 from .identita import IdentitaSquadra, StileMaglia
@@ -38,6 +39,7 @@ TABELLE = (
     "leghe",
     "inviti",
     "annunci",
+    "albo",
     "squadre",
     "giocatori",
     "contratti",
@@ -622,3 +624,70 @@ def elimina_annuncio(arch: Archivio, annuncio_id: int) -> None:
             conn.execute("delete from annunci where id = ?", (annuncio_id,))
         return
     arch._client.table("annunci").delete().eq("id", annuncio_id).execute()
+
+
+# ---------------------------------------------------------------------------
+# Albo d'oro
+# ---------------------------------------------------------------------------
+
+
+def carica_albo(arch: Archivio, lega_id: int | None = None) -> list[Titolo]:
+    """I titoli vinti. Le righe illeggibili si saltano invece di far fallire."""
+    righe = arch.tabella("albo")
+    if righe.empty:
+        return []
+
+    titoli: list[Titolo] = []
+    for _, r in righe.iterrows():
+        if lega_id is not None and int(r["lega_id"]) != lega_id:
+            continue
+        try:
+            competizione = TipoCompetizione[str(r["competizione"])]
+        except KeyError:
+            continue
+        squadra = r.get("squadra_id")
+        try:
+            titoli.append(
+                Titolo(
+                    id=int(r["id"]),
+                    lega_id=int(r["lega_id"]),
+                    competizione=competizione,
+                    stagione=str(r["stagione"]),
+                    squadra_id=(
+                        None if squadra is None or pd.isna(squadra) else int(squadra)
+                    ),
+                    squadra_nome=str(r["squadra_nome"]),
+                    note=_testo(r.get("note")),
+                    registrato_il=_testo(r.get("registrato_il")),
+                )
+            )
+        except (CompetizioneNonValida, KeyError, TypeError, ValueError):
+            continue
+    return titoli
+
+
+def salva_titolo(arch: Archivio, titolo: Titolo) -> None:
+    arch.scrivi(
+        "albo",
+        [
+            {
+                "id": titolo.id,
+                "lega_id": titolo.lega_id,
+                "competizione": titolo.competizione.name,
+                "stagione": titolo.stagione,
+                "squadra_id": titolo.squadra_id,
+                "squadra_nome": titolo.squadra_nome,
+                "note": titolo.note,
+                "registrato_il": titolo.registrato_il,
+            }
+        ],
+        chiave="id",
+    )
+
+
+def elimina_titolo(arch: Archivio, titolo_id: int) -> None:
+    if isinstance(arch, ArchivioSQLite):
+        with sqlite3.connect(arch.percorso) as conn:
+            conn.execute("delete from albo where id = ?", (titolo_id,))
+        return
+    arch._client.table("albo").delete().eq("id", titolo_id).execute()

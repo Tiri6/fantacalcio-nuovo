@@ -97,17 +97,39 @@ create table if not exists dead_money (
     addebitato      boolean not null default false
 );
 
+-- Albo d'oro: chi ha vinto cosa. Si scrive a fine competizione e resta.
+create table if not exists albo (
+    id             bigserial primary key,
+    lega_id        bigint not null references leghe(id) on delete cascade,
+    -- Nome del membro di TipoCompetizione (CAMPIONATO, COPPA_ITALIA, SUPERCOPPA).
+    competizione   text not null,
+    stagione       text not null,
+    squadra_id     bigint references squadre(id) on delete set null,
+    -- Il nome si copia: una squadra puo' sparire, il titolo resta suo.
+    squadra_nome   text not null,
+    note           text not null default '',
+    registrato_il  timestamptz not null default now(),
+    unique (lega_id, competizione, stagione)
+);
+
 -- Risultati importati da Leghe Fantacalcio: il gestionale non li calcola.
 create table if not exists calendario (
     id               bigserial primary key,
     giornata         integer not null,
+    -- A quale competizione appartiene la partita.
+    competizione     text not null default 'CAMPIONATO',
+    -- La giornata di Serie A vera a cui corrisponde questo turno: e' cio' che
+    -- permette di dire «6º weekend: 1ª di campionato, 7º: Coppa Italia».
+    giornata_serie_a integer,
+    data_prevista    date,
+    turno            text not null default '',
     casa_id          bigint not null references squadre(id) on delete cascade,
     trasferta_id     bigint not null references squadre(id) on delete cascade,
     gol_casa         integer,
     gol_trasferta    integer,
     punti_casa       numeric(6, 2),
     punti_trasferta  numeric(6, 2),
-    unique (giornata, casa_id, trasferta_id)
+    unique (giornata, competizione, casa_id, trasferta_id)
 );
 
 -- Parametri del regolamento: permette di applicare un lodo senza rideployare.
@@ -227,6 +249,11 @@ alter table utenti  add column if not exists data_nascita date;
 alter table utenti  add column if not exists sesso text not null default 'NON_DICHIARATO';
 alter table utenti  add column if not exists citta text not null default '';
 alter table utenti  add column if not exists squadra_preferita text not null default '';
+
+alter table calendario add column if not exists competizione text not null default 'CAMPIONATO';
+alter table calendario add column if not exists giornata_serie_a integer;
+alter table calendario add column if not exists data_prevista date;
+alter table calendario add column if not exists turno text not null default '';
 alter table utenti  add column if not exists lega_id bigint references leghe(id) on delete set null;
 
 create index if not exists idx_scambi_stato on scambi (stato);
@@ -235,6 +262,8 @@ create index if not exists idx_scambi_movimenti on scambi_movimenti (scambio_id)
 create index if not exists idx_leghe_codice on leghe (codice_invito);
 create index if not exists idx_inviti_lega on inviti (lega_id);
 create index if not exists idx_annunci_lega on annunci (lega_id, pubblicato);
+create index if not exists idx_albo_lega on albo (lega_id, stagione);
+create index if not exists idx_calendario_competizione on calendario (competizione, giornata);
 create index if not exists idx_squadre_lega on squadre (lega_id);
 create index if not exists idx_utenti_lega on utenti (lega_id);
 
@@ -259,6 +288,7 @@ alter table leghe       enable row level security;
 -- `inviti` NON ha lettura pubblica: contiene gli indirizzi email dei partecipanti.
 alter table inviti      enable row level security;
 alter table annunci     enable row level security;
+alter table albo        enable row level security;
 alter table squadre     enable row level security;
 alter table giocatori   enable row level security;
 alter table contratti   enable row level security;
@@ -276,7 +306,7 @@ declare
     t text;
 begin
     foreach t in array array[
-        'leghe', 'annunci', 'squadre', 'giocatori', 'contratti', 'dead_money',
+        'leghe', 'annunci', 'albo', 'squadre', 'giocatori', 'contratti', 'dead_money',
         'calendario', 'parametri', 'lodi', 'scambi', 'scambi_movimenti'
     ]
     loop

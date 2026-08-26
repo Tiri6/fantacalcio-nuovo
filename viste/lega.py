@@ -87,6 +87,13 @@ if amministra:
             )
 
 if amministra:
+    with st.expander("✍️ Chi puo' scrivere in bacheca"):
+        st.caption(
+            "L'editor pubblica in bacheca e basta: non ratifica scambi e non "
+            "importa dati. E' una delega stretta, non una seconda presidenza."
+        )
+        schermate.modulo_ruoli(utente, lega)
+
     with st.expander("🔐 Reimposta la password di un partecipante"):
         st.caption(
             "Non parte nessuna mail: il sito genera una password temporanea, "

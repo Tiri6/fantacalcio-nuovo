@@ -37,6 +37,13 @@ from .autenticazione import (
     registra,
     reimposta_password,
 )
+from .competizioni import (
+    CompetizioneNonValida,
+    CriterioSupercoppa,
+    FormatoCoppa,
+    RegoleCoppa,
+    RegoleSupercoppa,
+)
 from .data import (
     archivio,
     carica_credenziali,
@@ -332,7 +339,16 @@ def _modulo_opzioni() -> OpzioniLega | None:
         help="Durata massima di un contratto. E' la leva del fantacalcio "
         "manageriale: quanto a lungo puoi legare a te un giocatore.",
     )
-    stagione = riga[2].text_input("Stagione", value="2026/27")
+    budget_milioni = riga[2].number_input(
+        "Budget cap annuale (milioni)",
+        min_value=0.0,
+        max_value=1_000.0,
+        value=100.0,
+        step=5.0,
+        help="Tetto agli ingaggi di una squadra in una stagione. Fonte degli "
+        "stipendi: Capology.",
+    )
+    stagione = st.text_input("Stagione", value="2026/27")
 
     st.markdown("**Limite di giocatori per ruolo**")
     con_limiti = st.radio(
@@ -385,6 +401,72 @@ def _modulo_opzioni() -> OpzioniLega | None:
         step=1,
         help="Per squadra, nell'arco della stagione. 0 = illimitati.",
     )
+
+    st.markdown("#### Competizioni")
+    st.caption(
+        "Il campionato c'e' sempre. Le altre compaiono nel menu solo se le accendi qui."
+    )
+    riga = st.columns(2)
+    coppa = riga[0].toggle("Coppa Italia", value=False)
+    supercoppa = riga[1].toggle("Supercoppa", value=False)
+
+    regole_coppa = RegoleCoppa()
+    if coppa:
+        with st.expander("Regole della Coppa Italia", expanded=True):
+            riga = st.columns(3)
+            formato_coppa = riga[0].selectbox(
+                "Formato", list(FormatoCoppa), format_func=lambda f: f.etichetta
+            )
+            ammesse = riga[1].selectbox(
+                "Squadre ammesse",
+                [2, 4, 8, 16],
+                index=2,
+                help="Una potenza di due: altrimenti il tabellone non si chiude.",
+            )
+            teste = riga[2].toggle("Teste di serie dalla classifica", value=True)
+
+            riga = st.columns(3)
+            prima = riga[0].number_input("Primo turno alla giornata", 1, 40, 5)
+            passo = riga[1].number_input("Un turno ogni quante giornate", 1, 10, 4)
+            spareggio = riga[2].toggle(
+                "Parita': passa chi ha piu' fantapunti",
+                value=True,
+                help="Senza, una coppa a gara secca non saprebbe chi far passare.",
+            )
+            try:
+                regole_coppa = RegoleCoppa(
+                    formato=formato_coppa,
+                    squadre_ammesse=int(ammesse),
+                    prima_giornata=int(prima),
+                    ogni_quante_giornate=int(passo),
+                    teste_di_serie=bool(teste),
+                    spareggio_ai_fantapunti=bool(spareggio),
+                )
+            except CompetizioneNonValida as errore:
+                st.error(str(errore), icon="⛔")
+            else:
+                turni = ", ".join(
+                    f"{regole_coppa.nome_turno(n + 1)} (G{g})"
+                    for n, g in enumerate(regole_coppa.giornate_dei_turni())
+                )
+                st.caption(f"Tabellone: {turni}")
+
+    regole_supercoppa = RegoleSupercoppa()
+    if supercoppa:
+        with st.expander("Regole della Supercoppa", expanded=True):
+            criterio = st.selectbox(
+                "Chi si affronta",
+                list(CriterioSupercoppa),
+                format_func=lambda c: c.etichetta,
+                help="Il primo anno l'albo d'oro e' vuoto: le due squadre le "
+                "scegli a mano. Dall'anno dopo si ricavano da sole.",
+            )
+            prima_stagione = st.toggle(
+                "Si gioca prima dell'inizio del campionato", value=True
+            )
+            regole_supercoppa = RegoleSupercoppa(
+                criterio=criterio, prima_della_stagione=bool(prima_stagione)
+            )
 
     st.markdown("#### Formazione")
     disponibili = moduli_disponibili(modalita)
@@ -462,6 +544,11 @@ def _modulo_opzioni() -> OpzioniLega | None:
             giornate_totali=int(giornate),
             tipo_asta=tipo_asta,
             anni_contratto_massimi=int(anni_contratto),
+            budget_cap=float(budget_milioni) * 1_000_000,
+            coppa_italia=bool(coppa),
+            supercoppa=bool(supercoppa),
+            regole_coppa=regole_coppa,
+            regole_supercoppa=regole_supercoppa,
             rosa_portieri=None if portieri is None else int(portieri),
             rosa_difensori=None if difensori is None else int(difensori),
             rosa_centrocampisti=(None if centrocampisti is None else int(centrocampisti)),
@@ -934,3 +1021,64 @@ def modulo_reimposta_password(utente: Utente, lega: Lega) -> None:
         temporanea,
     )
     st.rerun()
+
+
+def modulo_ruoli(utente: Utente, lega: Lega) -> None:
+    """Il presidente promuove qualcuno a editor, o lo riporta fantallenatore.
+
+    L'editor scrive in bacheca e basta: non ratifica scambi e non importa
+    dati. E' una delega stretta, non una seconda presidenza.
+    """
+    tutte = carica_credenziali(archivio())
+    altri = {
+        c.utente.nome_utente: c
+        for c in tutte.values()
+        if c.utente.lega_id == lega.id and c.utente.id != utente.id
+    }
+    if not altri:
+        st.info("Non c'e' nessun altro partecipante in questa lega.", icon="👤")
+        return
+
+    riga = st.columns([3, 2, 2])
+    scelto = riga[0].selectbox(
+        "Partecipante",
+        sorted(altri),
+        format_func=lambda n: f"{altri[n].utente.nome_completo} ({n})",
+        key="_ruolo_chi",
+    )
+    attuale = altri[scelto].utente.ruolo
+    assegnabili = [Ruolo.FANTALLENATORE, Ruolo.EDITOR]
+    nuovo = riga[1].selectbox(
+        "Ruolo",
+        assegnabili,
+        index=assegnabili.index(attuale) if attuale in assegnabili else 0,
+        format_func=lambda r: r.etichetta,
+        key="_ruolo_quale",
+    )
+    riga[2].markdown(f"**Adesso e'**  \n{attuale.etichetta}")
+
+    if attuale is Ruolo.PRESIDENTE:
+        st.warning(
+            "E' il presidente della lega: il ruolo non si cambia da qui.", icon="👑"
+        )
+        return
+
+    if nuovo is attuale:
+        st.caption("Ha gia' questo ruolo.")
+        return
+
+    if st.button(f"Assegna «{nuovo.etichetta}»", use_container_width=True):
+        from dataclasses import replace as _replace
+
+        credenziali = altri[scelto]
+        aggiornate = _replace(
+            credenziali, utente=_replace(credenziali.utente, ruolo=nuovo)
+        )
+        try:
+            salva_credenziali(archivio(), aggiornate)
+        except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+            st.error(f"Non riesco a salvare il ruolo: {errore}", icon="⛔")
+            return
+        _dati_cambiati()
+        _ricorda(f"{aggiornate.utente.nome_completo} ora e' {nuovo.etichetta}.")
+        st.rerun()

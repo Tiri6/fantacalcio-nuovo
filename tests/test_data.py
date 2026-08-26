@@ -336,3 +336,65 @@ class TestBachecaPersistita:
         # titolo troppo corto e testo vuoto: la riga si salta, le altre no.
         assert not [a for a in carica_annunci(archivio, 1) if a.id == 503]
         assert carica_annunci(archivio, 1)
+
+
+class TestAlboPersistito:
+    def test_salva_e_rilegge_un_titolo(self, archivio):
+        from fantacalcio.competizioni import TipoCompetizione, crea_titolo
+        from fantacalcio.data import carica_albo, salva_titolo
+
+        salva_titolo(
+            archivio,
+            crea_titolo(600, 1, TipoCompetizione.CAMPIONATO, "2026/27", "Tiri Team", 1),
+        )
+        riletto = next(t for t in carica_albo(archivio, 1) if t.id == 600)
+        assert riletto.competizione is TipoCompetizione.CAMPIONATO
+        assert riletto.squadra_nome == "Tiri Team"
+        assert riletto.stagione == "2026/27"
+
+    def test_eliminare_un_titolo(self, archivio):
+        from fantacalcio.competizioni import TipoCompetizione, crea_titolo
+        from fantacalcio.data import carica_albo, elimina_titolo, salva_titolo
+
+        salva_titolo(
+            archivio,
+            crea_titolo(601, 1, TipoCompetizione.COPPA_ITALIA, "2026/27", "Padel"),
+        )
+        elimina_titolo(archivio, 601)
+        assert not [t for t in carica_albo(archivio, 1) if t.id == 601]
+
+    def test_una_competizione_sconosciuta_si_salta(self, archivio):
+        """Una riga scritta da una versione futura non deve rompere l'albo."""
+        from fantacalcio.data import carica_albo
+
+        archivio.scrivi(
+            "albo",
+            [
+                {
+                    "id": 602,
+                    "lega_id": 1,
+                    "competizione": "MONDIALE_PER_CLUB",
+                    "stagione": "2026/27",
+                    "squadra_nome": "Tiri Team",
+                }
+            ],
+            chiave="id",
+        )
+        assert not [t for t in carica_albo(archivio, 1) if t.id == 602]
+
+
+def test_il_ruolo_editor_scrive_in_bacheca_ma_non_importa():
+    """Il presidente delega la bacheca senza cedere il resto dei suoi poteri."""
+    from types import SimpleNamespace
+
+    from fantacalcio.autenticazione import Ruolo, Utente
+    from fantacalcio.bacheca import puo_pubblicare
+
+    editor = Utente(id=5, nome_utente="ed", nome="Ed", ruolo=Ruolo.EDITOR, lega_id=1)
+    lega = SimpleNamespace(id=1, admin_id=1)
+    assert puo_pubblicare(editor, lega)
+    assert editor.puo_scrivere_in_bacheca
+    assert not editor.puo_importare
+
+    normale = Utente(id=6, nome_utente="lu", nome="Lu", ruolo=Ruolo.FANTALLENATORE)
+    assert not puo_pubblicare(normale, lega)

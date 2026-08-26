@@ -54,8 +54,17 @@ all'avvio: non ricrearlo a mano.
   le cache di Streamlit sono condivise fra tutte le sessioni, quindi con dieci
   persone collegate un contatore per sessione farebbe leggere dati vecchi a chi
   entra dopo.
-- **I tre cancelli hanno un ordine.** `app.py` chiama in sequenza
-  `richiedi_login` → `richiedi_lega` → `richiedi_squadra`. Ognuno ferma la
+- **Le voci di menu delle competizioni sono condizionali.** Coppa e
+  Supercoppa compaiono solo se la lega le gioca: una voce che parla di una
+  competizione inesistente e' peggio di una voce mancante.
+- **Under 21 si valuta al 31 agosto**, non alla data del draft: lo status
+  si cristallizza li' e vale per tutta la stagione. Vedi
+  `competizioni.data_riferimento_u21` e `ui.data_u21()`.
+- **`st.stop()` dentro una scheda ferma tutto lo script**, quindi le schede
+  successive non si disegnano. Se una scheda non ha niente da mostrare, non
+  crearla proprio.
+- **I tre cancelli hanno un ordine.** `app.py` chiama in sequenza `richiedi_login` →
+  `richiedi_password_nuova` → `richiedi_lega` → `richiedi_squadra`. Ognuno ferma la
   pagina finche' non e' superato: da li' in giu' c'e' sempre un utente dentro
   una lega. Aggiungere un cancello vuol dire aggiungerlo li', non dentro una
   vista.
@@ -93,6 +102,8 @@ all'avvio: non ricrearlo a mano.
 | Toccare la bacheca o i permessi di scrittura | `bacheca.py` + `test_bacheca.py` |
 | Toccare i dati anagrafici o la squadra del cuore | `anagrafica.py` + `test_anagrafica.py` |
 | Aggiungere una tabella o colonna che l'app scrive | anche `ATTESO` in `diagnostica.py` |
+| Toccare coppa, supercoppa o albo d'oro | `competizioni.py` + `test_competizioni.py` |
+| Cambiare la corrispondenza Serie A ↔ giornate | `costruisci_weekend` in `competizioni.py` |
 | Cambiare le viste del calendario | `viste/calendario.py` |
 | Cambiare accesso, registrazione o onboarding | `schermate.py` + `ui.py` |
 | Toccare login o permessi | `autenticazione.py` + `test_autenticazione.py` |

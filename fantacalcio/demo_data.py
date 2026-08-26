@@ -256,7 +256,18 @@ def _lega_demo() -> list[dict]:
             "codice_invito": CODICE_DEMO,
             "admin_id": 1,
             "stagione": ParametriLega().stagione,
-            "opzioni": OpzioniLega().a_json(),
+            # Le opzioni della demo seguono il regolamento V2.1, non i default
+            # generici: altrimenti la pagina Squadre direbbe «31 su 25».
+            "opzioni": OpzioniLega(
+                rosa_portieri=ParametriLega().portieri_massimo,
+                rosa_difensori=None,
+                rosa_centrocampisti=None,
+                rosa_attaccanti=None,
+                anni_contratto_massimi=ParametriLega().contratto_anni_massimo,
+                budget_cap=ParametriLega().salary_cap,
+                coppa_italia=True,
+                supercoppa=True,
+            ).a_json(),
             "creata_il": "2026-08-01T10:00:00",
         }
     ]
@@ -610,9 +621,24 @@ create table if not exists scambi_movimenti (
     anni_prima integer not null,
     anni_dopo integer not null
 );
+create table if not exists albo (
+    id integer primary key,
+    lega_id integer not null,
+    competizione text not null,
+    stagione text not null,
+    squadra_id integer,
+    squadra_nome text not null,
+    note text not null default '',
+    registrato_il text,
+    unique (lega_id, competizione, stagione)
+);
 create table if not exists calendario (
     id integer primary key,
     giornata integer not null,
+    competizione text not null default 'CAMPIONATO',
+    giornata_serie_a integer,
+    data_prevista text,
+    turno text not null default '',
     casa_id integer not null,
     trasferta_id integer not null,
     gol_casa integer,
@@ -634,6 +660,8 @@ def _schema_aggiornato(percorso: Path) -> bool:
         "leghe": {"id", "nome", "codice_invito", "admin_id", "opzioni"},
         "inviti": {"id", "lega_id", "email", "codice", "stato"},
         "annunci": {"id", "lega_id", "titolo", "testo", "tipo", "pubblicato"},
+        "albo": {"id", "lega_id", "competizione", "stagione", "squadra_nome"},
+        "calendario": {"competizione", "giornata_serie_a", "data_prevista", "turno"},
         "squadre": {"citta", "curva", "lega_id"},
         "utenti": {
             "email",

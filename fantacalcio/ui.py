@@ -451,8 +451,16 @@ def andamento_punti() -> pd.DataFrame:
     return _andamento_punti(versione_dati())
 
 
+def data_u21() -> date:
+    """Il 31 agosto della stagione della lega: la data che decide gli Under 21."""
+    from .competizioni import data_riferimento_u21
+
+    lega = lega_corrente()
+    return data_riferimento_u21(lega.stagione if lega else parametri().stagione)
+
+
 def stati(momento: Momento = Momento.STAGIONE):
-    return vista.stati_rose(rose(), DATA_DRAFT, parametri(), momento)
+    return vista.stati_rose(rose(), data_u21(), parametri(), momento)
 
 
 def giornate_disputate(partite: pd.DataFrame) -> int:
@@ -553,6 +561,77 @@ def _problemi_schema(versione: int) -> list:
 def problemi_schema() -> list:
     """Cosa manca nel database rispetto a quello che il codice si aspetta."""
     return _problemi_schema(versione_dati())
+
+
+@st.cache_data(ttl=TTL)
+def _albo(versione: int) -> list:
+    from .data import carica_albo
+
+    lega = lega_corrente()
+    return carica_albo(archivio(), lega.id if lega else None)
+
+
+def albo() -> list:
+    """I titoli vinti nella lega corrente."""
+    return _albo(versione_dati())
+
+
+SVINCOLATO = "— svincolato —"
+
+
+@st.cache_data(ttl=TTL)
+def _giocatori_con_proprietario(versione: int) -> pd.DataFrame:
+    """Il listone con la squadra che li possiede e i flag Ita / U21.
+
+    Si costruisce una volta e si mette in cache: sono cinquecento righe e la
+    pagina la filtra molte volte per rerun.
+    """
+    from .data import carica_giocatori
+
+    arch = archivio()
+    giocatori = carica_giocatori(arch)
+    if not giocatori:
+        return pd.DataFrame()
+
+    contratti = arch.contratti()
+    proprietario: dict[int, tuple[str, int]] = {}
+    if not contratti.empty:
+        nomi = nomi_squadre()
+        for _, c in contratti.iterrows():
+            proprietario[int(c["giocatore_id"])] = (
+                nomi.get(int(c["squadra_id"]), "?"),
+                int(c["anni_residui"]),
+            )
+
+    riferimento = data_u21()
+    par = parametri()
+    righe = []
+    for giocatore in giocatori.values():
+        squadra, anni = proprietario.get(giocatore.id, (SVINCOLATO, 0))
+        righe.append(
+            {
+                "Giocatore": giocatore.nome,
+                "Club": giocatore.club,
+                "Ruoli": "/".join(giocatore.ruoli),
+                "Squadra": squadra,
+                "Anni": anni,
+                "Ingaggio": giocatore.ingaggio,
+                "Nazionalita": giocatore.nazionalita,
+                "Nato": (
+                    giocatore.data_nascita.strftime("%d/%m/%Y")
+                    if giocatore.data_nascita
+                    else ""
+                ),
+                "Eta": giocatore.eta_al(riferimento) or 0,
+                "Ita": giocatore.italiano,
+                "U21": giocatore.under_21(riferimento, par),
+            }
+        )
+    return pd.DataFrame(righe).sort_values("Giocatore").reset_index(drop=True)
+
+
+def giocatori_con_proprietario() -> pd.DataFrame:
+    return _giocatori_con_proprietario(versione_dati())
 
 
 def nomi_squadre() -> dict[int, str]:
