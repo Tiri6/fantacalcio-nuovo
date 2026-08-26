@@ -312,7 +312,7 @@ def barra_laterale() -> None:
     lega = lega_corrente()
     with st.sidebar:
         if utente is not None:
-            st.markdown(f"**{utente.nome}**")
+            st.markdown(f"**{utente.nome_completo}**")
             st.caption(utente.ruolo.etichetta)
             if st.button("Esci", use_container_width=True):
                 esci()
@@ -538,4 +538,7 @@ def nomi_squadre() -> dict[int, str]:
 def nomi_utenti() -> dict[int, str]:
     from .data import carica_credenziali
 
-    return {c.utente.id: c.utente.nome for c in carica_credenziali(archivio()).values()}
+    return {
+        c.utente.id: c.utente.nome_completo
+        for c in carica_credenziali(archivio()).values()
+    }

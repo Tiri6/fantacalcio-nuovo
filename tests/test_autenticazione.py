@@ -5,6 +5,7 @@ import pytest
 from fantacalcio.autenticazione import (
     LUNGHEZZA_MINIMA_PASSWORD,
     Credenziali,
+    EmailGiaUsata,
     NomeUtenteOccupato,
     PasswordNonValida,
     PermessoNegato,
@@ -176,72 +177,100 @@ class TestRegistrazione:
     """Chi arriva si crea l'account da solo: il presidente non lo crea a mano."""
 
     def test_crea_un_utente_nuovo(self):
-        nuove = registra({}, 1, "luca", "Luca Rossi", "password1", "password1")
+        nuove = registra(
+            {}, 1, "luca", "Luca Rossi", "password1", "password1", email="luca@esempio.it"
+        )
         assert nuove.utente.nome_utente == "luca"
         assert nuove.utente.ruolo is Ruolo.FANTALLENATORE
         assert nuove.corrisponde("password1")
 
     def test_il_nome_utente_si_normalizza(self):
         assert (
-            registra({}, 1, "  LuCa  ", "Luca", "password1").utente.nome_utente == "luca"
+            registra(
+                {}, 1, "  LuCa  ", "Luca", "password1", email="tizio@esempio.it"
+            ).utente.nome_utente
+            == "luca"
         )
 
     def test_nome_gia_preso(self):
-        esistenti = {"luca": registra({}, 1, "luca", "Luca", "password1")}
+        esistenti = {
+            "luca": registra({}, 1, "luca", "Luca", "password1", email="luca@esempio.it")
+        }
         with pytest.raises(NomeUtenteOccupato, match="luca"):
-            registra(esistenti, 2, "LUCA", "Luca Bis", "password2")
+            registra(
+                esistenti, 2, "LUCA", "Luca Bis", "password2", email="tizio@esempio.it"
+            )
 
     def test_il_conflitto_si_dice_apertamente(self):
         """Al contrario del login: qui tacere lascerebbe l'utente bloccato."""
-        esistenti = {"luca": registra({}, 1, "luca", "Luca", "password1")}
+        esistenti = {
+            "luca": registra({}, 1, "luca", "Luca", "password1", email="luca@esempio.it")
+        }
         with pytest.raises(NomeUtenteOccupato) as errore:
-            registra(esistenti, 2, "luca", "Altro", "password2")
+            registra(esistenti, 2, "luca", "Altro", "password2", email="luca@esempio.it")
         assert "gia' preso" in str(errore.value)
 
     def test_password_non_coincidenti(self):
         with pytest.raises(PasswordNonValida, match="non coincidono"):
-            registra({}, 1, "luca", "Luca", "password1", "password2")
+            registra(
+                {}, 1, "luca", "Luca", "password1", "password2", email="luca@esempio.it"
+            )
 
     def test_senza_conferma_non_si_controlla(self):
-        assert registra({}, 1, "luca", "Luca", "password1") is not None
+        assert (
+            registra({}, 1, "luca", "Luca", "password1", email="luca@esempio.it")
+            is not None
+        )
 
     def test_password_troppo_corta(self):
         with pytest.raises(PasswordNonValida):
-            registra({}, 1, "luca", "Luca", "corta", "corta")
+            registra({}, 1, "luca", "Luca", "corta", "corta", email="luca@esempio.it")
 
     def test_email_conservata(self):
         nuove = registra({}, 1, "luca", "Luca", "password1", email="luca@esempio.it")
         assert nuove.utente.email == "luca@esempio.it"
 
     def test_chi_si_registra_non_ha_ne_lega_ne_squadra(self):
-        utente = registra({}, 1, "luca", "Luca", "password1").utente
+        utente = registra(
+            {}, 1, "luca", "Luca", "password1", email="luca@esempio.it"
+        ).utente
         assert not utente.ha_lega
         assert not utente.ha_squadra
 
 
 class TestIngressoInLega:
     def test_entrare_assegna_la_lega(self):
-        credenziali = registra({}, 1, "luca", "Luca", "password1")
+        credenziali = registra(
+            {}, 1, "luca", "Luca", "password1", email="luca@esempio.it"
+        )
         dentro = entra_in_lega(credenziali, lega_id=7)
         assert dentro.utente.lega_id == 7
         assert dentro.utente.ha_lega
 
     def test_si_puo_entrare_come_presidente(self):
-        credenziali = registra({}, 1, "marco", "Marco", "password1")
+        credenziali = registra(
+            {}, 1, "marco", "Marco", "password1", email="marco@esempio.it"
+        )
         dentro = entra_in_lega(credenziali, 7, Ruolo.PRESIDENTE)
         assert dentro.utente.e_presidente
         assert dentro.utente.puo_importare
 
     def test_il_ruolo_resta_quello_se_non_lo_cambi(self):
-        credenziali = registra({}, 1, "luca", "Luca", "password1")
+        credenziali = registra(
+            {}, 1, "luca", "Luca", "password1", email="luca@esempio.it"
+        )
         assert entra_in_lega(credenziali, 7).utente.ruolo is Ruolo.FANTALLENATORE
 
     def test_entrare_non_tocca_la_password(self):
-        credenziali = registra({}, 1, "luca", "Luca", "password1")
+        credenziali = registra(
+            {}, 1, "luca", "Luca", "password1", email="luca@esempio.it"
+        )
         assert entra_in_lega(credenziali, 7).corrisponde("password1")
 
     def test_assegnare_la_squadra(self):
-        credenziali = registra({}, 1, "luca", "Luca", "password1")
+        credenziali = registra(
+            {}, 1, "luca", "Luca", "password1", email="luca@esempio.it"
+        )
         con_squadra = assegna_squadra(entra_in_lega(credenziali, 7), squadra_id=3)
         assert con_squadra.utente.squadra_id == 3
         assert con_squadra.utente.ha_squadra
@@ -251,14 +280,16 @@ class TestIngressoInLega:
 
     def test_l_originale_non_cambia(self):
         """Le credenziali sono immutabili: chi le tiene in mano non se le vede mutare."""
-        credenziali = registra({}, 1, "luca", "Luca", "password1")
+        credenziali = registra(
+            {}, 1, "luca", "Luca", "password1", email="luca@esempio.it"
+        )
         entra_in_lega(credenziali, 7)
         assert credenziali.utente.lega_id is None
 
 
 class TestCambioPassword:
     def credenziali(self):
-        return registra({}, 1, "luca", "Luca", "password1")
+        return registra({}, 1, "luca", "Luca", "password1", email="luca@esempio.it")
 
     def test_cambio_riuscito(self):
         nuove = cambia_password(self.credenziali(), "password1", "password2", "password2")
@@ -312,7 +343,9 @@ class TestCambioPassword:
 class TestReimpostazione:
     def bersaglio(self):
         """Un partecipante della lega 1, con password nota."""
-        credenziali = registra({}, 2, "luca", "Luca", "password1")
+        credenziali = registra(
+            {}, 2, "luca", "Luca", "password1", email="luca@esempio.it"
+        )
         return replace(credenziali, utente=replace(credenziali.utente, lega_id=1))
 
     def test_genera_una_password_usabile(self):
@@ -331,7 +364,10 @@ class TestReimpostazione:
 
     def test_un_fantallenatore_non_reimposta(self):
         estraneo = replace(
-            registra({}, 3, "mario", "Mario", "password1").utente, lega_id=1
+            registra(
+                {}, 3, "mario", "Mario", "password1", email="mario@esempio.it"
+            ).utente,
+            lega_id=1,
         )
         with pytest.raises(PermessoNegato):
             reimposta_password(self.bersaglio(), estraneo)
@@ -359,3 +395,110 @@ class TestReimpostazione:
 PRESIDENTE_DI_LEGA = Utente(
     id=1, nome_utente="marco", nome="Marco", ruolo=Ruolo.PRESIDENTE, lega_id=1
 )
+
+
+class TestRegistrazioneCompleta:
+    """L'email e' obbligatoria e i dati anagrafici arrivano fino al modello."""
+
+    def test_senza_email_si_rifiuta(self):
+        from fantacalcio.leghe import EmailNonValida
+
+        with pytest.raises(EmailNonValida):
+            registra({}, 1, "luca", "Luca", "password1")
+
+    @pytest.mark.parametrize("scritta", ["", "   ", "non-una-email", "luca@"])
+    def test_email_malformata(self, scritta):
+        from fantacalcio.leghe import EmailNonValida
+
+        with pytest.raises(EmailNonValida):
+            registra({}, 1, "luca", "Luca", "password1", email=scritta)
+
+    def test_email_gia_registrata(self):
+        """Due account con la stessa email sono due modi di essere la stessa persona."""
+        esistenti = {
+            "luca": registra({}, 1, "luca", "Luca", "password1", email="l@esempio.it")
+        }
+        with pytest.raises(EmailGiaUsata, match="l@esempio.it"):
+            registra(esistenti, 2, "luca2", "Luca Bis", "password2", email="L@Esempio.IT")
+
+    def test_il_nome_utente_occupato_ha_la_precedenza(self):
+        """Con entrambi i conflitti si segnala il primo che l'utente puo' cambiare."""
+        esistenti = {
+            "luca": registra({}, 1, "luca", "Luca", "password1", email="l@esempio.it")
+        }
+        with pytest.raises(NomeUtenteOccupato):
+            registra(esistenti, 2, "luca", "Altro", "password2", email="l@esempio.it")
+
+    def test_i_dati_anagrafici_arrivano_al_modello(self):
+        from datetime import date
+
+        from fantacalcio.anagrafica import Sesso
+
+        nuove = registra(
+            {},
+            1,
+            "marco",
+            "Marco",
+            "password1",
+            email="marco@esempio.it",
+            cognome="Tirinato",
+            data_nascita=date(1991, 3, 24),
+            sesso=Sesso.MASCHIO,
+            citta="Ginevra",
+            squadra_preferita="Inter",
+        )
+        utente = nuove.utente
+        assert utente.cognome == "Tirinato"
+        assert utente.nome_completo == "Marco Tirinato"
+        assert utente.data_nascita == date(1991, 3, 24)
+        assert utente.sesso is Sesso.MASCHIO
+        assert utente.citta == "Ginevra"
+        assert utente.squadra_preferita == "Inter"
+
+    def test_l_email_si_normalizza(self):
+        nuove = registra(
+            {}, 1, "marco", "Marco", "password1", email="  Marco@ESEMPIO.it "
+        )
+        assert nuove.utente.email == "marco@esempio.it"
+
+    def test_senza_cognome_il_nome_completo_e_solo_il_nome(self):
+        nuove = registra({}, 1, "marco", "Marco", "password1", email="m@esempio.it")
+        assert nuove.utente.nome_completo == "Marco"
+
+    def test_una_password_corta_impedisce_la_creazione(self):
+        """Il caso che lasciava l'utente convinto di essersi iscritto."""
+        with pytest.raises(PasswordNonValida, match=str(LUNGHEZZA_MINIMA_PASSWORD)):
+            registra({}, 1, "marco", "Marco", "corta", email="m@esempio.it")
+
+
+class TestSbloccoDaSql:
+    """Lo script di emergenza deve produrre una password che il sito accetta."""
+
+    def test_l_hash_generato_verifica_la_password(self):
+        import re
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        radice = Path(__file__).resolve().parents[1]
+        esito = subprocess.run(
+            [
+                sys.executable,
+                str(radice / "scripts" / "reimposta_password.py"),
+                "marco",
+                "--password",
+                "sbloccami99",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        hash_password = re.search(r"hash_password = '([0-9a-f]+)'", esito.stdout)
+        sale = re.search(r"sale = '([0-9a-f]+)'", esito.stdout)
+        assert hash_password and sale
+
+        # E' questa la prova che conta: quello che finisce nel database deve
+        # essere accettato dalla stessa funzione che verifica il login.
+        assert verifica_password("sbloccami99", hash_password.group(1), sale.group(1))
+        assert not verifica_password("altra", hash_password.group(1), sale.group(1))
+        assert "deve_cambiare_password = true" in esito.stdout

@@ -113,12 +113,12 @@ if dentro:
         pd.DataFrame(
             [
                 {
-                    "Partecipante": u.nome,
+                    "Partecipante": u.nome_completo,
                     "Utente": u.nome_utente,
                     "Ruolo": u.ruolo.etichetta,
                     "Squadra": nomi_squadra.get(u.squadra_id, "— nessuna —"),
                 }
-                for u in sorted(dentro, key=lambda u: u.nome.lower())
+                for u in sorted(dentro, key=lambda u: u.nome_completo.lower())
             ]
         ),
         hide_index=True,

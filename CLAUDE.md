@@ -69,6 +69,9 @@ all'avvio: non ricrearlo a mano.
 - **Il testo scritto dagli utenti passa da `tema._scudo()`** prima di finire in
   un `unsafe_allow_html`. Nome squadra, motto e curva li scrivono i
   partecipanti: senza, chi mette `<script>` come motto lo fa eseguire agli altri.
+- **Ogni regola di validazione va scritta nel modulo, accanto al campo.**
+  Una regola che l'utente scopre solo dall'errore fa fallire l'operazione
+  senza lasciare traccia: chi la subisce crede che il sito sia rotto.
 - **I permessi si controllano nel dominio, non solo nell'interfaccia.**
   `Utente.puo_gestire()` e le transizioni in `scambi.py` sollevano
   `TransizioneNonAmmessa`: nascondere un bottone non e' un controllo.
@@ -88,6 +91,7 @@ all'avvio: non ricrearlo a mano.
 | Aggiungere un'opzione di lega | `OpzioniLega` in `leghe.py` + il modulo in `schermate.py` |
 | Toccare colori, schede o testate | `tema.py` + `test_tema.py` |
 | Toccare la bacheca o i permessi di scrittura | `bacheca.py` + `test_bacheca.py` |
+| Toccare i dati anagrafici o la squadra del cuore | `anagrafica.py` + `test_anagrafica.py` |
 | Cambiare le viste del calendario | `viste/calendario.py` |
 | Cambiare accesso, registrazione o onboarding | `schermate.py` + `ui.py` |
 | Toccare login o permessi | `autenticazione.py` + `test_autenticazione.py` |

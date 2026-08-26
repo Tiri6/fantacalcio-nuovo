@@ -13,8 +13,18 @@ from __future__ import annotations
 import streamlit as st
 
 from . import tema
+from .anagrafica import (
+    NESSUNA,
+    DataNonValida,
+    Sesso,
+    leggi_data_italiana,
+    squadra_valida,
+    squadre_preferite,
+)
 from .autenticazione import (
+    LUNGHEZZA_MINIMA_PASSWORD,
     Credenziali,
+    EmailGiaUsata,
     NomeUtenteOccupato,
     PasswordNonValida,
     PermessoNegato,
@@ -52,7 +62,6 @@ from .leghe import (
     crea_lega,
     invito_per_email,
     moduli_disponibili,
-    normalizza_email,
     trova_per_codice,
 )
 from .modelli import Squadra
@@ -95,6 +104,22 @@ def mostra_messaggio() -> None:
 # ===========================================================================
 
 
+def _club_dal_listone() -> list[str]:
+    """I club di Serie A dal listone caricato, se c'e'.
+
+    Meglio della lista cablata: quando il listone ufficiale e' importato,
+    l'elenco e' quello vero della stagione in corso e nessuno deve ricordarsi
+    di aggiornarlo a settembre.
+    """
+    try:
+        giocatori = archivio().giocatori()
+    except Exception:  # noqa: BLE001 - senza database si usa l'elenco predefinito
+        return []
+    if giocatori.empty or "club" not in giocatori.columns:
+        return []
+    return sorted({str(c).strip() for c in giocatori["club"] if str(c).strip()})
+
+
 def modulo_registrazione(credenziali: dict[str, Credenziali], primo_utente: bool) -> None:
     """Registrazione autonoma: chi arriva si crea l'account da solo.
 
@@ -109,25 +134,85 @@ def modulo_registrazione(credenziali: dict[str, Credenziali], primo_utente: bool
             icon="👑",
         )
 
+    squadre_del_cuore = squadre_preferite(_club_dal_listone())
+
     with st.form("registrazione"):
-        nome = st.text_input("Nome e cognome", placeholder="Marco Tirinato")
-        nome_utente = st.text_input(
+        st.markdown("**Chi sei**")
+        riga = st.columns(2)
+        nome = riga[0].text_input("Nome", placeholder="Marco")
+        cognome = riga[1].text_input("Cognome", placeholder="Tirinato")
+
+        riga = st.columns(2)
+        nascita = riga[0].text_input(
+            "Data di nascita",
+            placeholder="gg/mm/aaaa",
+            help="Per esempio 24/03/1991.",
+        )
+        sesso = riga[1].selectbox("Sesso", list(Sesso), format_func=lambda x: x.etichetta)
+
+        riga = st.columns(2)
+        citta = riga[0].text_input("Citta' di provenienza", placeholder="Ginevra")
+        squadra_cuore = riga[1].selectbox(
+            "Squadra preferita",
+            squadre_del_cuore,
+            index=squadre_del_cuore.index(NESSUNA),
+            help="Serie A e B. Se tifi altrove, scegli una delle voci «Altro».",
+        )
+
+        st.divider()
+        st.markdown("**Come entri**")
+        riga = st.columns(2)
+        nome_utente = riga[0].text_input(
             "Nome utente",
             placeholder="marco",
             help="Almeno 3 caratteri. E' quello che userai per entrare.",
         )
-        email = st.text_input(
-            "Email (facoltativa)",
+        email = riga[1].text_input(
+            "Email",
             placeholder="marco@esempio.it",
-            help="Serve solo a farti trovare se qualcuno ti ha gia' invitato "
-            "a una lega. Non ti scriviamo.",
+            help="Serve a farti trovare se qualcuno ti ha gia' invitato a una "
+            "lega. Il sito non ti scrive: non ha un server di posta.",
         )
-        colonne = st.columns(2)
-        password = colonne[0].text_input("Password", type="password")
-        conferma = colonne[1].text_input("Ripeti la password", type="password")
+
+        riga = st.columns(2)
+        password = riga[0].text_input(
+            "Password",
+            type="password",
+            help=f"Almeno {LUNGHEZZA_MINIMA_PASSWORD} caratteri.",
+        )
+        conferma = riga[1].text_input("Ripeti la password", type="password")
+        # La regola sta scritta prima di premere, non nell'errore dopo: e' il
+        # motivo per cui una registrazione fallisce senza lasciare traccia.
+        st.caption(
+            f"La password deve avere almeno **{LUNGHEZZA_MINIMA_PASSWORD} "
+            f"caratteri**. Tutti i campi sono obbligatori."
+        )
+
         inviato = st.form_submit_button("Crea l'account", type="primary")
 
     if not inviato:
+        return
+
+    mancanti = [
+        etichetta
+        for etichetta, valore in (
+            ("Nome", nome),
+            ("Cognome", cognome),
+            ("Data di nascita", nascita),
+            ("Citta' di provenienza", citta),
+            ("Nome utente", nome_utente),
+            ("Email", email),
+        )
+        if not (valore or "").strip()
+    ]
+    if mancanti:
+        st.error(f"Manca: {', '.join(mancanti)}.", icon="⛔")
+        return
+
+    try:
+        data_nascita = leggi_data_italiana(nascita)
+    except DataNonValida as errore:
+        st.error(str(errore), icon="⛔")
         return
 
     try:
@@ -135,16 +220,24 @@ def modulo_registrazione(credenziali: dict[str, Credenziali], primo_utente: bool
             credenziali_esistenti=credenziali,
             id_=prossimo_id(archivio(), "utenti"),
             nome_utente=nome_utente,
-            nome=nome or nome_utente,
+            nome=nome,
+            cognome=cognome,
             password=password,
             conferma=conferma,
-            email=normalizza_email(email) if email.strip() else None,
+            email=email,
+            data_nascita=data_nascita,
+            sesso=sesso,
+            citta=citta,
+            squadra_preferita=squadra_valida(squadra_cuore, squadre_del_cuore),
             ruolo=Ruolo.PRESIDENTE if primo_utente else Ruolo.FANTALLENATORE,
         )
-    except (NomeUtenteOccupato, UtenteNonValido, PasswordNonValida) as errore:
-        st.error(str(errore), icon="⛔")
-        return
-    except EmailNonValida as errore:
+    except (
+        NomeUtenteOccupato,
+        EmailGiaUsata,
+        UtenteNonValido,
+        PasswordNonValida,
+        EmailNonValida,
+    ) as errore:
         st.error(str(errore), icon="⛔")
         return
 
@@ -548,7 +641,7 @@ def crea_squadra(utente: Utente, credenziali: Credenziali, lega: Lega) -> None:
 
     try:
         identita = IdentitaSquadra(
-            presidente=utente.nome,
+            presidente=utente.nome_completo,
             motto=motto,
             stadio=stadio,
             citta=citta,
@@ -613,7 +706,7 @@ def _salva_nuova_squadra(
     squadra = Squadra(
         id=prossimo_id(archivio(), "squadre"),
         nome=pulito,
-        presidente=utente.nome,
+        presidente=utente.nome_completo,
         identita=identita,
         lega_id=lega.id,
     )
@@ -759,7 +852,7 @@ def modulo_reimposta_password(utente: Utente, lega: Lega) -> None:
     scelto = st.selectbox(
         "Partecipante",
         sorted(altri),
-        format_func=lambda n: f"{altri[n].utente.nome} ({n})",
+        format_func=lambda n: f"{altri[n].utente.nome_completo} ({n})",
     )
 
     if not st.button("Genera una password temporanea", use_container_width=True):
@@ -778,5 +871,8 @@ def modulo_reimposta_password(utente: Utente, lega: Lega) -> None:
         return
 
     _dati_cambiati()
-    st.session_state["_password_generata"] = (aggiornate.utente.nome, temporanea)
+    st.session_state["_password_generata"] = (
+        aggiornate.utente.nome_completo,
+        temporanea,
+    )
     st.rerun()

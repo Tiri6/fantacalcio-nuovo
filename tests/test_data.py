@@ -258,7 +258,13 @@ class TestBachecaPersistita:
         from fantacalcio.data import carica_annunci, salva_annuncio
 
         lega = SimpleNamespace(id=1, admin_id=1)
-        admin = SimpleNamespace(id=1, nome="Marco", attivo=True, e_presidente=True)
+        admin = SimpleNamespace(
+            id=1,
+            nome="Marco",
+            nome_completo="Marco Tirinato",
+            attivo=True,
+            e_presidente=True,
+        )
         nuovo = crea_annuncio(
             id_=500,
             lega=lega,
@@ -278,7 +284,7 @@ class TestBachecaPersistita:
         assert riletto.giornata == 3
         assert riletto.in_evidenza
         assert riletto.pubblicato
-        assert riletto.autore_nome == "Marco"
+        assert riletto.autore_nome == "Marco Tirinato"
 
     def test_una_bozza_resta_bozza_dopo_il_giro(self, archivio):
         from types import SimpleNamespace
@@ -287,7 +293,13 @@ class TestBachecaPersistita:
         from fantacalcio.data import carica_annunci, salva_annuncio
 
         lega = SimpleNamespace(id=1, admin_id=1)
-        admin = SimpleNamespace(id=1, nome="Marco", attivo=True, e_presidente=True)
+        admin = SimpleNamespace(
+            id=1,
+            nome="Marco",
+            nome_completo="Marco Tirinato",
+            attivo=True,
+            e_presidente=True,
+        )
         salva_annuncio(
             archivio,
             crea_annuncio(501, lega, admin, "Bozza", "Non pronta", pubblicato=False),
@@ -302,7 +314,13 @@ class TestBachecaPersistita:
         from fantacalcio.data import carica_annunci, elimina_annuncio, salva_annuncio
 
         lega = SimpleNamespace(id=1, admin_id=1)
-        admin = SimpleNamespace(id=1, nome="Marco", attivo=True, e_presidente=True)
+        admin = SimpleNamespace(
+            id=1,
+            nome="Marco",
+            nome_completo="Marco Tirinato",
+            attivo=True,
+            e_presidente=True,
+        )
         salva_annuncio(archivio, crea_annuncio(502, lega, admin, "Da togliere", "x"))
         elimina_annuncio(archivio, 502)
         assert not [a for a in carica_annunci(archivio, 1) if a.id == 502]

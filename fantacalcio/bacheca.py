@@ -175,7 +175,7 @@ def crea_annuncio(
         testo=testo,
         tipo=tipo,
         autore_id=utente.id,
-        autore_nome=utente.nome,
+        autore_nome=utente.nome_completo,
         giornata=giornata,
         pubblicato=pubblicato,
         in_evidenza=in_evidenza,

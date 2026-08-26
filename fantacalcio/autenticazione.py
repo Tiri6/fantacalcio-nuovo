@@ -12,8 +12,11 @@ from __future__ import annotations
 import hmac
 import secrets
 from dataclasses import dataclass, replace
+from datetime import date
 from enum import Enum
 from hashlib import scrypt
+
+from .anagrafica import Sesso
 
 # Parametri scrypt: n=2^14 tiene il costo sotto i ~100ms per verifica, che per
 # un login manuale e' impercettibile e per chi tenta a forza bruta e' caro.
@@ -49,16 +52,29 @@ class Utente:
 
     id: int
     nome_utente: str
+    # `nome` e' il nome proprio; per mostrarlo usa `nome_completo`.
     nome: str
     ruolo: Ruolo
+    cognome: str = ""
+    # L'email e' obbligatoria in registrazione, ma resta opzionale sul modello:
+    # gli account creati prima che lo diventasse non hanno smesso di esistere.
+    email: str | None = None
+    data_nascita: date | None = None
+    sesso: Sesso = Sesso.NON_DICHIARATO
+    citta: str = ""
+    squadra_preferita: str = ""
     squadra_id: int | None = None
     # None = registrato ma non ancora dentro nessuna lega: vede l'onboarding.
     lega_id: int | None = None
-    email: str | None = None
     attivo: bool = True
     # Alzato quando la password l'ha scelta qualcun altro (una reimpostazione):
     # al primo accesso il sito obbliga a sostituirla.
     deve_cambiare_password: bool = False
+
+    @property
+    def nome_completo(self) -> str:
+        """Come va mostrato: «Marco Tirinato», o solo il nome se manca l'altro."""
+        return f"{self.nome} {self.cognome}".strip()
 
     @property
     def e_presidente(self) -> bool:
@@ -161,6 +177,11 @@ def crea_credenziali(
     squadra_id: int | None = None,
     lega_id: int | None = None,
     email: str | None = None,
+    cognome: str = "",
+    data_nascita: date | None = None,
+    sesso: Sesso = Sesso.NON_DICHIARATO,
+    citta: str = "",
+    squadra_preferita: str = "",
 ) -> Credenziali:
     """Costruisce un utente nuovo, validando nome e password."""
     hash_password, sale = cifra_password(password)
@@ -169,10 +190,15 @@ def crea_credenziali(
             id=id_,
             nome_utente=normalizza_nome_utente(nome_utente),
             nome=nome.strip() or nome_utente,
+            cognome=(cognome or "").strip(),
             ruolo=ruolo,
             squadra_id=squadra_id,
             lega_id=lega_id,
             email=email,
+            data_nascita=data_nascita,
+            sesso=sesso,
+            citta=(citta or "").strip(),
+            squadra_preferita=(squadra_preferita or "").strip(),
         ),
         hash_password=hash_password,
         sale=sale,
@@ -187,6 +213,10 @@ class NomeUtenteOccupato(UtenteNonValido):
     """
 
 
+class EmailGiaUsata(UtenteNonValido):
+    """Due account con la stessa email sono due modi di essere la stessa persona."""
+
+
 def registra(
     credenziali_esistenti: dict[str, Credenziali],
     id_: int,
@@ -196,26 +226,50 @@ def registra(
     conferma: str | None = None,
     email: str | None = None,
     ruolo: Ruolo = Ruolo.FANTALLENATORE,
+    cognome: str = "",
+    data_nascita: date | None = None,
+    sesso: Sesso = Sesso.NON_DICHIARATO,
+    citta: str = "",
+    squadra_preferita: str = "",
 ) -> Credenziali:
-    """Registra un utente nuovo, rifiutando i nomi gia' presi.
+    """Registra un utente nuovo, rifiutando nomi utente ed email gia' presi.
 
-    La conferma password si controlla qui e non nell'interfaccia: e' una
-    regola, non una decorazione della schermata.
+    L'email e' **obbligatoria**: e' l'unico dato che lega un account a una
+    persona reale, e serve a far combaciare chi si iscrive con l'invito che lo
+    attende. La conferma password si controlla qui e non nell'interfaccia:
+    e' una regola, non una decorazione della schermata.
     """
+    from .leghe import normalizza_email
+
     chiave = normalizza_nome_utente(nome_utente)
     if chiave in credenziali_esistenti:
         raise NomeUtenteOccupato(
             f"Il nome utente «{chiave}» e' gia' preso. Scegline un altro."
         )
+
+    pulita = normalizza_email(email or "")
+    gia_usata = {c.utente.email for c in credenziali_esistenti.values() if c.utente.email}
+    if pulita in gia_usata:
+        raise EmailGiaUsata(
+            f"L'indirizzo {pulita} e' gia' registrato. Entra con quell'account, "
+            f"oppure fai reimpostare la password al presidente di lega."
+        )
+
     if conferma is not None and password != conferma:
         raise PasswordNonValida("Le due password non coincidono")
+
     return crea_credenziali(
         id_=id_,
         nome_utente=chiave,
         nome=nome,
         password=password,
         ruolo=ruolo,
-        email=email,
+        email=pulita,
+        cognome=cognome,
+        data_nascita=data_nascita,
+        sesso=sesso,
+        citta=citta,
+        squadra_preferita=squadra_preferita,
     )
 
 

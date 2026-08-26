@@ -193,8 +193,11 @@ e i gol vengono calcolati dalle fasce della lega.
 
 Prima del menu ci sono tre passaggi, ognuno una volta sola.
 
-**1. Registrati.** Chi arriva si crea l'account da solo: nome utente, password
-e, se vuole, un'email. **Il primo che si registra su un database vuoto diventa
+**1. Registrati.** Chi arriva si crea l'account da solo: nome, cognome, data
+di nascita (gg/mm/aaaa), sesso, citta', squadra del cuore, nome utente, email
+e password. **L'email e' obbligatoria e unica**: e' l'unico dato che lega un
+account a una persona, e fa combaciare chi si iscrive con l'invito che lo
+attende. **Il primo che si registra su un database vuoto diventa
 presidente** — senza, non ci sarebbe nessuno a creare la lega.
 
 **2. Crea una lega o unisciti.**

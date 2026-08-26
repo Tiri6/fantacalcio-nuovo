@@ -25,10 +25,23 @@ from fantacalcio.bacheca import (
 LEGA = SimpleNamespace(id=1, admin_id=10, nome="Lega di Prova")
 ALTRA_LEGA = SimpleNamespace(id=2, admin_id=99, nome="Altra")
 
-ADMIN = SimpleNamespace(id=10, nome="Marco", attivo=True, e_presidente=False)
-PRESIDENTE = SimpleNamespace(id=11, nome="Sara", attivo=True, e_presidente=True)
-GIOCATORE = SimpleNamespace(id=12, nome="Luca", attivo=True, e_presidente=False)
-SOSPESO = SimpleNamespace(id=13, nome="Ex", attivo=False, e_presidente=True)
+
+def finto_utente(id_, nome, cognome, presidente=False, attivo=True):
+    """Un doppio con la stessa superficie di `Utente`, `nome_completo` compreso."""
+    return SimpleNamespace(
+        id=id_,
+        nome=nome,
+        cognome=cognome,
+        nome_completo=f"{nome} {cognome}".strip(),
+        attivo=attivo,
+        e_presidente=presidente,
+    )
+
+
+ADMIN = finto_utente(10, "Marco", "Tirinato")
+PRESIDENTE = finto_utente(11, "Sara", "Bianchi", presidente=True)
+GIOCATORE = finto_utente(12, "Luca", "Verdi")
+SOSPESO = finto_utente(13, "Ex", "Socio", presidente=True, attivo=False)
 
 
 def annuncio(id_=1, **campi) -> Annuncio:
@@ -106,7 +119,7 @@ class TestCiclo:
     def test_creazione_registra_autore_e_data(self):
         nuovo = crea_annuncio(5, LEGA, ADMIN, "Recap", "La giornata", TipoAnnuncio.RECAP)
         assert nuovo.autore_id == 10
-        assert nuovo.autore_nome == "Marco"
+        assert nuovo.autore_nome == "Marco Tirinato"
         assert nuovo.tipo is TipoAnnuncio.RECAP
         assert nuovo.creato_il and nuovo.aggiornato_il
         assert nuovo.pubblicato

@@ -139,8 +139,15 @@ create table if not exists utenti (
     hash_password  text not null,
     sale           text not null,
     ruolo          text not null default 'fantallenatore',
-    -- L'email serve a far combaciare chi si registra con l'invito che lo attende.
+    -- Obbligatoria in registrazione: e' l'unico dato che lega un account a una
+    -- persona reale, e fa combaciare chi si iscrive con l'invito che lo attende.
     email          text,
+    cognome        text not null default '',
+    data_nascita   date,
+    -- Nome del membro di Sesso (MASCHIO, FEMMINA, ALTRO, NON_DICHIARATO).
+    sesso          text not null default 'NON_DICHIARATO',
+    citta          text not null default '',
+    squadra_preferita text not null default '',
     squadra_id     bigint references squadre(id) on delete set null,
     -- NULL = registrato ma non ancora dentro nessuna lega: vede l'onboarding.
     lega_id        bigint references leghe(id) on delete set null,
@@ -215,6 +222,11 @@ alter table squadre add column if not exists lega_id bigint references leghe(id)
 
 alter table utenti  add column if not exists email   text;
 alter table utenti  add column if not exists deve_cambiare_password boolean not null default false;
+alter table utenti  add column if not exists cognome text not null default '';
+alter table utenti  add column if not exists data_nascita date;
+alter table utenti  add column if not exists sesso text not null default 'NON_DICHIARATO';
+alter table utenti  add column if not exists citta text not null default '';
+alter table utenti  add column if not exists squadra_preferita text not null default '';
 alter table utenti  add column if not exists lega_id bigint references leghe(id) on delete set null;
 
 create index if not exists idx_scambi_stato on scambi (stato);

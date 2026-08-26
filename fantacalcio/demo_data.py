@@ -577,6 +577,11 @@ create table if not exists utenti (
     sale text not null,
     ruolo text not null default 'fantallenatore',
     email text,
+    cognome text not null default '',
+    data_nascita text,
+    sesso text not null default 'NON_DICHIARATO',
+    citta text not null default '',
+    squadra_preferita text not null default '',
     squadra_id integer,
     lega_id integer,
     deve_cambiare_password integer not null default 0,
@@ -630,7 +635,16 @@ def _schema_aggiornato(percorso: Path) -> bool:
         "inviti": {"id", "lega_id", "email", "codice", "stato"},
         "annunci": {"id", "lega_id", "titolo", "testo", "tipo", "pubblicato"},
         "squadre": {"citta", "curva", "lega_id"},
-        "utenti": {"email", "lega_id", "deve_cambiare_password"},
+        "utenti": {
+            "email",
+            "lega_id",
+            "deve_cambiare_password",
+            "cognome",
+            "data_nascita",
+            "sesso",
+            "citta",
+            "squadra_preferita",
+        },
     }
     try:
         with sqlite3.connect(percorso) as conn:

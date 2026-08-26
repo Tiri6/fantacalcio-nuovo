@@ -361,6 +361,16 @@ def prossimo_id(arch: Archivio, tabella: str, colonna: str = "id") -> int:
     return int(esistenti[colonna].max()) + 1
 
 
+def _sesso(valore):
+    """Il nome del membro di Sesso. Un valore ignoto non deve far fallire tutto."""
+    from .anagrafica import Sesso
+
+    try:
+        return Sesso[_testo(valore, "NON_DICHIARATO")]
+    except KeyError:
+        return Sesso.NON_DICHIARATO
+
+
 def carica_credenziali(arch: Archivio) -> dict[str, Credenziali]:
     """Utenti indicizzati per nome utente, pronti per `autentica()`."""
     from .autenticazione import Credenziali, Ruolo, Utente
@@ -387,6 +397,11 @@ def carica_credenziali(arch: Archivio) -> dict[str, Credenziali]:
             email=_testo(r.get("email")) or None,
             attivo=bool(r.get("attivo", True)),
             deve_cambiare_password=bool(r.get("deve_cambiare_password", False)),
+            cognome=_testo(r.get("cognome")),
+            data_nascita=_data(r.get("data_nascita")),
+            sesso=_sesso(r.get("sesso")),
+            citta=_testo(r.get("citta")),
+            squadra_preferita=_testo(r.get("squadra_preferita")),
         )
         credenziali[utente.nome_utente] = Credenziali(
             utente=utente,
@@ -409,6 +424,13 @@ def salva_credenziali(arch: Archivio, credenziali: Credenziali) -> None:
                 "sale": credenziali.sale,
                 "ruolo": utente.ruolo.value,
                 "email": utente.email,
+                "cognome": utente.cognome,
+                "data_nascita": (
+                    utente.data_nascita.isoformat() if utente.data_nascita else None
+                ),
+                "sesso": utente.sesso.name,
+                "citta": utente.citta,
+                "squadra_preferita": utente.squadra_preferita,
                 "squadra_id": utente.squadra_id,
                 "lega_id": utente.lega_id,
                 "deve_cambiare_password": int(utente.deve_cambiare_password),

@@ -60,6 +60,9 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 - **Calendario**: tutti gli incroci in tre viste — per giornata, griglia
   degli scontri diretti squadra per squadra, e la stagione di una singola
   squadra con il bilancio.
+- **Registrazione completa**: nome, cognome, data di nascita all'italiana,
+  sesso, citta', squadra del cuore (Serie A dal listone + Serie B + le due
+  voci «Altro»). Email **obbligatoria** e unica.
 - **Password**: cambio autonomo da «Il mio profilo», e reimpostazione da
   parte del presidente che genera una temporanea mostrata una volta sola.
   Chi la riceve e' obbligato a sostituirla al primo accesso.
@@ -161,6 +164,13 @@ sara' di 18 o 27 giornate.
   policy. La cura sta in `db/permessi.sql`, che chiude anche gli
   `alter default privileges` perche' la prossima tabella non ricada nel
   problema.
+- **Una regola di validazione non scritta nel modulo e' una trappola.** La
+  password minima di 8 caratteri non era dichiarata da nessuna parte:
+  scrivendone una corta la registrazione falliva *prima* della scrittura,
+  quindi nessun utente nel database e nessuna idea del perche'. Le regole
+  vanno scritte accanto al campo, non solo nell'errore.
+- **Streamlit rende le tendine come `input[type=text]`**: contare gli input
+  per posizione in un test sfalsa gli indici. Selezionare per placeholder.
 - **Oltre la decina di pagine `st.navigation` tronca il menu** e nasconde
   le ultime dietro un «altro»: le voci in fondo sembrano non esistere. Le
   sezioni non bastano, serve `expanded=True`.

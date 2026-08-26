@@ -1,8 +1,10 @@
 """Il mio profilo: chi sono in questa lega e come cambio la password."""
 
+import pandas as pd
 import streamlit as st
 
 from fantacalcio import schermate, tema, ui
+from fantacalcio.anagrafica import anni_compiuti, scrivi_data_italiana
 
 ui.barra_laterale()
 schermate.mostra_messaggio()
@@ -11,7 +13,7 @@ utente = ui.utente_corrente()
 lega = ui.lega_corrente()
 credenziali = ui.credenziali_correnti()
 
-ui.intestazione("Il mio profilo", "👤", f"{utente.nome} — {lega.nome}")
+ui.intestazione("Il mio profilo", "👤", f"{utente.nome_completo} — {lega.nome}")
 
 squadre = ui.squadre()
 nome_squadra = "— nessuna —"
@@ -28,8 +30,26 @@ ui.griglia_dati(
     ]
 )
 
-if utente.email:
-    st.caption(f"Email registrata: {utente.email}")
+st.markdown("**I tuoi dati**")
+righe = [
+    ("Email", utente.email or "— non registrata —"),
+    ("Data di nascita", scrivi_data_italiana(utente.data_nascita) or "—"),
+    ("Sesso", utente.sesso.etichetta),
+    ("Citta'", utente.citta or "—"),
+    ("Squadra del cuore", utente.squadra_preferita or "—"),
+]
+if utente.data_nascita:
+    righe.insert(2, ("Eta'", f"{anni_compiuti(utente.data_nascita)} anni"))
+
+st.dataframe(
+    pd.DataFrame(righe, columns=["Campo", "Valore"]),
+    hide_index=True,
+    use_container_width=True,
+)
+st.caption(
+    "Questi dati li hai scritti iscrivendoti. Per ora si cambiano solo dal "
+    "database: se ne hai sbagliato uno, scrivilo al presidente di lega."
+)
 
 st.divider()
 st.subheader("Cambia la password")
