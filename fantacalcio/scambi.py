@@ -406,3 +406,30 @@ def applica_alle_rose(arch, nuova_a: Rosa, nuova_b: Rosa) -> None:
         for c in rosa.contratti
     ]
     arch.scrivi("contratti", righe, chiave="giocatore_id")
+
+
+def conta_conclusi(
+    scambi: list[Scambio], squadra_id: int, stagione: str | None = None
+) -> int:
+    """Quanti scambi ha portato a termine una squadra.
+
+    Contano i ratificati: una proposta in attesa o rifiutata non ha spostato
+    nessun giocatore, e farla pesare sul limite stagionale punirebbe chi
+    prova a trattare.
+    """
+    return sum(
+        1
+        for s in scambi
+        if s.stato is StatoScambio.RATIFICATO
+        and squadra_id in (s.squadra_a_id, s.squadra_b_id)
+        and (stagione is None or (s.creato_il or "").startswith(stagione[:4]))
+    )
+
+
+def scambi_residui(
+    scambi: list[Scambio], squadra_id: int, limite: int, stagione: str | None = None
+) -> int | None:
+    """Quanti scambi restano a una squadra. `None` se sono illimitati."""
+    if limite <= 0:
+        return None
+    return max(0, limite - conta_conclusi(scambi, squadra_id, stagione))

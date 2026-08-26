@@ -14,13 +14,15 @@ from fantacalcio.scambi import (
     accetta,
     annulla,
     applica_alle_rose,
+    conta_conclusi,
     giornata_di_efficacia,
     ratifica,
     rifiuta,
     salva_scambio,
+    scambi_residui,
 )
 
-STAGIONE = "2026/27"
+STAGIONE = "2026/27"  # usata dalle transizioni; la lega ha la sua in `lega.stagione`
 
 utente = ui.richiedi_login()
 ui.intestazione(
@@ -39,6 +41,71 @@ nomi = ui.nomi_squadre()
 utenti = ui.nomi_utenti()
 registro = ui.scambi()
 giornate = ui.giornate_disputate(ui.calendario())
+
+lega = ui.lega_corrente()
+opzioni = lega.opzioni
+
+# --- quanti scambi ho ancora -----------------------------------------------
+
+if utente.squadra_id is not None:
+    mia_rosa = rose.get(utente.squadra_id)
+    fatti = conta_conclusi(registro, utente.squadra_id, lega.stagione)
+    residui = scambi_residui(
+        registro, utente.squadra_id, opzioni.scambi_per_stagione, lega.stagione
+    )
+    prolungati = mia_rosa.prolungamenti_stagione(lega.stagione) if mia_rosa else 0
+    massimi = ui.parametri().prolungamenti_per_squadra_a_stagione
+
+    ui.griglia_dati(
+        [
+            {
+                "etichetta": "Scambi conclusi",
+                "valore": str(fatti),
+                "nota": (
+                    "senza limite" if residui is None else f"{residui} ancora disponibili"
+                ),
+                "stato": "male" if residui == 0 else "ok",
+                "quota": (
+                    None
+                    if residui is None
+                    else fatti / max(opzioni.scambi_per_stagione, 1)
+                ),
+            },
+            {
+                "etichetta": "Prolungamenti usati",
+                "valore": f"{prolungati}/{massimi}",
+                "nota": "Lodo Longoni, per stagione",
+                "stato": "avviso" if prolungati >= massimi else "ok",
+            },
+        ]
+    )
+
+    if residui == 0:
+        st.warning(
+            f"Hai esaurito i {opzioni.scambi_per_stagione} scambi previsti per "
+            f"questa stagione. Le proposte in corso restano valide.",
+            icon="🔒",
+        )
+
+    with st.expander("Come funzionano i prolungamenti negli scambi"):
+        st.markdown(
+            f"""
+**Lodo Longoni** — scambiando un giocatore, chi lo riceve puo' **allungargli
+il contratto**, se ha anni liberi nel monte anni. Dybala arriva con 1 anno
+residuo e puoi portarlo a 3: i due anni in piu' si scalano dal tuo monte.
+Il prolungamento si compone dalla pagina «Componi scambio», insieme allo
+scambio stesso. Massimo **{massimi} per squadra a stagione**.
+
+**Lodo Corti** — ogni giocatore puo' beneficiarne **una volta sola** nell'arco
+della vita residua del suo contratto. Chi e' gia' stato prolungato ha la
+spunta nella colonna «Lodo Corti» della pagina Squadre, e un secondo
+prolungamento viene rifiutato.
+
+**Lodo Bono** — il contratto non si puo' accorciare in sede di scambio.
+"""
+        )
+
+    st.divider()
 
 
 def descrivi(scambio) -> str:

@@ -15,11 +15,13 @@ from fantacalcio.scambi import (
     annulla,
     applica_alle_rose,
     carica_scambi,
+    conta_conclusi,
     giornata_di_efficacia,
     proponi,
     ratifica,
     rifiuta,
     salva_scambio,
+    scambi_residui,
 )
 
 PRESIDENTE = Utente(1, "marco", "Marco", Ruolo.PRESIDENTE, squadra_id=1)
@@ -229,3 +231,62 @@ class TestPersistenza:
         assert (
             int(contratti[contratti["giocatore_id"] == 2029]["squadra_id"].iloc[0]) == 1
         )
+
+
+class TestLimiteScambiStagionale:
+    """Il limite di scambi per stagione conta solo quelli andati a buon fine."""
+
+    def scambio(self, id_, stato, squadra_a=1, squadra_b=2, creato="2026-10-01T10:00:00"):
+        from fantacalcio.scambi import Scambio
+
+        return Scambio(
+            id=id_,
+            squadra_a_id=squadra_a,
+            squadra_b_id=squadra_b,
+            proposto_da=1,
+            stato=stato,
+            movimenti=[],
+            creato_il=creato,
+        )
+
+    def test_solo_i_ratificati_contano(self):
+        """Una proposta in attesa non ha spostato nessuno: non deve pesare."""
+        registro = [
+            self.scambio(1, StatoScambio.RATIFICATO),
+            self.scambio(2, StatoScambio.PROPOSTO),
+            self.scambio(3, StatoScambio.ACCETTATO),
+            self.scambio(4, StatoScambio.RIFIUTATO),
+            self.scambio(5, StatoScambio.ANNULLATO),
+        ]
+        assert conta_conclusi(registro, 1) == 1
+
+    def test_conta_da_entrambi_i_lati(self):
+        registro = [
+            self.scambio(1, StatoScambio.RATIFICATO, squadra_a=1, squadra_b=2),
+            self.scambio(2, StatoScambio.RATIFICATO, squadra_a=3, squadra_b=1),
+        ]
+        assert conta_conclusi(registro, 1) == 2
+        assert conta_conclusi(registro, 3) == 1
+
+    def test_gli_scambi_di_altri_non_contano(self):
+        registro = [self.scambio(1, StatoScambio.RATIFICATO, squadra_a=2, squadra_b=3)]
+        assert conta_conclusi(registro, 1) == 0
+
+    def test_limite_zero_significa_illimitati(self):
+        registro = [self.scambio(n, StatoScambio.RATIFICATO) for n in range(1, 20)]
+        assert scambi_residui(registro, 1, limite=0) is None
+
+    def test_i_residui_scalano(self):
+        registro = [self.scambio(1, StatoScambio.RATIFICATO)]
+        assert scambi_residui(registro, 1, limite=5) == 4
+
+    def test_i_residui_non_diventano_negativi(self):
+        registro = [self.scambio(n, StatoScambio.RATIFICATO) for n in range(1, 8)]
+        assert scambi_residui(registro, 1, limite=3) == 0
+
+    def test_filtro_per_stagione(self):
+        registro = [
+            self.scambio(1, StatoScambio.RATIFICATO, creato="2026-10-01T10:00:00"),
+            self.scambio(2, StatoScambio.RATIFICATO, creato="2025-10-01T10:00:00"),
+        ]
+        assert conta_conclusi(registro, 1, stagione="2026/27") == 1
