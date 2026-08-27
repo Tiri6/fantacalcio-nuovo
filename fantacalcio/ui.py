@@ -74,13 +74,68 @@ MASSIMI_TENTATIVI = 5
 # al momento del login mostrerebbe ancora lo stato vecchio.
 
 
+# --- letture ---------------------------------------------------------------
+#
+# In cache finiscono **solo le tabelle grezze**, mai gli oggetti di dominio.
+# Il motivo e' concreto e ci e' gia' costato un guasto in produzione: Streamlit
+# ricarica i sorgenti senza riavviare il processo, quindi dopo un aggiornamento
+# la cache puo' contenere oggetti costruiti dalla classe *vecchia*. Al primo
+# accesso a un campo aggiunto di recente esce un AttributeError, e il sito e'
+# morto finche' qualcuno non lo riavvia a mano.
+#
+# Un DataFrame di tipi elementari non ha questo problema: non porta con se' una
+# classe che puo' cambiare forma. Gli oggetti si ricostruiscono a ogni giro —
+# costa qualche millisecondo, e le chiamate di rete restano una per versione.
+
+
 @st.cache_data(ttl=TTL)
-def _credenziali(versione: int) -> dict:
-    return carica_credenziali(archivio())
+def _tabella_in_cache(nome: str, versione: int) -> pd.DataFrame:
+    return archivio().tabella(nome)
+
+
+class _ArchivioInCache:
+    """Un archivio che legge dalle tabelle gia' scaricate.
+
+    Ha la stessa superficie di `Archivio` per le letture, cosi' le funzioni
+    `carica_*` non sanno di essere servite dalla cache. Le scritture le
+    delega: passano sempre dall'archivio vero.
+    """
+
+    def __init__(self, versione: int):
+        self._versione = versione
+
+    def tabella(self, nome: str) -> pd.DataFrame:
+        return _tabella_in_cache(nome, self._versione)
+
+    def squadre(self) -> pd.DataFrame:
+        return self.tabella("squadre")
+
+    def giocatori(self) -> pd.DataFrame:
+        return self.tabella("giocatori")
+
+    def contratti(self) -> pd.DataFrame:
+        return self.tabella("contratti")
+
+    def dead_money(self) -> pd.DataFrame:
+        return self.tabella("dead_money")
+
+    def calendario(self) -> pd.DataFrame:
+        return self.tabella("calendario")
+
+    def scrivi(self, nome: str, righe: list[dict], chiave: str) -> int:
+        return archivio().scrivi(nome, righe, chiave)
+
+    def svuota(self, nome: str) -> None:
+        archivio().svuota(nome)
+
+
+def dati() -> _ArchivioInCache:
+    """L'archivio da usare per leggere: stessi dati, senza rifare la rete."""
+    return _ArchivioInCache(versione_dati())
 
 
 def tutte_le_credenziali() -> dict[str, Credenziali]:
-    return _credenziali(versione_dati())
+    return carica_credenziali(dati())
 
 
 def credenziali_correnti() -> Credenziali | None:
@@ -98,13 +153,8 @@ def esci() -> None:
         st.session_state.pop(chiave, None)
 
 
-@st.cache_data(ttl=TTL)
-def _leghe(versione: int) -> dict:
-    return carica_leghe(archivio())
-
-
 def leghe() -> dict[int, Lega]:
-    return _leghe(versione_dati())
+    return carica_leghe(dati())
 
 
 def lega_corrente() -> Lega | None:
@@ -407,26 +457,25 @@ def invalida_dati() -> None:
 
 @st.cache_data(ttl=TTL)
 def _squadre(versione: int) -> pd.DataFrame:
-    return archivio().squadre()
+    return dati().squadre()
 
 
 def squadre() -> pd.DataFrame:
     return _squadre(versione_dati())
 
 
-@st.cache_resource(ttl=TTL)
-def _rose(versione: int):
-    """Le rose sono oggetti di dominio, non dati serializzabili: cache_resource."""
-    return carica_rose(archivio())
-
-
 def rose():
-    return _rose(versione_dati())
+    """Le rose si ricostruiscono a ogni giro dalle tabelle in cache.
+
+    Tenerle in `cache_resource` le farebbe sopravvivere a un aggiornamento del
+    codice con la forma vecchia: vedi la nota in cima alle letture.
+    """
+    return carica_rose(dati())
 
 
 @st.cache_data(ttl=TTL)
 def _classifica(versione: int) -> pd.DataFrame:
-    return vista.classifica(archivio())
+    return vista.classifica(dati())
 
 
 def classifica() -> pd.DataFrame:
@@ -435,7 +484,7 @@ def classifica() -> pd.DataFrame:
 
 @st.cache_data(ttl=TTL)
 def _calendario(versione: int) -> pd.DataFrame:
-    return calendario_dettagliato(archivio())
+    return calendario_dettagliato(dati())
 
 
 def calendario() -> pd.DataFrame:
@@ -444,7 +493,7 @@ def calendario() -> pd.DataFrame:
 
 @st.cache_data(ttl=TTL)
 def _andamento_punti(versione: int) -> pd.DataFrame:
-    return vista.andamento_punti(archivio())
+    return vista.andamento_punti(dati())
 
 
 def andamento_punti() -> pd.DataFrame:
@@ -524,56 +573,36 @@ def pastiglia_colore(colore: str, etichetta: str = "") -> str:
 
 
 def scambi():
-    """Registro degli scambi, ricaricato quando i dati cambiano."""
-    return _scambi(versione_dati())
-
-
-@st.cache_resource(ttl=TTL)
-def _scambi(versione: int):
+    """Registro degli scambi, ricostruito dalle tabelle in cache."""
     from .scambi import carica_scambi
 
-    return carica_scambi(archivio())
-
-
-@st.cache_data(ttl=TTL)
-def _annunci(versione: int) -> list:
-    from .data import carica_annunci
-
-    lega = lega_corrente()
-    return carica_annunci(archivio(), lega.id if lega else None)
+    return carica_scambi(dati())
 
 
 def annunci() -> list:
     """Annunci della bacheca della lega corrente."""
-    return _annunci(versione_dati())
+    from .data import carica_annunci
 
-
-@st.cache_data(ttl=TTL)
-def _problemi_schema(versione: int) -> list:
-    from .diagnostica import verifica
-
-    try:
-        return verifica(archivio())
-    except Exception:  # noqa: BLE001 - la diagnostica non deve mai rompere la pagina
-        return []
+    lega = lega_corrente()
+    return carica_annunci(dati(), lega.id if lega else None)
 
 
 def problemi_schema() -> list:
     """Cosa manca nel database rispetto a quello che il codice si aspetta."""
-    return _problemi_schema(versione_dati())
+    from .diagnostica import verifica
 
-
-@st.cache_data(ttl=TTL)
-def _albo(versione: int) -> list:
-    from .data import carica_albo
-
-    lega = lega_corrente()
-    return carica_albo(archivio(), lega.id if lega else None)
+    try:
+        return verifica(dati())
+    except Exception:  # noqa: BLE001 - la diagnostica non deve mai rompere la pagina
+        return []
 
 
 def albo() -> list:
     """I titoli vinti nella lega corrente."""
-    return _albo(versione_dati())
+    from .data import carica_albo
+
+    lega = lega_corrente()
+    return carica_albo(dati(), lega.id if lega else None)
 
 
 SVINCOLATO = "— svincolato —"
@@ -588,7 +617,7 @@ def _giocatori_con_proprietario(versione: int) -> pd.DataFrame:
     """
     from .data import carica_giocatori
 
-    arch = archivio()
+    arch = dati()
     giocatori = carica_giocatori(arch)
     if not giocatori:
         return pd.DataFrame()
@@ -645,3 +674,37 @@ def nomi_utenti() -> dict[int, str]:
         c.utente.id: c.utente.nome_completo
         for c in carica_credenziali(archivio()).values()
     }
+
+
+# --- codice disallineato ----------------------------------------------------
+
+
+def spiega_codice_disallineato(errore: AttributeError) -> None:
+    """Trasforma un AttributeError da aggiornamento in un'istruzione utile.
+
+    Streamlit ricarica lo script d'ingresso e le pagine in `viste/`, ma **non**
+    i moduli gia' importati: dopo un aggiornamento `app.py` puo' essere nuovo
+    mentre `fantacalcio/` e' ancora quello di prima. Il sintomo e' un
+    AttributeError su un campo appena aggiunto, e la causa non si indovina
+    guardando il traceback.
+
+    L'unico rimedio e' far ripartire il processo. Dirlo vale piu' che mostrare
+    una traccia che non porta a niente.
+    """
+    st.error(
+        "**Il sito e' stato aggiornato, ma sta ancora usando il codice "
+        "precedente.**\n\n"
+        "Succede quando l'applicazione non riparte da zero dopo un "
+        "aggiornamento: la pagina e' quella nuova, i moduli sotto sono quelli "
+        "vecchi.",
+        icon="🔄",
+    )
+    st.markdown(
+        "**Come si risolve** — riavvia l'applicazione:\n\n"
+        "1. apri la dashboard su [share.streamlit.io](https://share.streamlit.io)\n"
+        "2. menu **⋮** accanto all'app → **Reboot app**\n"
+        "3. riapri il sito dopo una ventina di secondi\n\n"
+        "Non si perde niente: i dati stanno su Supabase, non nell'app."
+    )
+    st.caption(f"Dettaglio tecnico: {errore}")
+    st.stop()

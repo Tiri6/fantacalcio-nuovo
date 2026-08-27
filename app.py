@@ -21,7 +21,18 @@ ui.richiedi_password_nuova(utente)
 lega = ui.richiedi_lega(utente)
 ui.richiedi_squadra(utente, lega)
 
-opzioni = lega.opzioni
+# Streamlit ricarica `app.py` e le pagine in `viste/`, ma non i moduli gia'
+# importati: dopo un aggiornamento questo file puo' essere nuovo mentre
+# `fantacalcio/` e' ancora quello di prima, e il primo campo aggiunto di
+# recente alza un AttributeError che uccide il sito. Invece di lasciare un
+# traceback illeggibile, si spiega che basta riavviare.
+try:
+    opzioni = lega.opzioni
+    coppa_attiva = opzioni.coppa_italia
+    supercoppa_attiva = opzioni.supercoppa
+except AttributeError as disallineamento:
+    ui.spiega_codice_disallineato(disallineamento)
+    raise  # non si arriva qui: spiega_codice_disallineato chiama st.stop()
 
 # --- Lega -------------------------------------------------------------------
 # La bacheca e' la pagina d'ingresso: chi entra vuole sapere cosa e' successo,
@@ -34,9 +45,9 @@ sezione_lega = [
 
 # Coppa e Supercoppa compaiono solo se la lega le gioca: una voce di menu che
 # parla di una competizione inesistente e' peggio di una voce mancante.
-if opzioni.coppa_italia:
+if coppa_attiva:
     sezione_lega.append(st.Page("viste/coppa.py", title="Coppa Italia", icon="🥇"))
-if opzioni.supercoppa:
+if supercoppa_attiva:
     sezione_lega.append(st.Page("viste/supercoppa.py", title="Supercoppa", icon="🏅"))
 
 sezione_lega += [

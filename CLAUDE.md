@@ -54,6 +54,10 @@ all'avvio: non ricrearlo a mano.
   le cache di Streamlit sono condivise fra tutte le sessioni, quindi con dieci
   persone collegate un contatore per sessione farebbe leggere dati vecchi a chi
   entra dopo.
+- **Nelle cache di Streamlit vanno solo DataFrame.** Mai oggetti di dominio:
+  un oggetto in cache conserva la forma che aveva quando e' entrato, e dopo
+  un aggiornamento del codice rompe l'app con un AttributeError. Si mette in
+  cache la tabella grezza (`ui.dati()`) e si ricostruisce a ogni giro.
 - **Le voci di menu delle competizioni sono condizionali.** Coppa e
   Supercoppa compaiono solo se la lega le gioca: una voce che parla di una
   competizione inesistente e' peggio di una voce mancante.
