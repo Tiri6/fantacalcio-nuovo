@@ -183,6 +183,10 @@ sara' di 18 o 27 giornate.
   `fantacalcio/` e' vecchio: il primo campo aggiunto di recente alza un
   AttributeError che uccide il sito. L'unico rimedio e' *Reboot app*, e la
   guardia in `app.py` lo dice invece di mostrare un traceback.
+- **Una guardia contro il codice disallineato non puo' stare nel modulo che
+  protegge.** Prima versione: `ui.spiega_codice_disallineato()`, che nel
+  modulo vecchio non esisteva — l'errore si spostava dentro il gestore
+  dell'errore. Ora vive in `app.py` e usa solo `streamlit`.
 - **Nelle cache di Streamlit vanno solo DataFrame, mai oggetti di dominio.**
   Un oggetto in cache conserva la forma che aveva quando e' entrato.
   `tests/test_cache.py` lo verifica staticamente.

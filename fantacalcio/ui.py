@@ -674,37 +674,3 @@ def nomi_utenti() -> dict[int, str]:
         c.utente.id: c.utente.nome_completo
         for c in carica_credenziali(archivio()).values()
     }
-
-
-# --- codice disallineato ----------------------------------------------------
-
-
-def spiega_codice_disallineato(errore: AttributeError) -> None:
-    """Trasforma un AttributeError da aggiornamento in un'istruzione utile.
-
-    Streamlit ricarica lo script d'ingresso e le pagine in `viste/`, ma **non**
-    i moduli gia' importati: dopo un aggiornamento `app.py` puo' essere nuovo
-    mentre `fantacalcio/` e' ancora quello di prima. Il sintomo e' un
-    AttributeError su un campo appena aggiunto, e la causa non si indovina
-    guardando il traceback.
-
-    L'unico rimedio e' far ripartire il processo. Dirlo vale piu' che mostrare
-    una traccia che non porta a niente.
-    """
-    st.error(
-        "**Il sito e' stato aggiornato, ma sta ancora usando il codice "
-        "precedente.**\n\n"
-        "Succede quando l'applicazione non riparte da zero dopo un "
-        "aggiornamento: la pagina e' quella nuova, i moduli sotto sono quelli "
-        "vecchi.",
-        icon="🔄",
-    )
-    st.markdown(
-        "**Come si risolve** — riavvia l'applicazione:\n\n"
-        "1. apri la dashboard su [share.streamlit.io](https://share.streamlit.io)\n"
-        "2. menu **⋮** accanto all'app → **Reboot app**\n"
-        "3. riapri il sito dopo una ventina di secondi\n\n"
-        "Non si perde niente: i dati stanno su Supabase, non nell'app."
-    )
-    st.caption(f"Dettaglio tecnico: {errore}")
-    st.stop()

@@ -12,27 +12,63 @@ che cambia con la lega: le competizioni non attivate non compaiono.
 
 import streamlit as st
 
-from fantacalcio import ui
 
-ui.configura_app()
+def _spiega_e_fermati(errore: AttributeError) -> None:
+    """Trasforma un AttributeError d'avvio in un'istruzione utile.
 
-utente = ui.richiedi_login()
-ui.richiedi_password_nuova(utente)
-lega = ui.richiedi_lega(utente)
-ui.richiedi_squadra(utente, lega)
+    Streamlit ricarica questo file e le pagine in `viste/`, ma **non** i moduli
+    gia' importati: dopo un aggiornamento `app.py` puo' essere nuovo mentre
+    `fantacalcio/` e' ancora quello di prima, e il primo campo o funzione
+    aggiunti di recente alzano un AttributeError che uccide il sito.
 
-# Streamlit ricarica `app.py` e le pagine in `viste/`, ma non i moduli gia'
-# importati: dopo un aggiornamento questo file puo' essere nuovo mentre
-# `fantacalcio/` e' ancora quello di prima, e il primo campo aggiunto di
-# recente alza un AttributeError che uccide il sito. Invece di lasciare un
-# traceback illeggibile, si spiega che basta riavviare.
+    Questa funzione vive **qui dentro** e usa solo `streamlit`, di proposito:
+    una guardia che stesse in `fantacalcio/ui.py` sarebbe lei stessa parte del
+    codice vecchio, e mancherebbe proprio quando serve. E' l'errore che ho gia'
+    fatto una volta.
+    """
+    st.error(
+        "**Il sito e' stato aggiornato, ma sta ancora usando il codice "
+        "precedente.**\n\n"
+        "Succede quando l'applicazione non riparte da zero dopo un "
+        "aggiornamento: questa pagina e' quella nuova, i moduli sotto sono "
+        "quelli vecchi.",
+        icon="🔄",
+    )
+    st.markdown(
+        "**Come si risolve** — riavvia l'applicazione:\n\n"
+        "1. apri la dashboard su [share.streamlit.io](https://share.streamlit.io)\n"
+        "2. menu **⋮** accanto all'app → **Reboot app**\n"
+        "3. riapri il sito dopo una ventina di secondi\n\n"
+        "Non si perde niente: i dati stanno su Supabase, non nell'app."
+    )
+    st.warning(
+        "**Se hai gia' riavviato e l'errore resta**, allora non e' un "
+        "disallineamento: e' un difetto vero. Manda il dettaglio qui sotto a "
+        "chi sviluppa.",
+        icon="🐞",
+    )
+    st.code(f"{type(errore).__name__}: {errore}", language=None)
+    st.stop()
+
+
+# L'avvio sta dentro la guardia: se `fantacalcio` e' la versione vecchia, anche
+# `ui.configura_app` potrebbe non esistere ancora.
 try:
+    from fantacalcio import ui
+
+    ui.configura_app()
+
+    utente = ui.richiedi_login()
+    ui.richiedi_password_nuova(utente)
+    lega = ui.richiedi_lega(utente)
+    ui.richiedi_squadra(utente, lega)
+
     opzioni = lega.opzioni
     coppa_attiva = opzioni.coppa_italia
     supercoppa_attiva = opzioni.supercoppa
 except AttributeError as disallineamento:
-    ui.spiega_codice_disallineato(disallineamento)
-    raise  # non si arriva qui: spiega_codice_disallineato chiama st.stop()
+    _spiega_e_fermati(disallineamento)
+    raise  # non si arriva qui: `_spiega_e_fermati` chiama st.stop()
 
 # --- Lega -------------------------------------------------------------------
 # La bacheca e' la pagina d'ingresso: chi entra vuole sapere cosa e' successo,
