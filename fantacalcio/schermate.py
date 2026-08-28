@@ -10,6 +10,8 @@ sono pagine del menu, sono le condizioni per vederlo.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import streamlit as st
 
 from . import tema
@@ -1095,6 +1097,8 @@ def modulo_identita(
     nomi_occupati: set[str],
     chiave: str = "identita",
     compatto: bool = False,
+    etichetta_salva: str | None = None,
+    al_salvataggio: Callable[[], None] | None = None,
 ) -> bool:
     """Crea o modifica l'identita' di una squadra. Vero se ha salvato.
 
@@ -1102,8 +1106,13 @@ def modulo_identita(
     «Identita' squadre», che le mostra tutte, e la pagina «Squadre», dove
     guardi la tua e vuoi correggerla senza andare a cercarla altrove.
 
-    `compatto` toglie logo, maglia caricata e anteprima: dentro un expander
-    accanto alla rosa servono i campi, non una seconda vetrina.
+    `compatto` toglie logo, maglia caricata e anteprima: accanto alla rosa
+    servono i campi, non una seconda vetrina.
+
+    `al_salvataggio` viene chiamato appena il salvataggio e' andato a buon
+    fine, prima del rerun: serve a chi tiene aperta una modalita' modifica e
+    la deve richiudere. Il valore di ritorno non basta, perche' `st.rerun()`
+    interrompe la funzione prima che possa restituirlo.
     """
     from .identita import (
         ColoreNonValido,
@@ -1268,7 +1277,7 @@ def modulo_identita(
         st.error(problema, icon="⛔")
 
     if not st.button(
-        "Crea la squadra" if nuova else "Salva le modifiche",
+        etichetta_salva or ("Crea la squadra" if nuova else "Salva le modifiche"),
         type="primary",
         disabled=bool(problemi),
         key=f"{chiave}_salva",
@@ -1320,6 +1329,8 @@ def modulo_identita(
         return False
 
     invalida_dati()
+    if al_salvataggio is not None:
+        al_salvataggio()
     _ricorda(f"«{nome.strip()}» {'creata' if nuova else 'aggiornata'}.")
     st.rerun()
     return True

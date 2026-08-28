@@ -39,32 +39,69 @@ squadra = rosa.squadra
 identita = squadra.identita
 
 # --- identita' --------------------------------------------------------------
+#
+# Si modifica da dove la si guarda, con un pulsante in alto a destra: mandare
+# a cercare un'altra pagina per correggere il nome dello stadio e' il modo per
+# far credere che non si possa.
+#
+# Chi puo' farlo lo decide il dominio, non questa pagina: `puo_gestire` dice
+# di si' al presidente per tutte le squadre e a ogni altro solo per la sua.
 
-intestazione, maglia = st.columns([4, 1])
+IN_MODIFICA = "squadra_in_modifica"
+
+mia_da_gestire = utente.puo_gestire(squadra.id)
+in_modifica = mia_da_gestire and st.session_state.get(IN_MODIFICA) == squadra.id
+if not in_modifica:
+    # Cambiare squadra dal menu chiude la modifica: altrimenti tornando
+    # indietro la si ritroverebbe aperta senza averla riaperta.
+    st.session_state.pop(IN_MODIFICA, None)
+
+intestazione, maglia, azione = st.columns([5, 1, 2], vertical_alignment="center")
 with intestazione:
     ui.intestazione(squadra.nome, "🛡️", identita.motto or "")
 with maglia:
     ui.mostra_maglia(identita, larghezza=110)
+with azione:
+    if in_modifica:
+        if st.button("Annulla", key="chiudi_modifica", use_container_width=True):
+            st.session_state.pop(IN_MODIFICA, None)
+            st.rerun()
+    elif mia_da_gestire and st.button(
+        "✏️ Modifica", key="apri_modifica", type="primary", use_container_width=True
+    ):
+        st.session_state[IN_MODIFICA] = squadra.id
+        st.rerun()
 
-dettagli = [
-    ("Presidente", identita.presidente or "—"),
-    ("Stadio", identita.stadio or "—"),
-    ("Citta'", identita.citta or "—"),
-    ("Curva", identita.curva or "—"),
-]
-if identita.anno_fondazione:
-    dettagli.append(("Fondata nel", str(identita.anno_fondazione)))
+if in_modifica:
+    schermate.modulo_identita(
+        squadra,
+        lega,
+        nomi_occupati={n.lower() for n in nomi if n != scelta},
+        chiave=f"sq_{squadra.id}",
+        compatto=True,
+        etichetta_salva="💾 Salva",
+        al_salvataggio=lambda: st.session_state.pop(IN_MODIFICA, None),
+    )
+else:
+    dettagli = [
+        ("Presidente", identita.presidente or "—"),
+        ("Stadio", identita.stadio or "—"),
+        ("Citta'", identita.citta or "—"),
+        ("Curva", identita.curva or "—"),
+    ]
+    if identita.anno_fondazione:
+        dettagli.append(("Fondata nel", str(identita.anno_fondazione)))
 
-colonne = st.columns(len(dettagli))
-for colonna, (etichetta, valore) in zip(colonne, dettagli, strict=True):
-    colonna.markdown(f"**{etichetta}**  \n{valore}")
+    colonne = st.columns(len(dettagli))
+    for colonna, (etichetta, valore) in zip(colonne, dettagli, strict=True):
+        colonna.markdown(f"**{etichetta}**  \n{valore}")
 
-st.markdown(
-    tema.pastiglia_squadra(
-        squadra.nome, identita.colore_primario, identita.colore_secondario
-    ),
-    unsafe_allow_html=True,
-)
+    st.markdown(
+        tema.pastiglia_squadra(
+            squadra.nome, identita.colore_primario, identita.colore_secondario
+        ),
+        unsafe_allow_html=True,
+    )
 
 # --- bacheca dei titoli -----------------------------------------------------
 #
@@ -254,20 +291,3 @@ else:
 st.divider()
 st.subheader("Conformita' al regolamento")
 ui.mostra_violazioni(stato.violazioni)
-
-# --- modifica dell'identita' ------------------------------------------------
-#
-# Si modifica da dove la si guarda: mandare a cercare un'altra pagina per
-# correggere il nome dello stadio e' il modo per far credere che non si possa.
-
-if utente.puo_gestire(squadra.id):
-    st.divider()
-    with st.expander("✏️ Modifica l'identita' della squadra"):
-        occupati = {n.lower() for n in nomi if n != scelta}
-        schermate.modulo_identita(
-            squadra,
-            lega,
-            nomi_occupati=occupati,
-            chiave=f"sq_{squadra.id}",
-            compatto=True,
-        )
