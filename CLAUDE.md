@@ -54,6 +54,12 @@ all'avvio: non ricrearlo a mano.
   le cache di Streamlit sono condivise fra tutte le sessioni, quindi con dieci
   persone collegate un contatore per sessione farebbe leggere dati vecchi a chi
   entra dopo.
+- **Una tabella vuota deve avere comunque le sue colonne.** PostgREST non
+  le dichiara quando non ci sono righe: `data.con_colonne()` le rimette, e
+  l'elenco sta in `COLONNE_ATTESE`. Aggiungendo una tabella, aggiungila li'.
+- **Provare solo su SQLite non dimostra niente sul vuoto.** SQLite e'
+  piu' informativo di PostgREST: usa il finto backend di
+  `tests/test_backend_vuoto.py`.
 - **Nelle cache di Streamlit vanno solo DataFrame.** Mai oggetti di dominio:
   un oggetto in cache conserva la forma che aveva quando e' entrato, e dopo
   un aggiornamento del codice rompe l'app con un AttributeError. Si mette in

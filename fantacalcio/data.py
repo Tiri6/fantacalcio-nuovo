@@ -51,6 +51,165 @@ TABELLE = (
 )
 
 
+# Le colonne che ogni tabella ha quando e' vuota.
+#
+# Serve perche' i due backend rispondono in modo diverso al «non c'e' niente»:
+# SQLite restituisce una tabella vuota **con le sue colonne**, PostgREST
+# restituisce una lista vuota, da cui pandas costruisce un DataFrame **senza
+# colonne**. Il codice che poi fa `contratti["squadra_id"]` funziona sul primo
+# e alza KeyError sul secondo — un guasto che in locale non si vede mai.
+COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
+    "leghe": (
+        "id",
+        "nome",
+        "codice_invito",
+        "admin_id",
+        "stagione",
+        "opzioni",
+        "creata_il",
+    ),
+    "inviti": ("id", "lega_id", "email", "codice", "stato", "creato_da", "creato_il"),
+    "annunci": (
+        "id",
+        "lega_id",
+        "titolo",
+        "testo",
+        "tipo",
+        "autore_id",
+        "autore_nome",
+        "giornata",
+        "pubblicato",
+        "in_evidenza",
+        "creato_il",
+        "aggiornato_il",
+    ),
+    "albo": (
+        "id",
+        "lega_id",
+        "competizione",
+        "stagione",
+        "squadra_id",
+        "squadra_nome",
+        "note",
+        "registrato_il",
+    ),
+    "squadre": (
+        "id",
+        "nome",
+        "presidente",
+        "motto",
+        "stadio",
+        "citta",
+        "curva",
+        "colore_primario",
+        "colore_secondario",
+        "stile_maglia",
+        "logo",
+        "maglia_caricata",
+        "anno_fondazione",
+        "lega_id",
+    ),
+    "giocatori": (
+        "id",
+        "id_ufficiale",
+        "nome",
+        "club",
+        "ruoli",
+        "ingaggio",
+        "nazionalita",
+        "data_nascita",
+        "quotazione",
+        "fvm",
+    ),
+    "contratti": (
+        "giocatore_id",
+        "squadra_id",
+        "anni_residui",
+        "prolungato",
+        "stagione_prolungamento",
+    ),
+    "dead_money": (
+        "id",
+        "squadra_id",
+        "giocatore_id",
+        "nome_giocatore",
+        "importo",
+        "stagione",
+        "addebitato",
+    ),
+    "calendario": (
+        "id",
+        "giornata",
+        "competizione",
+        "giornata_serie_a",
+        "data_prevista",
+        "turno",
+        "casa_id",
+        "trasferta_id",
+        "gol_casa",
+        "gol_trasferta",
+        "punti_casa",
+        "punti_trasferta",
+    ),
+    "utenti": (
+        "id",
+        "nome_utente",
+        "nome",
+        "cognome",
+        "hash_password",
+        "sale",
+        "ruolo",
+        "email",
+        "data_nascita",
+        "sesso",
+        "citta",
+        "squadra_preferita",
+        "squadra_id",
+        "lega_id",
+        "deve_cambiare_password",
+        "attivo",
+        "creato_il",
+    ),
+    "scambi": (
+        "id",
+        "squadra_a_id",
+        "squadra_b_id",
+        "proposto_da",
+        "stato",
+        "note",
+        "creato_il",
+        "aggiornato_il",
+        "deciso_da",
+        "ratificato_da",
+        "giornata_efficacia",
+    ),
+    "scambi_movimenti": (
+        "id",
+        "scambio_id",
+        "giocatore_id",
+        "nome_giocatore",
+        "da_squadra_id",
+        "a_squadra_id",
+        "anni_prima",
+        "anni_dopo",
+    ),
+}
+
+
+def con_colonne(nome: str, righe: pd.DataFrame) -> pd.DataFrame:
+    """Garantisce che una tabella vuota abbia comunque le sue colonne.
+
+    Cosi' chi legge puo' scrivere `contratti["squadra_id"]` senza chiedersi
+    quale backend ha risposto.
+    """
+    if not righe.empty:
+        return righe
+    attese = COLONNE_ATTESE.get(nome)
+    if not attese:
+        return righe
+    return pd.DataFrame(columns=list(attese))
+
+
 class Archivio:
     """Interfaccia comune ai backend."""
 
@@ -96,7 +255,7 @@ class ArchivioSQLite(Archivio):
         if nome not in TABELLE:
             raise ValueError(f"Tabella non prevista: {nome}")
         with sqlite3.connect(self.percorso) as conn:
-            return pd.read_sql_query(f"select * from {nome}", conn)
+            return con_colonne(nome, pd.read_sql_query(f"select * from {nome}", conn))
 
     def scrivi(self, nome: str, righe: list[dict], chiave: str) -> int:
         if nome not in TABELLE:
@@ -139,7 +298,9 @@ class ArchivioSupabase(Archivio):
         if nome not in TABELLE:
             raise ValueError(f"Tabella non prevista: {nome}")
         risposta = self._client.table(nome).select("*").execute()
-        return pd.DataFrame(risposta.data or [])
+        # Senza righe PostgREST non dice quali colonne esistano: `con_colonne`
+        # ci mette quelle attese, cosi' chi legge non deve saperlo.
+        return con_colonne(nome, pd.DataFrame(risposta.data or []))
 
     def scrivi(self, nome: str, righe: list[dict], chiave: str) -> int:
         if nome not in TABELLE:

@@ -596,7 +596,8 @@ create table if not exists utenti (
     squadra_id integer,
     lega_id integer,
     deve_cambiare_password integer not null default 0,
-    attivo integer not null default 1
+    attivo integer not null default 1,
+    creato_il text
 );
 create table if not exists scambi (
     id integer primary key,
@@ -664,6 +665,7 @@ def _schema_aggiornato(percorso: Path) -> bool:
         "calendario": {"competizione", "giornata_serie_a", "data_prevista", "turno"},
         "squadre": {"citta", "curva", "lega_id"},
         "utenti": {
+            "creato_il",
             "email",
             "lega_id",
             "deve_cambiare_password",

@@ -105,7 +105,11 @@ class _ArchivioInCache:
         self._versione = versione
 
     def tabella(self, nome: str) -> pd.DataFrame:
-        return _tabella_in_cache(nome, self._versione)
+        from .data import con_colonne
+
+        # La cache restituisce una copia: la si rinormalizza, perche' un
+        # DataFrame vuoto che entra senza colonne esce senza colonne.
+        return con_colonne(nome, _tabella_in_cache(nome, self._versione))
 
     def squadre(self) -> pd.DataFrame:
         return self.tabella("squadre")

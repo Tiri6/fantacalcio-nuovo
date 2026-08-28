@@ -187,6 +187,15 @@ sara' di 18 o 27 giornate.
   protegge.** Prima versione: `ui.spiega_codice_disallineato()`, che nel
   modulo vecchio non esisteva — l'errore si spostava dentro il gestore
   dell'errore. Ora vive in `app.py` e usa solo `streamlit`.
+- **SQLite e PostgREST rispondono diversamente al «non c'e' niente».**
+  SQLite da' una tabella vuota **con le colonne**, PostgREST una lista
+  vuota da cui pandas costruisce un DataFrame **senza colonne**: chi fa
+  `contratti["squadra_id"]` funziona in locale e alza KeyError in
+  produzione. `data.con_colonne()` normalizza, e `tests/test_backend_vuoto.py`
+  simula la forma di PostgREST — provare su SQLite non basta mai.
+- **Con le squadre create e il draft non ancora fatto, mezzo sito lavora su
+  tabelle vuote.** E' lo stato normale di una lega appena nata, non un caso
+  limite: ogni pagina va provata anche cosi'.
 - **Nelle cache di Streamlit vanno solo DataFrame, mai oggetti di dominio.**
   Un oggetto in cache conserva la forma che aveva quando e' entrato.
   `tests/test_cache.py` lo verifica staticamente.

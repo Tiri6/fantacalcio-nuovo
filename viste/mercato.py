@@ -207,6 +207,16 @@ with svincoli:
         f"{ui.milioni(rosa.giocatore(c.giocatore_id).ingaggio)}": c.giocatore_id
         for c in rosa.contratti
     }
+    # Una rosa vuota non ha nessuno da svincolare: senza questa guardia la
+    # tendina restituisce None e l'accesso al dizionario alza KeyError.
+    if not etichette:
+        st.info(
+            f"«{nome}» non ha ancora giocatori sotto contratto: non c'e' "
+            f"niente da svincolare.",
+            icon="📭",
+        )
+        st.stop()
+
     scelto = st.selectbox("Giocatore da svincolare", sorted(etichette))
     giocatore_id = etichette[scelto]
     contratto = rosa.contratto_di(giocatore_id)

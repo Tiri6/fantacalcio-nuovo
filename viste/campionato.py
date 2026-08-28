@@ -35,13 +35,24 @@ with tabella:
     )
 
 with calendario:
-    giornate = ui.giornate_disputate(partite)
-    totale = int(partite["giornata"].max())
-    giornata = st.slider("Giornata", 1, totale, max(giornate, 1))
-    for riga in partite[partite["giornata"] == giornata].itertuples():
-        st.write(ui.formatta_partita(riga))
-        if not pd.isna(riga.punti_casa):
-            st.caption(f"{riga.punti_casa:.1f} — {riga.punti_trasferta:.1f} punti")
+    # Le squadre possono esistere senza che il calendario sia stato importato:
+    # la classifica c'e' (tutte a zero) ma non c'e' nessuna partita.
+    if partite.empty:
+        st.info(
+            "Il calendario non e' ancora stato importato. Si carica dalla "
+            "pagina «Importa dati».",
+            icon="🗓️",
+        )
+        totale = 0
+    else:
+        giornate = ui.giornate_disputate(partite)
+        totale = int(partite["giornata"].max())
+    if totale:
+        giornata = st.slider("Giornata", 1, totale, max(giornate, 1))
+        for riga in partite[partite["giornata"] == giornata].itertuples():
+            st.write(ui.formatta_partita(riga))
+            if not pd.isna(riga.punti_casa):
+                st.caption(f"{riga.punti_casa:.1f} — {riga.punti_trasferta:.1f} punti")
 
 with andamento:
     dati = ui.andamento_punti()
