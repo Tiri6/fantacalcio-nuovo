@@ -236,6 +236,22 @@ sara' di 18 o 27 giornate.
   Navigando col menu non succede. Scelta consapevole: un token in cookie
   aggiungerebbe superficie d'attacco per poco guadagno.
 
+## I documenti del progetto
+
+| File | A cosa serve |
+|---|---|
+| `PROGETTO.md` | Tutto il progetto: decisioni, regole, architettura, cosa manca |
+| `MEMORIA.md` | Questo: stato corrente e trappole gia' pagate |
+| `CLAUDE.md` | Le regole per chi scrive codice |
+| `COLLABORARE.md` | Come entrare nel progetto, per chi arriva |
+| `README.md` | Come si usa il sito, schermata per schermata |
+| `PUNTI_APERTI.md` | Le ambiguita' del regolamento da sciogliere |
+
+Il documento Word per chi entra si rigenera con
+`node scripts/genera_doc_collaboratore.js`: stesso contenuto di
+`COLLABORARE.md`, in un formato che si gira a chi su GitHub non e' ancora
+entrato. Se cambia uno, cambia l'altro.
+
 ## Come si lavora
 
 - Repository: **`Tiri6/fantacalcio-nuovo`** (privato). Il progetto e' alla
