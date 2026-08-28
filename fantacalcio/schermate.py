@@ -1082,3 +1082,244 @@ def modulo_ruoli(utente: Utente, lega: Lega) -> None:
         _dati_cambiati()
         _ricorda(f"{aggiornate.utente.nome_completo} ora e' {nuovo.etichetta}.")
         st.rerun()
+
+
+# ===========================================================================
+# 5. Identita' della squadra, sempre modificabile
+# ===========================================================================
+
+
+def modulo_identita(
+    squadra: Squadra | None,
+    lega: Lega,
+    nomi_occupati: set[str],
+    chiave: str = "identita",
+    compatto: bool = False,
+) -> bool:
+    """Crea o modifica l'identita' di una squadra. Vero se ha salvato.
+
+    Vive qui e non in una vista perche' serve in due posti: la pagina
+    «Identita' squadre», che le mostra tutte, e la pagina «Squadre», dove
+    guardi la tua e vuoi correggerla senza andare a cercarla altrove.
+
+    `compatto` toglie logo, maglia caricata e anteprima: dentro un expander
+    accanto alla rosa servono i campi, non una seconda vetrina.
+    """
+    from .identita import (
+        ColoreNonValido,
+        ImmagineNonValida,
+        StileMaglia,
+        immagine_a_data_uri,
+    )
+    from .ui import invalida_dati, mostra_logo, mostra_maglia, pastiglia_colore
+
+    nuova = squadra is None
+    identita = squadra.identita if squadra else IdentitaSquadra()
+
+    colonne = [st.container()] if compatto else st.columns([3, 2])
+    modulo = colonne[0]
+
+    with modulo:
+        nome = st.text_input(
+            "Nome della squadra",
+            value="" if nuova else squadra.nome,
+            max_chars=60,
+            key=f"{chiave}_nome",
+        )
+        riga = st.columns(2)
+        presidente = riga[0].text_input(
+            "Presidente", value=identita.presidente, max_chars=60, key=f"{chiave}_pres"
+        )
+        anno = riga[1].number_input(
+            "Anno di fondazione",
+            min_value=1900,
+            max_value=2100,
+            value=identita.anno_fondazione or 2026,
+            key=f"{chiave}_anno",
+        )
+        motto = st.text_input(
+            "Motto",
+            value=identita.motto,
+            max_chars=120,
+            placeholder="Chi non risica non rosica",
+            key=f"{chiave}_motto",
+        )
+        riga = st.columns(3)
+        stadio = riga[0].text_input(
+            "Stadio",
+            value=identita.stadio,
+            max_chars=80,
+            placeholder="Arena del Padel",
+            key=f"{chiave}_stadio",
+        )
+        citta = riga[1].text_input(
+            "Citta'",
+            value=identita.citta,
+            max_chars=60,
+            placeholder="Ginevra",
+            key=f"{chiave}_citta",
+        )
+        curva = riga[2].text_input(
+            "Curva",
+            value=identita.curva,
+            max_chars=60,
+            placeholder="Curva Nord",
+            help="Come si chiama il settore dei tuoi tifosi.",
+            key=f"{chiave}_curva",
+        )
+
+        st.markdown("**Colori sociali**")
+        riga = st.columns(3)
+        primario = riga[0].color_picker(
+            "Primario", value=identita.colore_primario, key=f"{chiave}_prim"
+        )
+        secondario = riga[1].color_picker(
+            "Secondario", value=identita.colore_secondario, key=f"{chiave}_sec"
+        )
+        stile = riga[2].selectbox(
+            "Disegno della maglia",
+            options=list(StileMaglia),
+            index=list(StileMaglia).index(identita.stile_maglia),
+            format_func=lambda s: s.value,
+            key=f"{chiave}_stile",
+        )
+
+        file_logo = file_maglia = None
+        rimuovi_maglia = False
+        if not compatto:
+            st.markdown("**Immagini (facoltative)**")
+            st.caption(
+                "Il logo e' opzionale: senza, la squadra e' comunque "
+                "riconoscibile dalla maglia. Massimo 512 KB per file."
+            )
+            file_logo = st.file_uploader(
+                "Logo",
+                type=["png", "jpg", "jpeg", "webp", "svg"],
+                key=f"{chiave}_logo",
+            )
+            file_maglia = st.file_uploader(
+                "Maglia personalizzata (sostituisce quella disegnata)",
+                type=["png", "jpg", "jpeg", "webp", "svg"],
+                key=f"{chiave}_maglia",
+            )
+            rimuovi_maglia = st.checkbox(
+                "Torna alla maglia disegnata dai colori",
+                value=False,
+                disabled=not identita.maglia_caricata,
+                key=f"{chiave}_rimuovi",
+            )
+
+    errore_colori = None
+    try:
+        anteprima_identita = IdentitaSquadra(
+            presidente=presidente,
+            motto=motto,
+            stadio=stadio,
+            citta=citta,
+            curva=curva,
+            colore_primario=primario,
+            colore_secondario=secondario,
+            stile_maglia=stile,
+            logo=identita.logo,
+            maglia_caricata=None if rimuovi_maglia else identita.maglia_caricata,
+            anno_fondazione=int(anno),
+        )
+    except ColoreNonValido as errore:
+        anteprima_identita = None
+        errore_colori = str(errore)
+
+    if not compatto:
+        with colonne[1]:
+            st.subheader("Anteprima")
+            if anteprima_identita is None:
+                st.error(errore_colori)
+            else:
+                mostra_maglia(anteprima_identita, larghezza=180)
+                st.markdown(
+                    pastiglia_colore(primario, "Primario")
+                    + "&nbsp;&nbsp;"
+                    + pastiglia_colore(secondario, "Secondario"),
+                    unsafe_allow_html=True,
+                )
+                if not anteprima_identita.colori_distinguibili:
+                    st.warning(
+                        "I due colori sono troppo simili: da lontano la maglia "
+                        "sembrera' a tinta unita.",
+                        icon="⚠️",
+                    )
+                if identita.logo:
+                    mostra_logo(identita)
+                st.markdown(f"### {nome or 'Senza nome'}")
+                if motto:
+                    st.caption(f"_{motto}_")
+
+    st.divider()
+    problemi = []
+    if not nome.strip():
+        problemi.append("Il nome della squadra e' obbligatorio.")
+    if not presidente.strip():
+        problemi.append("Il nome del presidente e' obbligatorio.")
+    if nome.strip().lower() in nomi_occupati:
+        problemi.append(f"Esiste gia' una squadra chiamata «{nome.strip()}».")
+    if errore_colori:
+        problemi.append(errore_colori)
+
+    for problema in problemi:
+        st.error(problema, icon="⛔")
+
+    if not st.button(
+        "Crea la squadra" if nuova else "Salva le modifiche",
+        type="primary",
+        disabled=bool(problemi),
+        key=f"{chiave}_salva",
+        use_container_width=compatto,
+    ):
+        return False
+
+    try:
+        logo = identita.logo
+        if file_logo is not None:
+            logo = immagine_a_data_uri(file_logo.getvalue(), file_logo.type)
+
+        maglia_caricata = None if rimuovi_maglia else identita.maglia_caricata
+        if file_maglia is not None:
+            maglia_caricata = immagine_a_data_uri(
+                file_maglia.getvalue(), file_maglia.type
+            )
+
+        definitiva = IdentitaSquadra(
+            presidente=presidente.strip(),
+            motto=motto.strip(),
+            stadio=stadio.strip(),
+            citta=citta.strip(),
+            curva=curva.strip(),
+            colore_primario=primario,
+            colore_secondario=secondario,
+            stile_maglia=stile,
+            logo=logo,
+            maglia_caricata=maglia_caricata,
+            anno_fondazione=int(anno),
+        )
+        salva_squadra(
+            archivio(),
+            Squadra(
+                id=prossimo_id(archivio(), "squadre") if nuova else squadra.id,
+                nome=nome.strip(),
+                presidente=definitiva.presidente,
+                identita=definitiva,
+                # Va riportato a mano: ricostruendo la Squadra senza, il
+                # salvataggio scollegherebbe la squadra dalla sua lega.
+                lega_id=lega.id if nuova else (squadra.lega_id or lega.id),
+            ),
+        )
+    except (ImmagineNonValida, ColoreNonValido) as errore:
+        st.error(str(errore), icon="⛔")
+        return False
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        st.error(f"Non riesco a salvare: {errore}", icon="⛔")
+        return False
+
+    invalida_dati()
+    _ricorda(f"«{nome.strip()}» {'creata' if nuova else 'aggiornata'}.")
+    st.rerun()
+    return True

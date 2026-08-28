@@ -288,7 +288,7 @@ In ordine di utilita'.
    Under 21 e limite scambi si vedono ma nessuno impedisce di violarli.
 4. **Risultati di coppa e supercoppa** non si importano separatamente.
 5. **Svincoli registrati**: il Dead Money si calcola ma non si scrive.
-6. **Dati anagrafici non modificabili** dopo l'iscrizione.
+6. **Dati anagrafici non modificabili** dopo l'iscrizione (quelli della squadra si modificano dalla pagina Squadre).
 7. **Registro dei lodi**: la tabella c'e', manca la pagina.
 8. **Tabellone del draft** da proiettare durante l'asta.
 

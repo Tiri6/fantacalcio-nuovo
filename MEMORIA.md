@@ -54,6 +54,11 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
   reparto), codice d'invito, inviti per email, pagina «La lega».
 - **Tre cancelli all'ingresso**: accesso/registrazione → crea o unisciti a una
   lega → fonda la squadra (nome, citta', stadio, curva, colori, maglia).
+- **Bacheca dei titoli** nella pagina Squadre: si popola da sola dall'albo
+  d'oro, nessun dato da tenere allineato a mano.
+- **Identita' modificabile da dove la si guarda**: l'editor sta in
+  `schermate.modulo_identita` e lo usano sia «Squadre» sia «Identita'
+  squadre». Prima esisteva solo nella seconda, e sembrava non ci fosse.
 - **Bacheca**: notizie, comunicazioni e recap di giornata, con bozze e
   annunci in evidenza. Scrive chi amministra la lega, leggono tutti. E' la
   pagina d'ingresso.
@@ -187,6 +192,10 @@ sara' di 18 o 27 giornate.
   protegge.** Prima versione: `ui.spiega_codice_disallineato()`, che nel
   modulo vecchio non esisteva — l'errore si spostava dentro il gestore
   dell'errore. Ora vive in `app.py` e usa solo `streamlit`.
+- **Ricostruire una dataclass per salvarla perde i campi che non nomini.**
+  Salvando l'identita' si costruiva una `Squadra` senza `lega_id`, che
+  quindi tornava a None: la squadra si scollegava dalla lega a ogni
+  salvataggio, senza errori.
 - **SQLite e PostgREST rispondono diversamente al «non c'e' niente».**
   SQLite da' una tabella vuota **con le colonne**, PostgREST una lista
   vuota da cui pandas costruisce un DataFrame **senza colonne**: chi fa

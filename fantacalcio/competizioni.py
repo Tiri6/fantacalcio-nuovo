@@ -319,3 +319,31 @@ def costruisci_weekend(
 
         weekend.append(Weekend(giornata_serie_a=turno_a, impegni=tuple(impegni)))
     return weekend
+
+
+def titoli_di(
+    titoli: list[Titolo], squadra_id: int | None, squadra_nome: str
+) -> list[Titolo]:
+    """I titoli di una squadra, per la sua bacheca.
+
+    Si confronta l'id quando c'e', altrimenti il nome: una squadra che
+    cambia nome non deve perdere quello che ha vinto, e un titolo registrato
+    prima che l'id fosse noto resta comunque suo.
+    """
+    nome = (squadra_nome or "").strip().lower()
+
+    def e_suo(titolo: Titolo) -> bool:
+        if titolo.squadra_id is not None:
+            return titolo.squadra_id == squadra_id
+        # Titolo registrato senza id: resta agganciato al nome.
+        return titolo.squadra_nome.strip().lower() == nome
+
+    return ordina_albo([t for t in titoli if e_suo(t)])
+
+
+def conta_per_competizione(titoli: list[Titolo]) -> dict[TipoCompetizione, int]:
+    """Quanti titoli per competizione, nell'ordine in cui vanno mostrati."""
+    return {
+        tipo: sum(1 for t in titoli if t.competizione is tipo)
+        for tipo in TipoCompetizione
+    }

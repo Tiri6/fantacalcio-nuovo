@@ -8,9 +8,15 @@ e quanto pesa ciascuno sul budget.
 import pandas as pd
 import streamlit as st
 
-from fantacalcio import tema, ui
+from fantacalcio import schermate, tema, ui
+from fantacalcio.competizioni import (
+    TipoCompetizione,
+    conta_per_competizione,
+    titoli_di,
+)
 
 ui.barra_laterale()
+schermate.mostra_messaggio()
 
 rose = ui.rose()
 if not rose:
@@ -59,6 +65,65 @@ st.markdown(
     ),
     unsafe_allow_html=True,
 )
+
+# --- bacheca dei titoli -----------------------------------------------------
+#
+# Si popola da sola dall'albo d'oro: chi amministra registra il vincitore li',
+# e la coppa compare qui. Nessun dato da tenere allineato a mano.
+
+titoli = titoli_di(ui.albo(), squadra.id, squadra.nome)
+
+st.divider()
+st.subheader("🏆 Bacheca")
+
+if not titoli:
+    st.caption(
+        "Ancora nessun titolo. La bacheca si riempie da sola quando chi "
+        "amministra registra un vincitore nell'albo d'oro."
+    )
+else:
+    conteggio = conta_per_competizione(titoli)
+    ui.griglia_dati(
+        [
+            {
+                "etichetta": tipo.etichetta,
+                "valore": str(quanti),
+                "nota": tipo.icona * min(quanti, 5) if quanti else "—",
+                "stato": "ok" if quanti else "avviso",
+            }
+            for tipo, quanti in conteggio.items()
+        ]
+    )
+
+    st.markdown(
+        " ".join(
+            tema.pastiglia(
+                f"{t.competizione.icona} {t.stagione}",
+                tema.AMBRA
+                if t.competizione is TipoCompetizione.CAMPIONATO
+                else tema.VERDE,
+            )
+            for t in titoli
+        ),
+        unsafe_allow_html=True,
+    )
+    with st.expander(f"Tutti i {len(titoli)} titoli"):
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Competizione": (
+                            f"{t.competizione.icona} {t.competizione.etichetta}"
+                        ),
+                        "Stagione": t.stagione,
+                        "Nota": t.note,
+                    }
+                    for t in titoli
+                ]
+            ),
+            hide_index=True,
+            use_container_width=True,
+        )
 
 st.divider()
 
@@ -189,3 +254,20 @@ else:
 st.divider()
 st.subheader("Conformita' al regolamento")
 ui.mostra_violazioni(stato.violazioni)
+
+# --- modifica dell'identita' ------------------------------------------------
+#
+# Si modifica da dove la si guarda: mandare a cercare un'altra pagina per
+# correggere il nome dello stadio e' il modo per far credere che non si possa.
+
+if utente.puo_gestire(squadra.id):
+    st.divider()
+    with st.expander("✏️ Modifica l'identita' della squadra"):
+        occupati = {n.lower() for n in nomi if n != scelta}
+        schermate.modulo_identita(
+            squadra,
+            lega,
+            nomi_occupati=occupati,
+            chiave=f"sq_{squadra.id}",
+            compatto=True,
+        )

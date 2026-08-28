@@ -13,11 +13,13 @@ from fantacalcio.competizioni import (
     TipoCompetizione,
     Titolo,
     bacheca_squadre,
+    conta_per_competizione,
     costruisci_weekend,
     crea_titolo,
     data_riferimento_u21,
     finaliste_supercoppa,
     ordina_albo,
+    titoli_di,
     titolo_esistente,
 )
 
@@ -193,3 +195,62 @@ def test_ogni_competizione_ha_icona_ed_etichetta():
 
 def test_ogni_formato_di_coppa_ha_un_etichetta():
     assert all(f.etichetta for f in FormatoCoppa)
+
+
+class TestBachecaDiUnaSquadra:
+    """La bacheca di una squadra si ricava dall'albo d'oro, senza dati doppi."""
+
+    def titolo(self, id_, competizione, stagione, nome, squadra_id=None):
+        return Titolo(
+            id=id_,
+            lega_id=1,
+            competizione=competizione,
+            stagione=stagione,
+            squadra_id=squadra_id,
+            squadra_nome=nome,
+        )
+
+    def albo(self):
+        return [
+            self.titolo(1, TipoCompetizione.CAMPIONATO, "2025/26", "Tiri Team", 7),
+            self.titolo(2, TipoCompetizione.COPPA_ITALIA, "2025/26", "Padel United", 8),
+            self.titolo(3, TipoCompetizione.CAMPIONATO, "2026/27", "Tiri Team", 7),
+            self.titolo(4, TipoCompetizione.SUPERCOPPA, "2026/27", "Tiri Team", 7),
+        ]
+
+    def test_prende_solo_i_suoi(self):
+        suoi = titoli_di(self.albo(), 7, "Tiri Team")
+        assert len(suoi) == 3
+        assert all(t.squadra_id == 7 for t in suoi)
+
+    def test_ordinati_dal_piu_recente(self):
+        suoi = titoli_di(self.albo(), 7, "Tiri Team")
+        assert suoi[0].stagione == "2026/27"
+        assert suoi[-1].stagione == "2025/26"
+
+    def test_una_squadra_senza_titoli_ha_bacheca_vuota(self):
+        assert titoli_di(self.albo(), 99, "Nuova Arrivata") == []
+
+    def test_un_titolo_senza_id_resta_agganciato_al_nome(self):
+        """Registrato prima che l'id fosse noto: e' comunque suo."""
+        albo = [self.titolo(5, TipoCompetizione.CAMPIONATO, "2024/25", "Tiri Team")]
+        assert len(titoli_di(albo, 7, "Tiri Team")) == 1
+
+    def test_il_nome_si_confronta_senza_maiuscole_ne_spazi(self):
+        albo = [self.titolo(5, TipoCompetizione.CAMPIONATO, "2024/25", "  TIRI team ")]
+        assert len(titoli_di(albo, 7, "Tiri Team")) == 1
+
+    def test_un_titolo_con_id_di_un_altra_squadra_non_si_prende_per_nome(self):
+        """L'id, quando c'e', comanda: due squadre possono chiamarsi uguale."""
+        albo = [self.titolo(5, TipoCompetizione.CAMPIONATO, "2024/25", "Tiri Team", 99)]
+        assert titoli_di(albo, 7, "Tiri Team") == []
+
+    def test_conteggio_per_competizione(self):
+        conteggio = conta_per_competizione(titoli_di(self.albo(), 7, "Tiri Team"))
+        assert conteggio[TipoCompetizione.CAMPIONATO] == 2
+        assert conteggio[TipoCompetizione.SUPERCOPPA] == 1
+        assert conteggio[TipoCompetizione.COPPA_ITALIA] == 0
+
+    def test_il_conteggio_elenca_tutte_le_competizioni(self):
+        """Anche quelle a zero: la bacheca mostra i vuoti, non li nasconde."""
+        assert set(conta_per_competizione([])) == set(TipoCompetizione)
