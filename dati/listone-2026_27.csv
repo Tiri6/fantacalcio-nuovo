@@ -1,0 +1,519 @@
+id giocatore;nome giocatore;cognome giocatore;squadra di provenienza;ruolo classic;ruolo mantra;data di nascita;nazionalita;stipendio lordo
+5841;Svilar;;Roma;P;Por;;Serbia;4360000
+5116;Martinez Jo.;;Inter;P;Por;;Spagna;2780000
+4431;Carnesecchi;;Atalanta;P;Por;;Italia;1480000
+6966;Butez;;Como;P;Por;;Francia;1110000
+4964;Vicario;;Juventus;P;Por;;Italia;4630000
+4312;Maignan;;Milan;P;Por;;Francia;6410000
+2521;De Gea;;Fiorentina;P;Por;;Spagna;5560000
+572;Meret;;Napoli;P;Por;;Italia;4630000
+133;Skorupski;;Bologna;P;Por;;Polonia;2220000
+4360;Caprile;;Cagliari;P;Por;;Italia;1410000
+6482;Mandas;;Lazio;P;Por;;Grecia;1030000
+2134;Falcone;;Lecce;P;Por;;Italia;1110000
+6462;Okoye;;Udinese;P;Por;;Nigeria;900000
+7332;Bijlow;;Genoa;P;Por;;Paesi Bassi;3150000
+7411;Daffara;;Parma;P;Por;;;
+4236;Muric;;Sassuolo;P;Por;;Kosovo;2130000
+6248;Stankovic F.;;Venezia;P;Por;;Serbia;1110000
+6415;Palmisani;;Frosinone;P;Por;;Italia;280000
+4485;Thiam;;Monza;P;Por;;Senegal;930000
+2170;Milinkovic-Savic V.;;Napoli;P;Por;;Serbia;4630000
+7463;Desplanches;;Frosinone;P;Por;;;
+2814;Provedel;;Inter;P;Por;;Italia;2780000
+4;Sportiello;;Atalanta;P;Por;;Italia;1850000
+7533;Happonen;;Bologna;P;Por;;;
+7172;Pessina Mas.;;Bologna;P;Por;;Italia;280000
+6650;Sherri;;Cagliari;P;Por;;Albania;220000
+7301;Tornqvist;;Como;P;Por;;Svezia;280000
+2809;Vigorito;;Como;P;Por;;;
+6403;Christensen O.;;Fiorentina;P;Por;;Danimarca;640000
+158;Lezzerini;;Fiorentina;P;Por;;Italia;280000
+7466;Lolic;;Frosinone;P;Por;;Bosnia-Herzegovina;90000
+219;Sommariva;;Genoa;P;Por;;;
+6569;Stolz;;Genoa;P;Por;;Austria;300000
+1926;Di Gennaro;;Inter;P;Por;;Italia;280000
+1930;Pinsoglio;;Juventus;P;Por;;Italia;560000
+7337;Motta;;Lazio;P;Por;;Italia;280000
+7534;Renzetti;;Lazio;P;Por;;;
+2815;Terracciano;;Milan;P;Por;;;
+6813;Torriani;;Milan;P;Por;;Italia;370000
+7475;Strajnar;;Monza;P;Por;;Slovenia;170000
+2845;Contini;;Napoli;P;Por;;Italia;1110000
+6662;Corvi;;Parma;P;Por;;Italia;930000
+7048;De Marzi;;Roma;P;Por;;;
+610;Gollini;;Roma;P;Por;;Italia;1480000
+4518;Russo A.;;Sassuolo;P;Por;;;
+4867;Turati;;Sassuolo;P;Por;;Italia;850000
+7457;Mascardi;;Torino;P;Por;;;
+5320;Paleari;;Torino;P;Por;;Italia;740000
+7363;Siviero;;Torino;P;Por;;Italia;370000
+543;Padelli;;Udinese;P;Por;;Italia;370000
+5707;Piana;;Udinese;P;Por;;;
+6671;Grandi;;Venezia;P;Por;;Italia;370000
+7531;Pozzi;;Venezia;P;Por;;;
+7545;Vismara;;Atalanta;P;Por;;;
+2127;Satalino;;Sassuolo;P;Por;;;
+7557;Penev;;Lecce;P;Por;;;
+7560;Pisseri;;Frosinone;P;Por;;;
+3;Radunovic;;Cagliari;P;Por;;Serbia;870000
+4957;Montipò;;Venezia;P;Por;;;
+4468;Bleve;;Lecce;P;Por;;;
+7603;Grabara;;Juventus;P;Por;;Polonia;3150000
+7611;Mrozek;;Udinese;P;Por;;;
+254;Dimarco;;Inter;D;E/W;;Italia;7410000
+4998;Molina N.;;Roma;D;E;;Argentina;5090000
+7181;Wesley;;Roma;D;E;;Brasile;3700000
+4159;Akanji;;Inter;D;Dc;;Svizzera;6940000
+2788;Bremer;;Juventus;D;Dc;;Brasile;9260000
+2296;Mancini;;Roma;D;Dc;;Italia;6300000
+2120;Bastoni;;Inter;D;Dc;;Italia;10190000
+5022;Pavlovic;;Milan;D;Dc;;Serbia;3150000
+4409;Rrahmani;;Napoli;D;Dc;;Kosovo;3210000
+4976;Kalulu;;Juventus;D;Dd/Dc;;Francia;3080000
+4317;N'Dicka;;Roma;D;Dc;;"Cote d&#39;Ivoire";5130000
+6956;Solet;;Udinese;D;Dc;;Francia;1300000
+6217;Bisseck;;Inter;D;Dc;;Germania;3850000
+2514;Stones;;Inter;D;Dc;;Inghilterra;7410000
+5833;Gila;;Milan;D;Dc;;Spagna;5770000
+2816;Di Lorenzo;;Napoli;D;Dd/E;;Italia;5560000
+5982;Spence;;Inter;D;E;;Inghilterra;5560000
+5750;Ostigard;;Genoa;D;Dc;;;
+5526;Scalvini;;Atalanta;D;Dc;;Italia;2780000
+6869;Ramon;;Como;D;Dc;;Spagna;300000
+5885;Dodò;;Fiorentina;D;Dd/E;;Brasile;1920000
+4807;Hermoso;;Roma;D;Dc;;Spagna;6480000
+5514;Vasquez;;Genoa;D;Ds/Dc;;Messico;1280000
+5520;Cambiaso;;Juventus;D;Dd/Ds/E;;Italia;4440000
+6989;Tiago Gabriel;;Lecce;D;Dc;;Portogallo;330000
+5641;Chalobah T.;;Como;D;Dd/Dc;;Inghilterra;6670000
+6046;Hien;;Atalanta;D;Dc;;Svezia;1670000
+554;Zappacosta;;Atalanta;D;Dd/E;;Italia;1670000
+6042;Lucumì;;Juventus;D;Dc;;Colombia;3210000
+4734;Miranda J.;;Bologna;D;Ds/E;;Spagna;2590000
+4210;Mina;;Cagliari;D;Dc;;Colombia;1920000
+6531;Jimenez A.;;Fiorentina;D;Dd/Ds/E;;Spagna;1110000
+6814;Norton-Cuffy;;Genoa;D;Dd/E;;Inghilterra;930000
+4657;Celik;;Juventus;D;B/Dd/E;;Turchia;4100000
+6320;Doekhi;;Lazio;D;Dc;;Paesi Bassi;3150000
+6496;Bartesaghi;;Milan;D;Ds/E;;Italia;1110000
+1852;Spinazzola;;Napoli;D;Ds/E;;Italia;3330000
+6664;Delprato;;Parma;D;B/Dd/E;;Italia;1670000
+5862;Valeri;;Parma;D;Ds/E;;Italia;1390000
+7529;Koulierakis;;Roma;D;Dc;;Grecia;3700000
+4994;Vojvoda;;Udinese;D;Dd/E;;Kosovo;1390000
+5555;Kamara H.;;Udinese;D;Ds/E;;"Cote d&#39;Ivoire";1280000
+6727;Couto;;Como;D;Dd/E;;Brasile;4630000
+5701;Obert;;Cagliari;D;B/Ds/E;;Slovacchia;930000
+7414;Kaiki;;Como;D;Ds/E;;;
+5365;Dragusin;;Fiorentina;D;Dc;;;
+5877;Carlos Augusto;;Inter;D;B/Ds/E;;Brasile;2820000
+460;Romagnoli;;Lazio;D;Dc;;Italia;5560000
+4401;Gabbia;;Milan;D;Dc;;Italia;3330000
+4751;Tomori;;Milan;D;Dc;;Inghilterra;4490000
+2724;Buongiorno;;Napoli;D;Dc;;Italia;4630000
+6672;Idzes;;Sassuolo;D;Dc;;Indonesia;1110000
+6642;Coco;;Torino;D;Dc;;Guinea Equatoriale;1850000
+5010;Ismajli;;Torino;D;Dc;;Albania;2220000
+6485;Kristensen T.;;Atalanta;D;Dd/Dc;;Danimarca;320000
+4664;Badiashile;;Napoli;D;Dc;;Francia;5190000
+7580;Sutalo J.;;Lazio;D;Dc;;Croazia;2500000
+6916;Ahanor;;Atalanta;D;B/Ds/E;;Italia;930000
+4887;Bellanova;;Atalanta;D;Dd/E;;Italia;3330000
+7219;Bernasconi;;Atalanta;D;Ds/E;;Italia;650000
+7212;Heggem;;Bologna;D;Ds/Dc;;Norvegia;1020000
+4433;Zortea;;Bologna;D;Dd/E;;Italia;1480000
+6867;Valle;;Como;D;Ds/E;;Spagna;560000
+7294;Valdepenas;;Fiorentina;D;Ds/Dc;;;
+7410;Viery;;Fiorentina;D;Ds/Dc;;;
+4952;Monterisi;;Frosinone;D;Dc;;Italia;330000
+6660;Marcandalli;;Genoa;D;Dc;;Italia;650000
+4177;Pavard;;Inter;D;Dd/Dc;;Francia;6410000
+5620;Tavares N.;;Lazio;D;Ds/E;;Portogallo;4440000
+2188;Marusic;;Lazio;D;Dd/Ds/E;;Montenegro;3700000
+6632;Gaspar K.;;Lecce;D;Dc;;Angola;590000
+6990;Veiga D.;;Lecce;D;Dd/E;;Portogallo;460000
+4502;Gallo;;Lecce;D;Ds/E;;Italia;1110000
+7485;Mangas;;Monza;D;Ds/E;;;
+6202;Beukema;;Napoli;D;Dc;;Paesi Bassi;3210000
+6495;Comuzzo;;Torino;D;Dc;;Italia;1850000
+7253;Bella-Kotchap;;Venezia;D;Dc;;;
+7329;Obrador;;Sassuolo;D;Ds/E;;;
+2640;Kolasinac;;Atalanta;D;Ds/Dc;;Bosnia-Herzegovina;2560000
+7068;Vitik;;Bologna;D;Dc;;Cechia;1110000
+5678;Holm;;Bologna;D;Dd/E;;Svezia;1030000
+7532;Kofler;;Cagliari;D;Dc;;;
+7274;Zè Pedro;;Cagliari;D;Dd/Dc;;Portogallo;1480000
+6893;Kempf;;Como;D;Dc;;Germania;1110000
+5449;Parisi;;Fiorentina;D;Ds/E;;Italia;3150000
+7469;Bracaglia;;Frosinone;D;Ds/Dc;;Italia;370000
+6238;Oyono A.;;Frosinone;D;Dd/E;;Gabon;350000
+2593;Martin;;Genoa;D;Ds/E;;Spagna;1280000
+6766;Kelly L.;;Juventus;D;Ds/Dc;;Inghilterra;4440000
+4817;Pedraza;;Lazio;D;Ds/E;;;
+7240;Siebert;;Lecce;D;Dc;;Germania;930000
+5840;Olivera;;Napoli;D;B/Ds/E;;Uruguay;2560000
+6986;Rensch;;Roma;D;B/Dd/E;;Paesi Bassi;2220000
+6426;Pedersen;;Torino;D;Dd/E;;Norvegia;1300000
+6890;Moreno M.;;Venezia;D;Dc;;Argentina;740000
+4845;Correia T.;;Venezia;D;Dd/E;;;
+5695;Haps;;Venezia;D;Ds/E;;Suriname;830000
+7069;Fortini;;Torino;D;E;;Italia;190000
+7564;Leysen F.;;Sassuolo;D;Ds/Dc;;;
+7268;Rodriguez Ju.;;Cagliari;D;Ds/Dc;;Uruguay;560000
+7014;Smolcic I.;;Como;D;Dd/E;;Croazia;930000
+5603;Pongracic;;Fiorentina;D;Dc;;Croazia;2690000
+7467;Calvani;;Frosinone;D;Dc;;Italia;370000
+7537;Mitaj;;Genoa;D;Ds/E;;;
+5831;Gatti;;Juventus;D;Dc;;Italia;5740000
+5739;De Winter;;Milan;D;Dd/Dc;;Belgio;3150000
+5273;Estupinan;;Milan;D;Ds/E;;Ecuador;4630000
+2115;Delli Carri;;Monza;D;Dc;;Italia;460000
+6659;Lucchesi;;Monza;D;Dc;;;
+5838;Birindelli;;Monza;D;Dd/Ds/E;;Italia;1110000
+7235;Troilo;;Parma;D;Dc;;Argentina;830000
+5307;Valenti;;Parma;D;Dc;;Argentina;770000
+6631;Ghilardi;;Roma;D;Dc;;Italia;1850000
+4374;Walukiewicz;;Sassuolo;D;Dd/Dc;;;
+5851;Doig;;Sassuolo;D;Ds/E;;Scozia;1540000
+7526;Comert;;Torino;D;Dc;;;
+4263;Kabasele;;Udinese;D;Dc;;Belgio;1670000
+5820;Bertola;;Udinese;D;Dd/Ds/Dc;;Italia;740000
+5527;Zanoli;;Udinese;D;Dd/E;;;
+7312;Arizala;;Udinese;D;Ds/E;;Colombia;370000
+7538;Halhal;;Venezia;D;Dc;;;
+4375;Terzic;;Frosinone;D;Ds/E;;;
+7563;Favasuli;;Napoli;D;Dd/Ds/E;;;
+5578;Kossounou;;Atalanta;D;Dd/Dc;;"Cote d&#39;Ivoire";1850000
+5498;Casale;;Bologna;D;Dc;;Italia;1850000
+7326;Helland;;Bologna;D;Dd/Dc;;Norvegia;740000
+7125;Idrissi R.;;Cagliari;D;Ds/E;;Italia;280000
+4378;Ranieri L.;;Fiorentina;D;Ds/Dc;;Italia;2220000
+7175;Joao Mario;;Fiorentina;D;Dd/E;;Portogallo;3700000
+7540;Akpoguma;;Frosinone;D;Dc;;;
+5757;Cittadini;;Frosinone;D;Dc;;;
+7012;Provstgaard;;Lazio;D;Dc;;Danimarca;930000
+7131;Floriani Mussolini;;Lazio;D;Dd/E;;Italia;190000
+7238;Kouadio;;Monza;D;Dd/Dc;;;
+4925;Carboni A.;;Monza;D;Ds/Dc;;Italia;1110000
+7255;Britschgi;;Parma;D;Dd/Ds/E;;Svizzera;130000
+6985;Candè;;Sassuolo;D;Ds/Dc;;Guinea-Bissau;650000
+6925;Palma;;Udinese;D;Dc;;Germania;740000
+5994;Ebosse;;Udinese;D;Ds/Dc;;Camerun;1030000
+6892;Schingtienne;;Venezia;D;Dc;;Belgio;560000
+6673;Sverko;;Venezia;D;Ds/Dc;;Croazia;640000
+6821;Hainaut;;Venezia;D;Dd/E;;Francia;740000
+7154;Odenthal;;Sassuolo;D;Dc;;Paesi Bassi;460000
+7605;Tchato;;Frosinone;D;Dd/E;;;
+6601;Kambwala;;Como;D;Dd/Dc;;;
+7483;Alhassane;;Bologna;D;Ds/E;;;
+6896;Van Der Brempt;;Como;D;Dd/E;;Belgio;460000
+6977;Otoa;;Genoa;D;Dc;;Danimarca;280000
+7413;Puczka;;Genoa;D;Ds/E;;;
+791;Sabelli;;Genoa;D;Dd/Ds/E;;Italia;930000
+2263;Lazzari;;Lazio;D;Dd/E;;Italia;3150000
+2728;Pellegrini Lu.;;Lazio;D;Ds/E;;Italia;2410000
+6883;Jean;;Lecce;D;Dc;;Francia;650000
+7182;Ndaba;;Lecce;D;Ds/E;;Irlanda;330000
+7525;Diawara S.;;Milan;D;Ds/Dc;;;
+7476;Bakoune;;Monza;D;Dd/E;;Italia;280000
+6638;Marin R.;;Napoli;D;Dc;;Spagna;2220000
+7202;Ndiaye;;Parma;D;Dc;;Senegal;830000
+252;Biraghi;;Torino;D;B/Ds/E;;Italia;3150000
+6021;Abankwah;;Udinese;D;Dd/Dc;;Irlanda;190000
+7478;Franjic;;Venezia;D;B/Ds/E;;Croazia;930000
+6681;Sagrado;;Venezia;D;Dd/E;;Belgio;560000
+7548;Aurelio;;Cagliari;D;Ds/E;;;
+7573;Cinquegrano;;Sassuolo;D;Dd/E;;;
+5812;Terracciano F.;;Milan;D;B/Dd/Ds;;Italia;1480000
+487;De Silvestri;;Bologna;D;Dd/E;;Italia;360000
+418;Goldaniga;;Como;D;Dc;;Italia;930000
+5424;Amey;;Frosinone;D;Dc;;;
+294;Rugani;;Juventus;D;Dc;;Italia;3330000
+6039;Cabal;;Juventus;D;B/Ds/E;;Colombia;2220000
+327;Patric;;Lazio;D;Dd/Dc;;Spagna;2220000
+5399;Antov;;Monza;D;Dc;;Bulgaria;770000
+6809;Marianucci;;Napoli;D;Dc;;Italia;1850000
+5481;Mazzocchi;;Napoli;D;Dd/Ds/E;;Italia;1850000
+6149;Carboni F.;;Parma;D;Ds/E;;Argentina;190000
+7260;Ziolkowski;;Roma;D;Dc;;Polonia;1300000
+6189;Missori;;Sassuolo;D;Dd/E;;Italia;280000
+7156;Pieragnolo;;Sassuolo;D;Ds/E;;Italia;560000
+7356;Mlacic;;Udinese;D;Dc;;Croazia;740000
+7454;Gomes;;Venezia;D;Ds/Dc;;;
+7553;Omar Fayed;;Frosinone;D;Dc;;;
+7396;Macchioni;;Sassuolo;D;Dc;;;
+7599;Lulli;;Roma;D;E;;;
+7604;Maye;;Monza;D;Ds/Dc;;;
+6875;Paz N.;;Como;C;T/A;;;
+2194;Calhanoglu;;Inter;C;M/C;;Turchia;11110000
+4777;McTominay;;Napoli;C;C/T;;Scozia;5560000
+2167;Orsolini;;Bologna;C;W/A;;Italia;4630000
+2423;Pulisic;;Milan;C;T/A;;Stati Uniti;5130000
+2379;Rabiot;;Milan;C;C/T;;Francia;9260000
+7126;Baturina;;Como;C;T;;Croazia;930000
+7556;Mora;;Roma;C;T;;Portogallo;3330000
+5559;Da Cunha;;Como;C;C/T;;Francia;2560000
+2766;Zaniolo;;Udinese;C;T/A;;Italia;3330000
+1870;Barella;;Inter;C;C;;Italia;12040000
+4973;McKennie;;Juventus;C;C;;Stati Uniti;5380000
+6908;Atta;;Fiorentina;C;C/T;;Francia;2410000
+632;Zaccagni;;Lazio;C;W/A;;Italia;5560000
+2517;De Bruyne;;Napoli;C;T;;Belgio;11110000
+5800;Gudmundsson A.;;Fiorentina;C;T/A;;Islanda;2820000
+7314;Taylor K.;;Lazio;C;C/T;;Paesi Bassi;3150000
+5687;Vlasic;;Torino;C;T;;Croazia;2560000
+5792;Ederson D.S.;;Atalanta;C;M/C;;;
+5119;Samardzic;;Atalanta;C;C/T;;Serbia;1920000
+7129;Rodriguez Je.;;Como;C;W/A;;Spagna;1110000
+7436;Alajbegovic;;Juventus;C;W/T;;Bosnia-Herzegovina;5560000
+6884;Conceicao;;Juventus;C;W/A;;Portogallo;7040000
+2606;Modric;;Milan;C;M/C;;Croazia;6480000
+7078;Mastantuono;;Fiorentina;C;W/T;;Argentina;3240000
+6372;Moreira;;Milan;C;W;;Belgio;5560000
+5172;Jones C.;;Inter;C;C;;Inghilterra;6480000
+6844;Rowe;;Bologna;C;W/T;;Inghilterra;2780000
+5823;Baldanzi;;Genoa;C;T;;Italia;1000000
+152;Zielinski;;Inter;C;C;;Polonia;8330000
+4220;Zambo Anguissa;;Napoli;C;C;;Camerun;3460000
+6684;Ekkelenkamp;;Udinese;C;C/T;;Paesi Bassi;1300000
+6151;Perrone;;Como;C;M/C;;Argentina;1850000
+5562;Thuram K.;;Juventus;C;C;;Francia;3700000
+4892;Saelemaekers;;Milan;C;E/W;;Belgio;3850000
+536;Politano;;Napoli;C;W;;Italia;6480000
+7223;Vergara;;Napoli;C;W/T;;Italia;3330000
+5589;Konè M.;;Roma;C;M/C;;;
+5844;Thorstvedt;;Sassuolo;C;C/T;;Norvegia;770000
+5888;Casadei;;Torino;C;C/T;;Italia;2780000
+530;Pellegrini Lo.;;Roma;C;C/T;;Italia;4630000
+2077;Pasalic;;Atalanta;C;C/T;;Croazia;3700000
+184;Bernardeschi;;Bologna;C;W/T;;Italia;3330000
+1933;Mandragora;;Fiorentina;C;C;;Italia;2960000
+6274;Diouf;;Inter;C;E/C;;Francia;3700000
+2848;Frattesi;;Lazio;C;C/T;;Italia;5190000
+5500;Cancellieri;;Lazio;C;W/A;;Italia;1480000
+6398;Isaksen;;Lazio;C;W/A;;Danimarca;1920000
+6717;Konè I.;;Sassuolo;C;C;;Canada;1390000
+4364;Gaetano;;Atalanta;C;M/C;;;
+2765;Odgaard;;Bologna;C;T;;Danimarca;1480000
+4436;Cambiaghi;;Bologna;C;W/A;;Italia;1110000
+4465;Fagioli;;Fiorentina;C;M/C;;Italia;3330000
+6294;Ndour;;Fiorentina;C;C;;Italia;1110000
+7070;Sucic P.;;Inter;C;C;;Croazia;2780000
+827;Locatelli;;Juventus;C;M/C;;Italia;7410000
+5878;Colpani;;Monza;C;T;;Italia;2220000
+4287;Lobotka;;Napoli;C;M/C;;Slovacchia;3590000
+779;Cristante;;Roma;C;M/C;;Italia;5560000
+5735;Volpato;;Sassuolo;C;W/T;;Australia;1300000
+7551;Schmid;;Frosinone;C;W/T;;;
+5858;Ferguson;;Bologna;C;M/C;;Scozia;1280000
+4870;Adopo;;Cagliari;C;M/C;;Francia;1110000
+7311;Romano;;Cagliari;C;M/C;;Italia;190000
+6010;Fazzini;;Cagliari;C;C/T;;Italia;2220000
+7472;Calò;;Frosinone;C;M/C;;;
+5791;Frendrup;;Genoa;C;M/C;;Danimarca;1030000
+4459;Rovella;;Lazio;C;M/C;;Italia;3700000
+5504;Coulibaly L.;;Lecce;C;M/C;;Mali;770000
+4856;Chukwueze;;Milan;C;W;;Nigeria;5130000
+2741;Pessina;;Monza;C;M/C;;Italia;1480000
+6666;Bernabè;;Parma;C;C;;Spagna;1030000
+6190;Pisilli;;Roma;C;C;;Italia;3520000
+6218;Oristanio;;Torino;C;W/T;;Italia;740000
+6680;Karlstrom;;Udinese;C;M/C;;Svezia;1300000
+6783;Unai Gomez;;Udinese;C;T;;;
+5946;Sow;;Genoa;C;M/C;;;
+4479;Elmas;;Atalanta;C;W/T;;Macedonia del Nord;5560000
+5422;Zalewski;;Atalanta;C;W;;Polonia;2960000
+5298;Pobega;;Bologna;C;M/C;;Italia;1850000
+4260;Winks;;Cagliari;C;M/C;;;
+7412;Milla;;Como;C;M/C;;;
+5036;Caqueret;;Como;C;C/T;;Francia;6670000
+6678;Liberali;;Como;C;T;;Italia;1850000
+7464;Oulai;;Fiorentina;C;M/C;;;
+6020;Ellertsson;;Genoa;C;E/C;;Islanda;1110000
+5761;Zhegrova;;Juventus;C;W;;Kosovo;4630000
+6549;Pierotti;;Lecce;C;W;;Argentina;560000
+6593;Akinsanmiro;;Monza;C;C;;Nigeria;740000
+4349;Nicolussi Caviglia;;Parma;C;M/C;;Italia;830000
+2528;Matic;;Sassuolo;C;M/C;;Serbia;3700000
+6170;Gineitis;;Torino;C;M/C;;Lituania;1480000
+5674;Basic;;Venezia;C;M/C;;;
+7146;Tourè I.;;Monza;C;E/M;;;
+7528;Amondarain;;Bologna;C;M/C;;;
+6640;Felici;;Cagliari;C;W;;Italia;460000
+7127;Addai;;Como;C;W/A;;Paesi Bassi;830000
+5998;Zerbin;;Frosinone;C;W;;;
+7341;Amorim;;Genoa;C;M/C;;Brasile;460000
+7409;Meichtry;;Genoa;C;W/T;;;
+2857;Traorè Hj.;;Genoa;C;W/T;;;
+2529;Mkhitaryan;;Inter;C;C;;Armenia;2560000
+5685;Koopmeiners;;Juventus;C;C/T;;Paesi Bassi;5770000
+6629;Dele-Bashiru;;Lazio;C;C/T;;Nigeria;2410000
+6015;Berisha M.;;Lecce;C;C/T;;Albania;370000
+7318;Gandelman;;Lecce;C;C/T;;Israele;1110000
+4686;Fofana Y.;;Milan;C;M/C;;Francia;5560000
+7203;Jashari;;Milan;C;C;;Svizzera;4630000
+6898;Keita M.;;Parma;C;M/C;;Belgio;1390000
+6677;Adzic;;Sassuolo;C;C/T;;Montenegro;740000
+7036;Bakola;;Sassuolo;C;C/T;;Francia;740000
+7060;Cacciamani;;Torino;C;E/W;;;
+6827;Njie;;Torino;C;W/A;;Svezia;560000
+7198;Piotrowski;;Udinese;C;M/C;;Polonia;1110000
+5507;Busio;;Venezia;C;M/C;;Stati Uniti;2560000
+5319;Sohm;;Venezia;C;C;;Svizzera;1670000
+6994;Perez K.;;Venezia;C;C/T;;Spagna;1300000
+7550;Grillitsch;;Frosinone;C;M/C;;;
+6618;Cissè A.;;Milan;C;W/T;;;
+22;De Roon;;Atalanta;C;M/C;;Paesi Bassi;1850000
+6054;Moro N.;;Bologna;C;M/C;;Croazia;1240000
+6895;Dominguez B.;;Sassuolo;C;W/A;;Argentina;740000
+1871;Deiola;;Cagliari;C;M/C;;Italia;740000
+6206;Fabbian;;Parma;C;C/T;;Italia;2960000
+7473;Cichella;;Frosinone;C;M/C;;Italia;130000
+7474;Koutsoupias;;Frosinone;C;C;;Grecia;560000
+6506;Fini;;Frosinone;C;W;;Italia;370000
+4970;Messias;;Genoa;C;W/T;;Brasile;930000
+5301;Luis Henrique;;Inter;C;E/W;;Brasile;4070000
+4911;Douglas Luiz;;Juventus;C;C;;Brasile;8330000
+333;Cataldi;;Lazio;C;M/C;;Italia;2780000
+7322;Ngom;;Lecce;C;M/C;;Mauritania;330000
+5453;Ricci S.;;Como;C;M/C;;Italia;4630000
+4199;Loftus-Cheek;;Milan;C;C/T;;Inghilterra;5130000
+6252;Folorunsho;;Monza;C;C/T;;Italia;2220000
+6207;Almqvist;;Parma;C;W/A;;Svezia;1110000
+7536;Diallo O.;;Parma;C;W/A;;;
+6271;El Aynaoui;;Roma;C;M/C;;Marocco;2780000
+7535;Fitz-Jim;;Torino;C;M/C;;;
+6005;Ilkhan;;Torino;C;M/C;;Turchia;380000
+7208;Miller L.;;Udinese;C;M/C;;Scozia;740000
+6024;Sulemana I.;;Atalanta;C;M/C;;Ghana;930000
+4947;Brescianini;;Fiorentina;C;C/T;;;
+6241;Gelli F.;;Frosinone;C;C/T;;Italia;720000
+6903;Hasa;;Frosinone;C;C/T;;;
+6917;Masini;;Frosinone;C;M/C;;Italia;330000
+6503;Stankovic A.;;Inter;C;M/C;;;
+7248;Gorter;;Lecce;C;M/C;;;
+5457;Maleh;;Lecce;C;M/C;;Marocco;1110000
+5295;Musah;;Milan;C;C/W;;Stati Uniti;2560000
+7477;Colombo L.;;Monza;C;M/C;;Italia;460000
+5131;Gilmour;;Napoli;C;M/C;;Scozia;3330000
+7138;Ordonez C.;;Parma;C;M/C;;Argentina;930000
+7209;Sorensen O.;;Parma;C;C;;;
+7183;Aboukhlal;;Torino;C;W/A;;Marocco;2040000
+5872;Helgason;;Venezia;C;C/T;;;
+6225;El Azzouzi O.;;Bologna;C;M/C;;Marocco;580000
+6815;Fadera;;Cagliari;C;W;;The Gambia;830000
+6980;Venturino;;Genoa;C;W;;Italia;190000
+5880;Ciurria;;Monza;C;E/W;;Italia;1570000
+6219;Boloca;;Sassuolo;C;M/C;;Italia;1110000
+6246;Lipani;;Sassuolo;C;M/C;;Italia;170000
+7418;Chakvetadze;;Udinese;C;W/T;;;
+526;Duncan;;Venezia;C;C;;Ghana;2220000
+6592;Forson O.;;Monza;C;W/T;;Inghilterra;560000
+7165;Liteta;;Cagliari;C;M/C;;Zambia;280000
+7357;Lahdo;;Como;C;C/T;;Svezia;460000
+7456;El Azzouzi A.;;Frosinone;C;M/C;;;
+5725;Kone B.;;Frosinone;C;C;;;
+6191;Belahyane;;Lazio;C;M/C;;Marocco;1850000
+7345;Przyborek;;Lazio;C;W/T;;Polonia;560000
+6410;Kaba;;Lecce;C;M/C;;Guinea;320000
+7319;Fofana Sa.;;Lecce;C;M/C;;Togo;330000
+7276;Cremaschi;;Parma;C;E/C;;;
+7157;Iannoni;;Sassuolo;C;M/C;;Italia;830000
+5007;Ilic;;Lecce;C;C;;Serbia;770000
+6889;Anjorin;;Torino;C;C/T;;;
+6212;Zarraga;;Udinese;C;M/C;;Spagna;450000
+7481;Dagasso;;Venezia;C;C;;Italia;370000
+7571;Laerke;;Lecce;C;W/A;;;
+7572;Comotto;;Milan;C;M/C;;Italia;560000
+7574;Foe Ondoa;;Monza;C;C;;;
+7575;Mout;;Monza;C;C;;;
+5585;Malen;;Roma;A;Pc;;Paesi Bassi;7410000
+2764;Martinez L.;;Inter;A;Pc;;Argentina;16670000
+4871;Thuram;;Inter;A;Pc;;Francia;7690000
+6397;Ramos G.;;Milan;A;Pc;;Portogallo;7410000
+6052;Hojlund;;Napoli;A;Pc;;;
+2097;Kean;;Fiorentina;A;Pc;;Italia;5770000
+5951;Kolo Muani;;Juventus;A;Pc;;Francia;10190000
+6434;Yildiz;;Juventus;A;A;;;
+7017;Douvikas;;Como;A;Pc;;Grecia;1480000
+6435;Krstovic;;Atalanta;A;Pc;;Montenegro;2180000
+2137;Scamacca;;Atalanta;A;Pc;;Italia;5930000
+5637;Davis K.;;Udinese;A;Pc;;Inghilterra;1540000
+4510;Leao;;Milan;A;A;;;
+531;Berardi;;Sassuolo;A;A;;Italia;5560000
+5995;De Ketelaere;;Atalanta;A;A;;Belgio;3210000
+7071;Esposito F.P.;;Inter;A;Pc;;;
+6675;Dovbyk;;Bologna;A;Pc;;Ucraina;3700000
+309;Dybala;;Roma;A;A;;Argentina;4630000
+6060;Laurientè;;Sassuolo;A;A;;Francia;1540000
+2061;Simeone;;Torino;A;Pc;;Argentina;3150000
+4371;Raspadori;;Atalanta;A;A;;Italia;6670000
+7351;Santos A.;;Napoli;A;W/A;;Brasile;1850000
+7023;Pellegrino M.;;Fiorentina;A;Pc;;Argentina;930000
+6572;Castro S.;;Roma;A;Pc;;Argentina;4070000
+4463;Esposito Se.;;Sassuolo;A;A;;Italia;3150000
+2038;Pinamonti;;Lazio;A;Pc;;;
+7547;Kevin Carlos;;Cagliari;A;Pc;;Spagna;1480000
+5734;Soulè;;Roma;A;A;;Argentina;3700000
+7484;Adams A.;;Venezia;A;Pc;;;
+6967;Diao;;Como;A;W/A;;Senegal;930000
+4923;Colombo;;Genoa;A;Pc;;Italia;930000
+6229;Tourè E.;;Parma;A;Pc;;Mali;960000
+5672;Dia;;Lazio;A;A;;;
+7313;Ratkov;;Lazio;A;Pc;;Serbia;1110000
+7347;Bowie;;Sassuolo;A;Pc;;;
+6646;Adams C.;;Torino;A;A;;Scozia;3330000
+7554;Romero D.;;Parma;A;Pc;;;
+6530;Ghedjemis;;Frosinone;A;W/A;;Algeria;560000
+5544;David;;Juventus;A;Pc;;Canada;11110000
+5029;Geubbels;;Lecce;A;Pc;;;
+2155;Cutrone;;Monza;A;Pc;;;
+7612;Bobcek;;Frosinone;A;Pc;;;
+4359;Piccoli;;Bologna;A;Pc;;Italia;2960000
+6164;Vitinha O.;;Genoa;A;A;;;
+6904;Yeboah J.;;Venezia;A;A;;Ecuador;1110000
+7449;Rrahmani Al.;;Venezia;A;Pc;;;
+7600;Osmajic;;Genoa;A;Pc;;;
+5436;Raimondo;;Frosinone;A;Pc;;Italia;740000
+6669;Bonny;;Inter;A;Pc;;"Cote d&#39;Ivoire";3700000
+7252;Stulic;;Lecce;A;Pc;;Serbia;1110000
+608;Zapata D.;;Torino;A;Pc;;Colombia;2780000
+5918;Sulemana K.;;Atalanta;A;A;;Ghana;2960000
+6598;Mutandwa;;Cagliari;A;Pc;;Zambia;280000
+2832;Boga;;Juventus;A;W/A;;"Cote d&#39;Ivoire";4630000
+6556;Noslin;;Lazio;A;A;;Paesi Bassi;2410000
+7008;Gimenez;;Milan;A;Pc;;Messico;4630000
+6831;Neres;;Napoli;A;W/A;;Brasile;5560000
+4896;Maldini;;Cagliari;A;T/A;;Italia;2220000
+6519;Camarda;;Milan;A;Pc;;Italia;1480000
+5882;Mota;;Monza;A;A;;Portogallo;1110000
+7523;Varela G.;;Monza;A;Pc;;;
+7213;Frigan;;Parma;A;A;;Croazia;1200000
+4387;Adorante;;Venezia;A;Pc;;Italia;740000
+2012;Milik;;Juventus;A;Pc;;Polonia;2240000
+7610;Birligea;;Frosinone;A;Pc;;;
+6145;Ngonge;;Monza;A;A;;Belgio;1540000
+6243;Borrelli;;Cagliari;A;Pc;;Italia;740000
+7374;Mendy P.;;Cagliari;A;Pc;;;
+6204;Kvernadze;;Frosinone;A;W/A;;Georgia;190000
+7453;Havel;;Genoa;A;Pc;;;
+7162;Giovane;;Napoli;A;A;;Brasile;2220000
+7120;Lang;;Napoli;A;A;;Paesi Bassi;4630000
+6215;Lucca;;Napoli;A;Pc;;Italia;3700000
+7349;Kulenovic;;Torino;A;Pc;;Croazia;1850000
+7272;Gueye;;Udinese;A;Pc;;;
+7546;Robinson J.;;Monza;A;A;;;
+7602;Fatah;;Lecce;A;W/A;;;
+7128;Kuhn;;Como;A;W/A;;Germania;2040000
+6822;Ekhator;;Juventus;A;A;;Italia;2410000
+7001;N'Dri;;Lecce;A;W/A;;Niger;560000
+7342;Elphege;;Parma;A;Pc;;Francia;460000
+7561;Lontani;;Parma;A;A;;;
+7317;Trepy;;Cagliari;A;Pc;;Francia;280000
+7027;Azon;;Como;A;Pc;;Spagna;460000
+6981;Vaz;;Roma;A;Pc;;Francia;2780000
+7161;Bayo V.;;Udinese;A;Pc;;"Cote d&#39;Ivoire";930000
+7408;Lisman;;Venezia;A;W/A;;;
+7482;Lauberbach;;Venezia;A;Pc;;Germania;650000
+7568;De Martis;;Parma;A;Pc;;;
