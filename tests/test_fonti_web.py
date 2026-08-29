@@ -933,3 +933,111 @@ class TestSostituzioneDelListone:
         applica(arch, [RigaListone(2071, "Dybala", "Roma", ("A",))], sostituisci=True)
         # Barella non c'e' piu': il suo contratto non puo' restare appeso.
         assert arch.contratti().empty
+
+
+class TestColonnaDelloStipendio:
+    """Quale colonna e' «lo stipendio», quando ce ne sono quattro simili."""
+
+    def intestazioni(self, *nomi):
+        from fantacalcio.fonti_web import _mappa_campi
+
+        return _mappa_campi(nomi)
+
+    def test_riconosce_il_suffisso_della_valuta(self):
+        # Il file vero di Capology scrive «Lordo annuo EUR».
+        campi = self.intestazioni("Giocatore", "Lordo annuo EUR")
+        assert campi["lordo"] == "Lordo annuo EUR"
+
+    def test_preferisce_il_lordo_al_totale_col_bonus(self):
+        campi = self.intestazioni(
+            "Giocatore",
+            "Lordo settimanale EUR",
+            "Lordo annuo EUR",
+            "Bonus lordo annuo EUR",
+            "Totale lordo annuo EUR",
+            "Residuo contratto lordo EUR",
+        )
+        assert campi["lordo"] == "Lordo annuo EUR"
+
+    def test_non_scambia_il_settimanale_per_l_annuo(self):
+        campi = self.intestazioni("Giocatore", "Lordo settimanale EUR")
+        assert "lordo" not in campi
+
+    def test_capisce_anche_l_inglese(self):
+        campi = self.intestazioni("Player", "Annual Gross Salary (EUR)")
+        assert campi["lordo"] == "Annual Gross Salary (EUR)"
+
+    def test_il_totale_da_solo_non_vale(self):
+        # Comprende i bonus: non e' lo stipendio dell'articolo 4.
+        campi = self.intestazioni("Giocatore", "Totale lordo annuo EUR")
+        assert "lordo" not in campi
+
+
+class TestPaesiInItaliano:
+    """«Italy» non e' «Italia», e il sito decide da quella parola chi e' italiano."""
+
+    def test_traduce_i_paesi_noti(self):
+        from fantacalcio.fonti_web import traduci_paese
+
+        assert traduci_paese("Italy") == "Italia"
+        assert traduci_paese("France") == "Francia"
+        assert traduci_paese("Turkey") == "Turchia"
+        assert traduci_paese("Netherlands") == "Paesi Bassi"
+
+    def test_lascia_stare_quel_che_non_conosce(self):
+        from fantacalcio.fonti_web import traduci_paese
+
+        assert traduci_paese("Argentina") == "Argentina"
+        assert traduci_paese("Wakanda") == "Wakanda"
+        assert traduci_paese("") == ""
+
+    def test_un_italiano_registrato_come_Italy_resta_italiano(self):
+        from fantacalcio.fonti_web import leggi_stipendi_csv
+        from fantacalcio.modelli import Giocatore
+
+        stipendi = leggi_stipendi_csv("giocatore;lordo;nazionalita\nRossi;1;Italy\n")
+        # E' la stringa su cui `Giocatore.italiano` fa il confronto: se
+        # restasse «Italy», il minimo italiani in rosa lo conterebbe straniero.
+        giocatore = Giocatore(
+            id=1,
+            nome="Rossi",
+            club="Roma",
+            ruoli=("C",),
+            ingaggio=1,
+            nazionalita=stipendi[0].nazionalita,
+        )
+        assert giocatore.italiano
+
+    def test_anche_nel_listone_caricato_a_mano(self):
+        from fantacalcio.fonti_web import leggi_listone_csv
+
+        righe = leggi_listone_csv("id;nome;ruolo mantra;nazionalita\n1;Rossi;C;Italy\n")
+        assert righe[0].nazionalita == "Italia"
+
+
+class TestClubAllInglese:
+    def test_inter_milan_e_l_inter(self):
+        assert normalizza_club("Inter Milan") == normalizza_club("Inter")
+
+    def test_ac_milan_resta_il_milan(self):
+        assert normalizza_club("AC Milan") == normalizza_club("Milan")
+        assert normalizza_club("AC Milan") != normalizza_club("Inter Milan")
+
+
+class TestCognomiStaccati:
+    def indici(self, *stipendi: Stipendio):
+        from fantacalcio.fonti_web import _indicizza_stipendi
+
+        return _indicizza_stipendi(stipendi)
+
+    def test_delprato_e_del_prato(self):
+        # Caso vero: il listone scrive «Delprato», Capology «Enrico Del Prato».
+        indici = self.indici(Stipendio("Enrico Del Prato", "Parma", 1_200_000))
+        trovato = abbina("Delprato", "Parma", indici)
+        assert trovato is not None and trovato.lordo_annuo == 1_200_000
+
+    def test_non_incastra_pezzi_di_nome(self):
+        # Le parole devono essere consecutive: «martin» non e' «josep martinez».
+        indici = self.indici(Stipendio("Josep Martinez", "Inter", 2_000_000))
+        assert abbina("Martin", "Genoa", indici) is None
+        assert abbina("Sepmar", "Inter", indici) is None

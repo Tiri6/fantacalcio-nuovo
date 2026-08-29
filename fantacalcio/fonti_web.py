@@ -201,6 +201,8 @@ _RUMORE_CLUB = {
 ALIAS_CLUB = {
     "internazionale": "inter",
     "internazionalemilano": "inter",
+    # Capology scrive i club all'inglese: quasi tutti coincidono, questo no.
+    "intermilan": "inter",
     "hellasverona": "verona",
     "juve": "juventus",
     "napolissc": "napoli",
@@ -213,6 +215,123 @@ def normalizza_club(nome: str) -> str:
     parole = [p for p in parole if p not in _RUMORE_CLUB and not p.isdigit()]
     chiave = "".join(parole)
     return ALIAS_CLUB.get(chiave, chiave)
+
+
+# Le fonti internazionali scrivono i paesi in inglese. Non e' cosmetica:
+# `Giocatore.italiano` confronta la nazionalita' con «Italia», e un giocatore
+# registrato come «Italy» smetterebbe di contare per il minimo italiani e per
+# l'Under 21 senza che nessuno se ne accorga.
+PAESI_IN_ITALIANO = {
+    "italy": "Italia",
+    "france": "Francia",
+    "spain": "Spagna",
+    "germany": "Germania",
+    "netherlands": "Paesi Bassi",
+    "belgium": "Belgio",
+    "portugal": "Portogallo",
+    "england": "Inghilterra",
+    "scotland": "Scozia",
+    "wales": "Galles",
+    "ireland": "Irlanda",
+    "switzerland": "Svizzera",
+    "austria": "Austria",
+    "poland": "Polonia",
+    "czechia": "Cechia",
+    "czechrepublic": "Cechia",
+    "slovakia": "Slovacchia",
+    "slovenia": "Slovenia",
+    "croatia": "Croazia",
+    "serbia": "Serbia",
+    "bosniaandherzegovina": "Bosnia-Erzegovina",
+    "montenegro": "Montenegro",
+    "northmacedonia": "Macedonia del Nord",
+    "albania": "Albania",
+    "greece": "Grecia",
+    "turkey": "Turchia",
+    "romania": "Romania",
+    "bulgaria": "Bulgaria",
+    "hungary": "Ungheria",
+    "ukraine": "Ucraina",
+    "russia": "Russia",
+    "sweden": "Svezia",
+    "norway": "Norvegia",
+    "denmark": "Danimarca",
+    "finland": "Finlandia",
+    "iceland": "Islanda",
+    "argentina": "Argentina",
+    "brazil": "Brasile",
+    "uruguay": "Uruguay",
+    "chile": "Cile",
+    "colombia": "Colombia",
+    "ecuador": "Ecuador",
+    "paraguay": "Paraguay",
+    "peru": "Peru",
+    "venezuela": "Venezuela",
+    "mexico": "Messico",
+    "unitedstates": "Stati Uniti",
+    "usa": "Stati Uniti",
+    "canada": "Canada",
+    "nigeria": "Nigeria",
+    "ghana": "Ghana",
+    "senegal": "Senegal",
+    "ivorycoast": "Costa d'Avorio",
+    "cotedivoire": "Costa d'Avorio",
+    "cameroon": "Camerun",
+    "mali": "Mali",
+    "morocco": "Marocco",
+    "algeria": "Algeria",
+    "tunisia": "Tunisia",
+    "egypt": "Egitto",
+    "guinea": "Guinea",
+    "guineabissau": "Guinea-Bissau",
+    "gambia": "Gambia",
+    "burkinafaso": "Burkina Faso",
+    "congo": "Congo",
+    "drcongo": "Rep. Dem. del Congo",
+    "southafrica": "Sudafrica",
+    "japan": "Giappone",
+    "southkorea": "Corea del Sud",
+    "korearepublic": "Corea del Sud",
+    "china": "Cina",
+    "australia": "Australia",
+    "newzealand": "Nuova Zelanda",
+    "israel": "Israele",
+    "iran": "Iran",
+    "kosovo": "Kosovo",
+    "moldova": "Moldavia",
+    "georgia": "Georgia",
+    "armenia": "Armenia",
+    "azerbaijan": "Azerbaigian",
+    "estonia": "Estonia",
+    "latvia": "Lettonia",
+    "lithuania": "Lituania",
+    "luxembourg": "Lussemburgo",
+    "jamaica": "Giamaica",
+    "panama": "Panama",
+    "costarica": "Costa Rica",
+    "honduras": "Honduras",
+    "uzbekistan": "Uzbekistan",
+    "cyprus": "Cipro",
+    "malta": "Malta",
+    "angola": "Angola",
+    "zambia": "Zambia",
+    "capeverde": "Capo Verde",
+    "equatorialguinea": "Guinea Equatoriale",
+    "gabon": "Gabon",
+    "togo": "Togo",
+    "benin": "Benin",
+    "kenya": "Kenya",
+    "curacao": "Curacao",
+    "suriname": "Suriname",
+}
+
+
+def traduci_paese(nome: str) -> str:
+    """«Italy» diventa «Italia». Quel che non e' in tabella resta com'e'."""
+    testo = str(nome or "").strip()
+    if not testo:
+        return ""
+    return PAESI_IN_ITALIANO.get(_chiave(testo), testo)
 
 
 def _senza_accenti(testo: str) -> str:
@@ -282,6 +401,34 @@ def _chiave(testo: str) -> str:
     return re.sub(r"[^a-z0-9]", "", _senza_accenti(str(testo)).lower())
 
 
+# Parole che, in un'intestazione di stipendi, dicono «questo non e' lo
+# stipendio base»: il totale comprende i bonus, il residuo e' quel che manca
+# fino a scadenza, il settimanale e' un'altra unita' di misura. Prenderne una
+# per l'altra falserebbe il Salary Cap di tutta la lega.
+_NON_E_LO_STIPENDIO = ("totale", "total", "bonus", "residuo", "clausola", "settimana")
+
+
+def _colonna_lordo(normalizzati: dict[str, str]) -> str | None:
+    """La colonna dello stipendio lordo annuo, anche se il nome ha un suffisso.
+
+    Prima i sinonimi esatti; poi, per i file che scrivono «Lordo annuo EUR» o
+    «Annual Gross Salary (EUR)», si cerca un'intestazione che parli di lordo e
+    di anno **e non** di totale, bonus, residuo o settimana.
+    """
+    for sinonimo in _SINONIMI["lordo"]:
+        if sinonimo in normalizzati:
+            return normalizzati[sinonimo]
+
+    for chiave, originale in normalizzati.items():
+        if any(vietata in chiave for vietata in _NON_E_LO_STIPENDIO):
+            continue
+        annuale = "annu" in chiave or "year" in chiave
+        lordo = "lordo" in chiave or "gross" in chiave
+        if annuale and lordo:
+            return originale
+    return None
+
+
 def _mappa_campi(campi: Iterable[str]) -> dict[str, str]:
     """Da nome-del-campo-nella-fonte a nome nostro, per sinonimi."""
     normalizzati = {_chiave(c): c for c in campi}
@@ -291,6 +438,11 @@ def _mappa_campi(campi: Iterable[str]) -> dict[str, str]:
             if sinonimo in normalizzati:
                 trovati[nostro] = normalizzati[sinonimo]
                 break
+
+    if "lordo" not in trovati:
+        colonna = _colonna_lordo(normalizzati)
+        if colonna is not None:
+            trovati["lordo"] = colonna
     return trovati
 
 
@@ -471,7 +623,9 @@ def leggi_stipendi(pagina: bytes | str) -> list[Stipendio]:
                 nome=nome,
                 club=str(riga.get(campi.get("club", ""), "")).strip(),
                 lordo_annuo=lordo,
-                nazionalita=str(riga.get(campi.get("nazionalita", ""), "")).strip(),
+                nazionalita=traduci_paese(
+                    str(riga.get(campi.get("nazionalita", ""), "")).strip()
+                ),
                 data_nascita=_leggi_data(riga.get(campi.get("nascita", ""))),
                 eta=eta,
             )
@@ -563,7 +717,7 @@ def leggi_stipendi_csv(contenuto: bytes | str) -> list[Stipendio]:
                 nome=nome,
                 club=str(riga.get(campi.get("club", ""), "") or "").strip(),
                 lordo_annuo=lordo,
-                nazionalita=str(riga.get(campi.get("nazionalita", ""), "") or "").strip(),
+                nazionalita=traduci_paese(riga.get(campi.get("nazionalita", ""), "")),
                 data_nascita=_leggi_data(riga.get(campi.get("nascita", ""))),
             )
         )
@@ -724,7 +878,7 @@ def leggi_listone_csv(contenuto: bytes | str) -> list[RigaListone]:
                 quotazione=leggi_importo(campo(grezza, "quotazione")),
                 fvm=leggi_importo(campo(grezza, "fvm")),
                 ingaggio=leggi_importo(campo(grezza, "lordo")) or 0.0,
-                nazionalita=campo(grezza, "nazionalita"),
+                nazionalita=traduci_paese(campo(grezza, "nazionalita")),
                 data_nascita=_leggi_data(campo(grezza, "nascita")),
             )
         )
@@ -827,6 +981,16 @@ def scomponi_nome_listone(nome: str) -> tuple[tuple[str, ...], str]:
     return tuple(parole), ""
 
 
+def _stesso_cognome_attaccato(cognome: tuple[str, ...], parole: list[str]) -> bool:
+    """«delprato» e' «del»+«prato»: lo stesso cognome, scritto in due modi."""
+    intero = "".join(cognome)
+    for inizio in range(len(parole)):
+        for fine in range(inizio + 1, len(parole) + 1):
+            if "".join(parole[inizio:fine]) == intero:
+                return True
+    return False
+
+
 def _compatibile(candidato: Stipendio, cognome: tuple[str, ...], iniziale: str) -> bool:
     """Vero se il nome intero di Capology puo' essere quello del listone.
 
@@ -840,9 +1004,12 @@ def _compatibile(candidato: Stipendio, cognome: tuple[str, ...], iniziale: str) 
     parole = _parole(candidato.nome)
     if not parole:
         return False
-    # Il secondo confronto serve a chi ha il cognome staccato: il listone a
-    # volte unisce quel che Capology separa («De Ketelaere»).
-    if not set(cognome) <= set(parole) and "".join(cognome) != "".join(parole):
+    # Il secondo confronto serve a chi ha il cognome staccato: il listone
+    # scrive «Delprato», Capology «Enrico Del Prato». Si guarda se il cognome,
+    # tutto attaccato, coincide con un gruppo di parole **consecutive** del
+    # nome intero. Consecutive e' la garanzia: cosi' «martin» non puo'
+    # incastrarsi dentro «josep martinez».
+    if not set(cognome) <= set(parole) and not _stesso_cognome_attaccato(cognome, parole):
         return False
     if not iniziale:
         return True
@@ -1029,6 +1196,48 @@ def aggiorna_da_web(
     return esito
 
 
+def _innesta_stipendi(
+    righe: list[RigaListone], stipendi_csv: bytes | str, esito: EsitoAggiornamento
+) -> list[RigaListone]:
+    """Mette gli stipendi di un secondo file dentro righe di listone gia' lette.
+
+    Riempie solo le caselle vuote: quel che il listone porta gia' e' piu'
+    specifico di un abbinamento per nome, e non va sovrascritto.
+    """
+    try:
+        letti = leggi_stipendi_incollati(stipendi_csv)
+    except FonteNonRaggiungibile as errore:
+        esito.fonti.append(StatoFonte("Stipendi (file a parte)", "", False, str(errore)))
+        return righe
+
+    indici = _indicizza_stipendi(letti)
+    innestate = []
+    abbinati = 0
+    for riga in righe:
+        trovato = abbina(riga.nome, riga.club, indici)
+        if trovato is None:
+            innestate.append(riga)
+            continue
+        abbinati += 1
+        innestate.append(
+            replace(
+                riga,
+                ingaggio=riga.ingaggio or trovato.lordo_annuo,
+                nazionalita=riga.nazionalita or trovato.nazionalita,
+                data_nascita=riga.data_nascita or trovato.data_nascita,
+            )
+        )
+    esito.fonti.append(
+        StatoFonte(
+            "Stipendi (file a parte)",
+            "",
+            True,
+            f"{len(letti)} righe lette, {abbinati} abbinate al listone",
+        )
+    )
+    return innestate
+
+
 def aggiorna_da_file(
     quotazioni: bytes,
     stipendi_csv: bytes | str | None = None,
@@ -1063,6 +1272,11 @@ def aggiorna_da_file(
                 StatoFonte("Listone (CSV caricato)", "", False, str(errore))
             )
             return esito
+        # Di solito un CSV porta gli stipendi dentro di se'. Se pero' arriva
+        # anche un file di stipendi, si abbina lo stesso: e' il caso di chi ha
+        # il listone da una parte e i compensi dall'altra.
+        if stipendi_csv:
+            righe = _innesta_stipendi(righe, stipendi_csv, esito)
         righe, senza = completa_ingaggi(righe, ingaggi_correnti)
         esito.fonti.append(
             StatoFonte(
