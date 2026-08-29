@@ -148,8 +148,14 @@ def scarica(url: str, attesa: int = ATTESA_MASSIMA, riferimento: str = "") -> by
             grezzo = risposta.read()
             codifica = (risposta.headers.get("Content-Encoding") or "").lower()
     except urllib.error.HTTPError as errore:
+        # Il messaggio dice anche *come* si e' chiesto. Serve a distinguere due
+        # cose che a schermo sembrano identiche: un CDN che ci rifiuta davvero,
+        # e un'applicazione che sta ancora girando sul codice di prima. Senza
+        # questa coda, un 403 non permette di capire quale delle due sia.
         raise FonteNonRaggiungibile(
-            f"{url} ha risposto {errore.code} ({errore.reason})"
+            f"{url} ha risposto {errore.code} ({errore.reason}) — chiesto con "
+            f"intestazioni da browser"
+            + (f" e Referer {riferimento}" if riferimento else " e nessun Referer")
         ) from errore
     except Exception as errore:  # noqa: BLE001 - urllib alza tipi eterogenei
         raise FonteNonRaggiungibile(f"{url} non risponde: {errore}") from errore

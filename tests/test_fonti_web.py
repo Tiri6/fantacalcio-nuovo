@@ -517,6 +517,26 @@ class TestIntestazioniDaBrowser:
         with pytest.raises(FonteNonRaggiungibile, match="403"):
             fonti_web.scarica("https://esempio.it/x")
 
+    def test_il_messaggio_dice_anche_come_si_e_chiesto(self, monkeypatch):
+        # Un 403 identico puo' venire da un CDN che ci rifiuta o da un sito
+        # rimasto al codice di prima: la coda del messaggio distingue i due.
+        import urllib.error
+        import urllib.request
+
+        from fantacalcio import fonti_web
+
+        def rifiuta(*_a, **_k):
+            raise urllib.error.HTTPError(
+                fonti_web.url_quotazioni("2026_27"), 403, "Forbidden", {}, None
+            )
+
+        monkeypatch.setattr(urllib.request, "urlopen", rifiuta)
+        with pytest.raises(FonteNonRaggiungibile) as caduta:
+            fonti_web.scarica(fonti_web.url_quotazioni("2026_27"))
+        messaggio = str(caduta.value)
+        assert "intestazioni da browser" in messaggio
+        assert "Referer https://www.fantacalcio.it/quotazioni-fantacalcio" in messaggio
+
 
 class TestStipendiDaFile:
     """Quando il CDN dice di no, gli stipendi si caricano a mano."""
