@@ -65,6 +65,9 @@ create table if not exists giocatori (
     club          text not null,
     -- Ruoli Mantra separati da ';' (es. 'Dd;E'). Un giocatore puo' averne piu' di uno.
     ruoli         text not null,
+    -- Ruolo Classic (P/D/C/A) come lo scrive il listone. Non si ricava dai
+    -- Mantra: un esterno «E» in Classic puo' essere D o C, e solo la fonte sa.
+    ruolo_classic text not null default '',
     -- Stipendio annuo lordo, fonte ufficiale Capology (art. 4).
     ingaggio      numeric(12, 2) not null default 0,
     nazionalita   text not null default 'Italia',
@@ -255,6 +258,8 @@ alter table calendario add column if not exists giornata_serie_a integer;
 alter table calendario add column if not exists data_prevista date;
 alter table calendario add column if not exists turno text not null default '';
 alter table utenti  add column if not exists lega_id bigint references leghe(id) on delete set null;
+
+alter table giocatori add column if not exists ruolo_classic text not null default '';
 
 create index if not exists idx_scambi_stato on scambi (stato);
 create index if not exists idx_scambi_movimenti on scambi_movimenti (scambio_id);

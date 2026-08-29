@@ -896,6 +896,9 @@ def importa_listone(contenuto: bytes) -> EsitoImportazione:
     posizioni = {
         "id_ufficiale": colonna("id"),
         "ruoli": colonna("rm", "ruolomantra"),
+        # Il ruolo Classic non si ricava dai Mantra: se la fonte ce l'ha, si
+        # prende; se non ce l'ha, resta vuoto invece di venire indovinato.
+        "ruolo_classic": colonna("r", "ruoloclassic", "ruolo"),
         "nome": colonna("nome"),
         "club": colonna("squadra"),
         "quotazione": colonna("qtam", "qta"),
@@ -963,6 +966,7 @@ def importa_listone(contenuto: bytes) -> EsitoImportazione:
                 "nome": str(valore("nome")).strip(),
                 "club": str(valore("club") or "").strip(),
                 "ruoli": ruoli,
+                "ruolo_classic": str(valore("ruolo_classic") or "").strip().upper(),
                 "quotazione": numero_o_none("quotazione"),
                 "fvm": numero_o_none("fvm"),
                 "riga_csv": numero,
@@ -1020,6 +1024,7 @@ def applica_listone(arch, esito: EsitoImportazione) -> dict:
                 "nome": riga["nome"],
                 "club": riga["club"],
                 "ruoli": ";".join(riga["ruoli"]),
+                "ruolo_classic": riga.get("ruolo_classic", ""),
                 "ingaggio": ingaggio,
                 "nazionalita": nazionalita,
                 "data_nascita": nascita if isinstance(nascita, str) else None,

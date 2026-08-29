@@ -156,7 +156,7 @@ Bacheca · Cruscotto · Campionato · *Coppa Italia* · *Supercoppa* · Calendar
 Albo d'oro · Regolamento
 
 **Squadre e giocatori**
-Squadre · Lista giocatori · Listone giocatori · Identita' squadre
+Squadre · Listone giocatori · Identita' squadre
 
 **Mercato**
 Draft · *Assegnazioni* · Scambi · Componi scambio
@@ -234,6 +234,27 @@ lista sola dalla pagina **Listone giocatori**:
 Il pulsante **Aggiorna listone** le scarica tutte e due, abbina i giocatori e
 riscrive il catalogo. Le rose non si toccano: i contratti puntano all'id
 interno, che non cambia mai.
+
+**Il 403 di Fantacalcio.it.** Quei file stanno dietro a un CDN che difende gli
+statici: a una richiesta fatta da un server, e non da un browser, puo'
+rispondere 403 Forbidden anche se il file e' pubblico. Il sito ci prova
+presentandosi come un browser — User-Agent, lingua, e la pagina delle
+quotazioni come `Referer` — ma se il filtro guarda l'indirizzo IP di chi
+chiama non c'e' altro da fare dal nostro lato. Per questo l'aggiornamento ha
+**tre vie**, e la terza non puo' fallire:
+
+1. il pulsante, che scarica da solo;
+2. gli **indirizzi alternativi**, per puntare altrove senza toccare il codice;
+3. i **file scaricati a mano** dal browser — l'`.xlsx` ufficiale, oppure un
+   unico CSV con tutto dentro (`fonti_web.COLONNE_LISTONE_CSV`: id, nome,
+   cognome, squadra, ruolo Classic, ruolo Mantra, data di nascita,
+   nazionalita', stipendio lordo).
+
+**Il ruolo Classic sta in archivio, non si calcola.** Un esterno «E» in Mantra
+puo' essere difensore o centrocampista in Classic, e a deciderlo e' il
+listone: dedurlo darebbe la risposta sbagliata per una parte dei giocatori.
+Percio' c'e' la colonna `giocatori.ruolo_classic`, e se la fonte non la porta
+resta vuota invece di essere indovinata.
 
 Due scelte che contano:
 
@@ -340,7 +361,10 @@ In ordine di utilita'.
 
 **Aggiornare il database** — `db/schema.sql` e' rieseguibile e contiene gli
 `alter table ... add column if not exists`. Se qualcosa manca, la pagina
-«Impostazioni lega» lo dice e mostra la query da incollare.
+«Impostazioni lega» lo dice e mostra la query da incollare. Per le aggiunte
+piccole ci sono i file dedicati, da incollare nel SQL Editor di Supabase:
+`db/aggiornamento_listone.sql` (ruolo Classic), `db/aggiornamento_bacheca.sql`,
+`db/aggiornamento_leghe.sql`, `db/permessi.sql`.
 
 **Se il sito da' errore dopo un aggiornamento** — ⋮ → *Reboot app*. I dati
 stanno su Supabase, non si perde niente.

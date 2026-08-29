@@ -558,6 +558,7 @@ create table if not exists giocatori (
     nome text not null,
     club text not null,
     ruoli text not null,
+    ruolo_classic text not null default '',
     ingaggio real not null,
     nazionalita text not null,
     data_nascita text,
@@ -664,6 +665,7 @@ def _schema_aggiornato(percorso: Path) -> bool:
         "albo": {"id", "lega_id", "competizione", "stagione", "squadra_nome"},
         "calendario": {"competizione", "giornata_serie_a", "data_prevista", "turno"},
         "squadre": {"citta", "curva", "lega_id"},
+        "giocatori": {"ruolo_classic"},
         "utenti": {
             "creato_il",
             "email",

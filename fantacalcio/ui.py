@@ -669,11 +669,11 @@ def giocatori_con_proprietario() -> pd.DataFrame:
 
 @st.cache_data(ttl=TTL)
 def _listone(versione: int) -> pd.DataFrame:
-    """Il listone cosi' com'e' in archivio: anagrafica, quotazioni, ingaggi.
+    """Il listone completo: anagrafica, quotazioni, ingaggi e chi lo possiede.
 
-    Diverso da `giocatori_con_proprietario`, che ci aggiunge chi li possiede:
-    qui c'e' la fonte, con l'id interno in prima colonna perche' il draft
-    assegna per id e non per nome.
+    E' l'unica tabella dei giocatori che il sito mostra. Porta anche l'id
+    interno in prima colonna, perche' il draft assegna per id e non per nome:
+    chi la mette a schermo lo toglie.
     """
     from .data import carica_giocatori
 
@@ -681,25 +681,40 @@ def _listone(versione: int) -> pd.DataFrame:
     if not giocatori:
         return pd.DataFrame()
 
+    contratti = dati().contratti()
+    proprietario: dict[int, tuple[str, int]] = {}
+    if not contratti.empty:
+        nomi = nomi_squadre()
+        for _, c in contratti.iterrows():
+            proprietario[int(c["giocatore_id"])] = (
+                nomi.get(int(c["squadra_id"]), "?"),
+                int(c["anni_residui"]),
+            )
+
     riferimento = data_u21()
     par = parametri()
-    righe = [
-        {
-            "Id": g.id,
-            "Giocatore": g.nome,
-            "Club": g.club,
-            "Ruoli": "/".join(g.ruoli),
-            "Quotazione": g.quotazione,
-            "FVM": g.fvm,
-            "Ingaggio": g.ingaggio,
-            "Nazionalita": g.nazionalita,
-            "Nato": g.data_nascita.strftime("%d/%m/%Y") if g.data_nascita else "",
-            "Eta": g.eta_al(riferimento) or 0,
-            "Ita": g.italiano,
-            "U21": g.under_21(riferimento, par),
-        }
-        for g in giocatori.values()
-    ]
+    righe = []
+    for g in giocatori.values():
+        squadra, anni = proprietario.get(g.id, (SVINCOLATO, 0))
+        righe.append(
+            {
+                "Id": g.id,
+                "Giocatore": g.nome,
+                "Club": g.club,
+                "R": g.ruolo_classic,
+                "Ruoli": "/".join(g.ruoli),
+                "Squadra": squadra,
+                "Anni": anni,
+                "Quotazione": g.quotazione,
+                "FVM": g.fvm,
+                "Ingaggio": g.ingaggio,
+                "Nazionalita": g.nazionalita,
+                "Nato": g.data_nascita.strftime("%d/%m/%Y") if g.data_nascita else "",
+                "Eta": g.eta_al(riferimento) or 0,
+                "Ita": g.italiano,
+                "U21": g.under_21(riferimento, par),
+            }
+        )
     return pd.DataFrame(righe).sort_values("Giocatore").reset_index(drop=True)
 
 

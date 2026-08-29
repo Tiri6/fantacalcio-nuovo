@@ -28,7 +28,7 @@ import json
 import re
 import unicodedata
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from html.parser import HTMLParser
 
@@ -42,13 +42,34 @@ MODELLO_URL_QUOTAZIONI = (
 )
 MODELLO_URL_CAPOLOGY = "https://www.capology.com/it/serie-a/salaries/{annata}/"
 
-# Ci si presenta come un browser: senza User-Agent parecchi CDN rispondono 403.
+# Le pagine da cui, in un browser, si arriva ai due file: servono da Referer.
+# Un CDN che difende i propri statici guarda **da dove arrivi**, non solo chi
+# dici di essere, e a una richiesta senza provenienza risponde 403.
+RIFERIMENTO_QUOTAZIONI = "https://www.fantacalcio.it/quotazioni-fantacalcio"
+RIFERIMENTO_CAPOLOGY = "https://www.capology.com/it/"
+
+# Ci si presenta come un browser. Non e' un trucco per entrare dove non si
+# dovrebbe: sono file pubblici, scaricabili con un clic da chiunque. E' che
+# una richiesta senza intestazioni non somiglia a nessun visitatore vero, e i
+# filtri anti-abuso la trattano come tale.
 INTESTAZIONI = {
     "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
     ),
-    "Accept-Language": "it-IT,it;q=0.9",
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,"
+        "image/avif,image/webp,*/*;q=0.8"
+    ),
+    "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-site",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+    "Connection": "keep-alive",
 }
 
 ATTESA_MASSIMA = 30  # secondi
@@ -90,21 +111,61 @@ def url_capology(stagione_: str) -> str:
     return MODELLO_URL_CAPOLOGY.format(annata=annata(stagione_))
 
 
-def scarica(url: str, attesa: int = ATTESA_MASSIMA) -> bytes:
-    """Una GET e basta. Isolata qui perche' e' l'unico punto che tocca la rete."""
+def riferimento_per(url: str) -> str:
+    """La pagina da cui, in un browser, si arriverebbe a questo indirizzo."""
+    from urllib.parse import urlparse
+
+    dominio = urlparse(url).netloc.lower()
+    if "fantacalcio.it" in dominio:
+        return RIFERIMENTO_QUOTAZIONI
+    if "capology.com" in dominio:
+        return RIFERIMENTO_CAPOLOGY
+    return ""
+
+
+def scarica(url: str, attesa: int = ATTESA_MASSIMA, riferimento: str = "") -> bytes:
+    """Una GET, con le intestazioni di un browser. L'unico punto che tocca la rete.
+
+    `riferimento` diventa il Referer: e' la pagina da cui, cliccando, si
+    arriverebbe a questo file. Senza, i CDN che proteggono gli statici
+    rispondono 403 anche a un file pubblico. Se non lo si passa, si deduce dal
+    dominio: cosi' chi chiama resta una funzione di un argomento solo, e i
+    test possono sostituirla con qualsiasi cosa.
+    """
+    import gzip
     import urllib.error
     import urllib.request
+    import zlib
 
-    richiesta = urllib.request.Request(url, headers=INTESTAZIONI)
+    intestazioni = dict(INTESTAZIONI)
+    riferimento = riferimento or riferimento_per(url)
+    if riferimento:
+        intestazioni["Referer"] = riferimento
+
+    richiesta = urllib.request.Request(url, headers=intestazioni)
     try:
         with urllib.request.urlopen(richiesta, timeout=attesa) as risposta:
-            return risposta.read()
+            grezzo = risposta.read()
+            codifica = (risposta.headers.get("Content-Encoding") or "").lower()
     except urllib.error.HTTPError as errore:
         raise FonteNonRaggiungibile(
             f"{url} ha risposto {errore.code} ({errore.reason})"
         ) from errore
     except Exception as errore:  # noqa: BLE001 - urllib alza tipi eterogenei
         raise FonteNonRaggiungibile(f"{url} non risponde: {errore}") from errore
+
+    # Chiediamo gzip come farebbe un browser, quindi tocca a noi scompattare:
+    # urllib non lo fa da solo.
+    try:
+        if "gzip" in codifica:
+            return gzip.decompress(grezzo)
+        if "deflate" in codifica:
+            return zlib.decompress(grezzo, -zlib.MAX_WBITS)
+    except (OSError, zlib.error) as errore:
+        raise FonteNonRaggiungibile(
+            f"{url} ha risposto in {codifica} ma non si scompatta: {errore}"
+        ) from errore
+    return grezzo
 
 
 # --- normalizzazione dei club ----------------------------------------------
@@ -181,13 +242,32 @@ _SINONIMI = {
         "salarygross",
         "lordoannuale",
         "lordoannuo",
+        "stipendiolordo",
         "grossy",
         "gross",
         "salary",
         "stipendio",
+        "lordo",
+        "ingaggio",
     ),
-    "nazionalita": ("country", "nation", "nationality", "nazionalita", "paese"),
-    "nascita": ("dob", "dateofbirth", "birthdate", "datanascita", "born"),
+    "nazionalita": (
+        "country",
+        "nation",
+        "nationality",
+        "nazionalita",
+        "nazione",
+        "paese",
+    ),
+    "nascita": (
+        "dob",
+        "dateofbirth",
+        "birthdate",
+        "datadinascita",
+        "datanascita",
+        "nascita",
+        "nato",
+        "born",
+    ),
     "eta": ("age", "eta"),
 }
 
@@ -398,6 +478,222 @@ def leggi_stipendi(pagina: bytes | str) -> list[Stipendio]:
     return stipendi
 
 
+def leggi_stipendi_csv(contenuto: bytes | str) -> list[Stipendio]:
+    """Gli stipendi da un file scritto a mano, quando la fonte non si lascia leggere.
+
+    Le colonne si riconoscono dal nome, in qualsiasi ordine e in italiano o in
+    inglese: bastano `giocatore` e `lordo`. Separatore punto e virgola o
+    virgola, come esce da Excel.
+    """
+    import csv
+    import io
+
+    testo = (
+        contenuto.decode("utf-8-sig", "replace")
+        if isinstance(contenuto, bytes)
+        else contenuto
+    )
+    if not testo.strip():
+        raise FonteNonRaggiungibile("Il file degli stipendi e' vuoto.")
+
+    prima = testo.splitlines()[0]
+    separatore = ";" if prima.count(";") >= prima.count(",") else ","
+    righe = list(csv.DictReader(io.StringIO(testo), delimiter=separatore))
+    if not righe:
+        raise FonteNonRaggiungibile("Il file degli stipendi non ha righe.")
+
+    campi = _mappa_campi(righe[0].keys())
+    if "nome" not in campi or "lordo" not in campi:
+        raise FonteNonRaggiungibile(
+            "Nel file degli stipendi non trovo le colonne del giocatore e "
+            f"dell'importo. Intestazioni lette: {', '.join(righe[0])}."
+        )
+
+    stipendi = []
+    for riga in righe:
+        nome = str(riga.get(campi["nome"], "") or "").strip()
+        lordo = leggi_importo(riga.get(campi["lordo"]))
+        if not nome or lordo is None:
+            continue
+        stipendi.append(
+            Stipendio(
+                nome=nome,
+                club=str(riga.get(campi.get("club", ""), "") or "").strip(),
+                lordo_annuo=lordo,
+                nazionalita=str(riga.get(campi.get("nazionalita", ""), "") or "").strip(),
+                data_nascita=_leggi_data(riga.get(campi.get("nascita", ""))),
+            )
+        )
+
+    if not stipendi:
+        raise FonteNonRaggiungibile(
+            "Nessuna riga leggibile: controlla che gli importi siano numeri."
+        )
+    return stipendi
+
+
+MODELLO_CSV_STIPENDI = (
+    "giocatore;squadra;lordo;nazionalita;nascita\n"
+    "Paulo Dybala;Roma;6000000;Argentina;1993-11-15\n"
+    "Nicolo Barella;Inter;9000000;Italia;1997-02-07\n"
+)
+
+
+# --- il listone tutto in un file --------------------------------------------
+#
+# Il modo piu' comodo di caricare a mano: un foglio solo con tutto dentro,
+# invece dell'xlsx ufficiale piu' un file di stipendi a parte. Le colonne si
+# riconoscono dal nome, in qualsiasi ordine.
+
+_SINONIMI_LISTONE = {
+    "id": ("id", "idgiocatore", "idufficiale", "idlistone", "playerid"),
+    "nome": ("nome", "nomegiocatore", "giocatore", "player", "name"),
+    "cognome": ("cognome", "cognomegiocatore", "surname", "lastname"),
+    "club": (
+        "squadradiprovenienza",
+        "squadra",
+        "club",
+        "team",
+        "squadraseriea",
+    ),
+    "classic": ("ruoloclassic", "ruoloclassico", "classic", "ruolo", "r"),
+    "mantra": ("ruolomantra", "ruolimantra", "mantra", "rm", "ruoli"),
+    "nascita": ("datadinascita", "datanascita", "nascita", "nato", "dob"),
+    "nazionalita": ("nazionalita", "nazione", "paese", "country", "nationality"),
+    "lordo": (
+        "stipendiolordocapology",
+        "stipendiolordo",
+        "lordocapology",
+        "stipendio",
+        "lordo",
+        "ingaggio",
+        "grosssalary",
+        "salary",
+    ),
+    "quotazione": ("quotazione", "qta", "qtam", "quota"),
+    "fvm": ("fvm", "fvmm"),
+}
+
+COLONNE_LISTONE_CSV = (
+    "id giocatore",
+    "nome giocatore",
+    "cognome giocatore",
+    "squadra di provenienza",
+    "ruolo classic",
+    "ruolo mantra",
+    "data di nascita",
+    "nazionalita",
+    "stipendio lordo",
+)
+
+MODELLO_CSV_LISTONE = (
+    "id giocatore;nome giocatore;cognome giocatore;squadra di provenienza;"
+    "ruolo classic;ruolo mantra;data di nascita;nazionalita;stipendio lordo\n"
+    "2071;Paulo;Dybala;Roma;A;A/Pc;15/11/1993;Argentina;6000000\n"
+    "555;Nicolo;Barella;Inter;C;M/C;07/02/1997;Italia;9000000\n"
+)
+
+
+def leggi_listone_csv(contenuto: bytes | str) -> list[RigaListone]:
+    """Il listone completo da un unico foglio, come lo si prepara in Excel.
+
+    Obbligatorie: **id giocatore**, **nome** (o cognome) e **ruolo mantra**.
+    Tutto il resto e' facoltativo e, se manca, resta com'era in archivio.
+
+    L'id e' obbligatorio perche' e' quel che tiene insieme le rose: i
+    contratti puntano al giocatore, non al suo nome. Cambiare grafia a un nome
+    non deve far perdere una rosa.
+    """
+    import csv
+    import io
+
+    from .importazione import leggi_ruoli
+
+    testo = (
+        contenuto.decode("utf-8-sig", "replace")
+        if isinstance(contenuto, bytes)
+        else contenuto
+    )
+    if not testo.strip():
+        raise FonteNonRaggiungibile("Il file del listone e' vuoto.")
+
+    prima = testo.splitlines()[0]
+    separatore = ";" if prima.count(";") >= prima.count(",") else ","
+    grezze = list(csv.DictReader(io.StringIO(testo), delimiter=separatore))
+    if not grezze:
+        raise FonteNonRaggiungibile(
+            "Il file del listone non ha righe sotto l'intestazione — o non e' "
+            f"un CSV. Colonne attese: {', '.join(COLONNE_LISTONE_CSV)}."
+        )
+
+    normalizzati = {_chiave(c): c for c in grezze[0] if c}
+    campi: dict[str, str] = {}
+    for nostro, sinonimi in _SINONIMI_LISTONE.items():
+        for sinonimo in sinonimi:
+            if sinonimo in normalizzati:
+                campi[nostro] = normalizzati[sinonimo]
+                break
+
+    mancanti = [
+        etichetta
+        for chiave, etichetta in (("id", "id giocatore"), ("mantra", "ruolo mantra"))
+        if chiave not in campi
+    ]
+    if "nome" not in campi and "cognome" not in campi:
+        mancanti.append("nome giocatore")
+    if mancanti:
+        raise FonteNonRaggiungibile(
+            f"Nel file mancano le colonne: {', '.join(mancanti)}. "
+            f"Intestazioni lette: {', '.join(c for c in grezze[0] if c)}."
+        )
+
+    def campo(riga, chiave: str) -> str:
+        colonna = campi.get(chiave)
+        return str(riga.get(colonna, "") or "").strip() if colonna else ""
+
+    righe: list[RigaListone] = []
+    visti: set[int] = set()
+    problemi: list[str] = []
+    for numero, grezza in enumerate(grezze, start=2):
+        nome = " ".join(x for x in (campo(grezza, "nome"), campo(grezza, "cognome")) if x)
+        if not nome:
+            continue
+        try:
+            identificativo = int(float(campo(grezza, "id")))
+        except ValueError:
+            problemi.append(f"riga {numero} ({nome}): id non numerico")
+            continue
+        if identificativo in visti:
+            continue
+        visti.add(identificativo)
+
+        try:
+            ruoli = leggi_ruoli(campo(grezza, "mantra"))
+        except ValueError as errore:
+            problemi.append(f"riga {numero} ({nome}): {errore}")
+            continue
+
+        righe.append(
+            RigaListone(
+                id_ufficiale=identificativo,
+                nome=nome,
+                club=campo(grezza, "club"),
+                ruoli=ruoli,
+                ruolo_classic=campo(grezza, "classic").upper(),
+                quotazione=leggi_importo(campo(grezza, "quotazione")),
+                fvm=leggi_importo(campo(grezza, "fvm")),
+                ingaggio=leggi_importo(campo(grezza, "lordo")) or 0.0,
+                nazionalita=campo(grezza, "nazionalita"),
+                data_nascita=_leggi_data(campo(grezza, "nascita")),
+            )
+        )
+
+    if not righe:
+        dettaglio = f" Primi problemi: {'; '.join(problemi[:3])}." if problemi else ""
+        raise FonteNonRaggiungibile(f"Nessuna riga leggibile nel file.{dettaglio}")
+    return righe
+
+
 def _leggi_data(valore) -> date | None:
     if valore in (None, ""):
         return None
@@ -423,6 +719,7 @@ class RigaListone:
     nome: str
     club: str
     ruoli: tuple[str, ...]
+    ruolo_classic: str = ""
     quotazione: float | None = None
     fvm: float | None = None
     ingaggio: float = 0.0
@@ -505,6 +802,29 @@ def abbina(nome: str, club: str, indici: dict) -> Stipendio | None:
     return None
 
 
+def completa_ingaggi(
+    righe: Iterable[RigaListone],
+    ingaggi_correnti: dict[int, float] | None = None,
+) -> tuple[list[RigaListone], list[str]]:
+    """Tappa i buchi negli ingaggi con quel che si sapeva gia'.
+
+    Serve al listone caricato in un file solo, che gli stipendi ce li ha gia'
+    dentro: se una riga lo lascia a zero, meglio l'ingaggio della volta scorsa
+    che nessun ingaggio.
+    """
+    correnti = ingaggi_correnti or {}
+    complete: list[RigaListone] = []
+    senza: list[str] = []
+    for riga in righe:
+        ingaggio = riga.ingaggio or float(correnti.get(riga.id_ufficiale, 0.0))
+        if ingaggio <= 0:
+            senza.append(f"{riga.nome} ({riga.club})")
+        complete.append(
+            riga if ingaggio == riga.ingaggio else replace(riga, ingaggio=ingaggio)
+        )
+    return complete, senza
+
+
 def consolida(
     quotazioni: bytes,
     stipendi: Iterable[Stipendio] = (),
@@ -543,6 +863,7 @@ def consolida(
                 nome=riga["nome"],
                 club=riga["club"],
                 ruoli=riga["ruoli"],
+                ruolo_classic=riga.get("ruolo_classic", ""),
                 quotazione=riga["quotazione"],
                 fvm=riga["fvm"],
                 ingaggio=ingaggio,
@@ -558,16 +879,20 @@ def aggiorna_da_web(
     stagione_: str | None = None,
     apri: Apri = scarica,
     oggi: date | None = None,
+    url_listone: str = "",
+    url_stipendi: str = "",
 ) -> EsitoAggiornamento:
     """Scarica, legge e consolida. Non alza: racconta.
 
     `apri` e' iniettabile perche' i test non hanno rete e la rete non ha
-    voglia di essere prevedibile.
+    voglia di essere prevedibile. `url_listone` e `url_stipendi` servono a
+    puntare altrove senza toccare il codice, il giorno che una delle due fonti
+    cambia indirizzo o smette di lasciarsi leggere da un server.
     """
     stagione_ = stagione_ or stagione(oggi)
     esito = EsitoAggiornamento(stagione=stagione_, quando=datetime.now())
 
-    indirizzo_listone = url_quotazioni(stagione_)
+    indirizzo_listone = url_listone.strip() or url_quotazioni(stagione_)
     try:
         quotazioni = apri(indirizzo_listone)
     except FonteNonRaggiungibile as errore:
@@ -576,7 +901,7 @@ def aggiorna_da_web(
         )
         return esito
 
-    indirizzo_stipendi = url_capology(stagione_)
+    indirizzo_stipendi = url_stipendi.strip() or url_capology(stagione_)
     stipendi: list[Stipendio] = []
     try:
         stipendi = leggi_stipendi(apri(indirizzo_stipendi))
@@ -617,12 +942,96 @@ def aggiorna_da_web(
     return esito
 
 
+def aggiorna_da_file(
+    quotazioni: bytes,
+    stipendi_csv: bytes | str | None = None,
+    ingaggi_correnti: dict[int, float] | None = None,
+    stagione_: str | None = None,
+    oggi: date | None = None,
+) -> EsitoAggiornamento:
+    """La stessa cosa, ma dai file che si sono scaricati a mano dal browser.
+
+    Esiste perche' un browser, sulle stesse due pagine, entra sempre: ha i
+    cookie, la cronologia e un indirizzo di casa. Un server no, e un CDN che
+    lo rifiuta e' un problema che non si risolve dal nostro lato. Questa via
+    non passa dalla rete, quindi non puo' fallire per colpa di nessuno.
+
+    `quotazioni` accetta due cose: l'`.xlsx` ufficiale di Fantacalcio.it, o un
+    CSV con tutto dentro (vedi `COLONNE_LISTONE_CSV`). Si riconoscono da soli:
+    un xlsx e' uno zip, e comincia per `PK`.
+
+    Il rapporto che torna e' lo stesso dell'aggiornamento automatico: chi
+    guarda la pagina non deve imparare due linguaggi diversi.
+    """
+    esito = EsitoAggiornamento(
+        stagione=stagione_ or stagione(oggi), quando=datetime.now()
+    )
+
+    # Un CSV porta gia' gli stipendi dentro: il file a parte non serve.
+    if quotazioni[:2] != b"PK":
+        try:
+            righe = leggi_listone_csv(quotazioni)
+        except FonteNonRaggiungibile as errore:
+            esito.fonti.append(
+                StatoFonte("Listone (CSV caricato)", "", False, str(errore))
+            )
+            return esito
+        righe, senza = completa_ingaggi(righe, ingaggi_correnti)
+        esito.fonti.append(
+            StatoFonte(
+                "Listone (CSV caricato)",
+                "",
+                True,
+                f"{len(righe)} giocatori letti, "
+                f"{sum(1 for r in righe if r.ingaggio > 0)} con lo stipendio",
+            )
+        )
+        esito.righe = righe
+        esito.senza_stipendio = senza
+        return esito
+
+    letti: list[Stipendio] = []
+    if stipendi_csv:
+        try:
+            letti = leggi_stipendi_csv(stipendi_csv)
+        except FonteNonRaggiungibile as errore:
+            esito.fonti.append(
+                StatoFonte("Stipendi (file caricato)", "", False, str(errore))
+            )
+        else:
+            esito.fonti.append(
+                StatoFonte(
+                    "Stipendi (file caricato)",
+                    "",
+                    True,
+                    f"{len(letti)} stipendi letti",
+                )
+            )
+
+    try:
+        righe, senza = consolida(quotazioni, letti, ingaggi_correnti)
+    except FonteNonRaggiungibile as errore:
+        esito.fonti.insert(
+            0, StatoFonte("Listone (file caricato)", "", False, str(errore))
+        )
+        return esito
+
+    esito.fonti.insert(
+        0,
+        StatoFonte("Listone (file caricato)", "", True, f"{len(righe)} giocatori letti"),
+    )
+    esito.righe = righe
+    esito.senza_stipendio = senza
+    return esito
+
+
 # --- il file unico ----------------------------------------------------------
 
 COLONNE_CSV = (
     "id_ufficiale",
     "nome",
     "club",
+    "ruolo_classic",
     "ruoli",
     "quotazione",
     "fvm",
@@ -646,6 +1055,7 @@ def a_csv(righe: Iterable[RigaListone]) -> str:
                 riga.id_ufficiale,
                 riga.nome,
                 riga.club,
+                riga.ruolo_classic,
                 "/".join(riga.ruoli),
                 "" if riga.quotazione is None else riga.quotazione,
                 "" if riga.fvm is None else riga.fvm,
@@ -695,6 +1105,9 @@ def a_righe_archivio(righe: Iterable[RigaListone], esistenti) -> list[dict]:
         nazionalita = riga.nazionalita or (
             str(precedente.get("nazionalita") or "") if precedente else ""
         )
+        classic = riga.ruolo_classic or (
+            str(precedente.get("ruolo_classic") or "") if precedente else ""
+        )
 
         fuori.append(
             {
@@ -703,6 +1116,7 @@ def a_righe_archivio(righe: Iterable[RigaListone], esistenti) -> list[dict]:
                 "nome": riga.nome,
                 "club": riga.club,
                 "ruoli": ";".join(riga.ruoli),
+                "ruolo_classic": classic,
                 "ingaggio": float(riga.ingaggio),
                 "nazionalita": nazionalita or "Italia",
                 "data_nascita": nascita,
@@ -718,12 +1132,22 @@ def applica(arch, righe: Iterable[RigaListone]) -> dict:
     righe = list(righe)
     esistenti = arch.giocatori()
     da_scrivere = a_righe_archivio(righe, esistenti)
-    noti = 0
+
+    # «Nuovi» sono quelli che in archivio non c'erano, non la differenza fra
+    # due totali: caricare sei giocatori in un catalogo che ne ha cinquecento
+    # non e' «meno cinque nuovi».
+    gia_noti: set[int] = set()
     if esistenti is not None and not esistenti.empty:
-        noti = len(esistenti)
+        for valore in esistenti.get("id_ufficiale", []):
+            try:
+                gia_noti.add(int(valore))
+            except (TypeError, ValueError):
+                continue
+    nuovi = sum(1 for r in da_scrivere if int(r["id_ufficiale"]) not in gia_noti)
+
     arch.scrivi("giocatori", da_scrivere, chiave="id")
     return {
         "totali": len(da_scrivere),
-        "nuovi": max(len(da_scrivere) - noti, 0),
+        "nuovi": nuovi,
         "con_stipendio": sum(1 for r in righe if r.ingaggio > 0),
     }

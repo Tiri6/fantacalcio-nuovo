@@ -24,6 +24,10 @@ class Giocatore:
     ingaggio: float
     nazionalita: str = "Italia"
     data_nascita: date | None = None
+    # Il ruolo Classic (P/D/C/A) del listone. Non si ricava da quelli Mantra:
+    # un esterno «E» in Classic puo' essere difensore o centrocampista, e solo
+    # la fonte sa quale dei due. Se non si sa, resta vuoto.
+    ruolo_classic: str = ""
     # Dal listone ufficiale: id, quotazione Mantra e valore di mercato.
     # Non concorrono al Salary Cap, che usa gli ingaggi reali di Capology.
     id_ufficiale: int | None = None

@@ -30,6 +30,31 @@ ui.intestazione(
 ui.barra_laterale()
 
 
+def tabella_formato(voci: list[tuple[str, bool, str, str]]) -> None:
+    """Che colonne vuole un file, dette prima di caricarlo e non dopo.
+
+    Ogni voce: nome della colonna, se e' obbligatoria, un esempio, e a cosa
+    serve. Le intestazioni si riconoscono dal nome e non dalla posizione,
+    quindi l'ordine nel file non conta: e' scritto sotto ogni tabella.
+    """
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {"Colonna": n, "Obbl.": obbligatoria, "Esempio": esempio, "Serve a": nota}
+                for n, obbligatoria, esempio, nota in voci
+            ]
+        ),
+        hide_index=True,
+        use_container_width=True,
+        column_config={"Obbl.": st.column_config.CheckboxColumn("Obbl.")},
+    )
+    st.caption(
+        "L'ordine delle colonne non conta: si riconoscono dal nome, e i nomi "
+        "simili valgono lo stesso. Separatore `;` o `,`; gli importi si "
+        "possono scrivere `3.500.000`, `3,5M` o `€ 2.100.000`."
+    )
+
+
 def tabella_problemi(problemi) -> pd.DataFrame:
     return pd.DataFrame(
         [
@@ -51,14 +76,41 @@ listone, rose, risultati = st.tabs(
 with listone:
     st.markdown(
         "Il **listone ufficiale** di Fantacalcio.it (`Quotazioni_Fantacalcio_"
-        "Stagione_*.xlsx`): anagrafica, ruoli Mantra, squadra di Serie A e "
-        "quotazioni di tutti i giocatori."
+        "Stagione_*.xlsx`), preso com'e': il foglio **Tutti**, con il titolo "
+        "sulla prima riga e le intestazioni sulla seconda."
+    )
+    st.markdown("**Le colonne che legge**")
+    tabella_formato(
+        [
+            (
+                "Id",
+                True,
+                "2071",
+                "L'id ufficiale. E' quel che aggancia il "
+                "giocatore alla sua riga anche se il nome cambia grafia.",
+            ),
+            ("Nome", True, "Dybala", "Come lo scrive il listone."),
+            ("Squadra", True, "Roma", "La squadra di Serie A."),
+            ("RM", True, "A;Pc", "Ruoli Mantra, separati da ; o /."),
+            (
+                "R",
+                False,
+                "A",
+                "Ruolo Classic. Non si ricava dai Mantra: un "
+                "esterno «E» in Classic puo' essere D o C.",
+            ),
+            ("Qt.A M", False, "26", "Quotazione Mantra all'asta."),
+            ("FVM M", False, "70", "Fanta Valore di Mercato Mantra."),
+        ]
     )
     st.info(
-        "Il listone **non contiene** le assegnazioni alle squadre della lega, "
-        "gli anni di contratto ne' gli ingaggi Capology: serve a popolare il "
-        "catalogo. Caricato questo, il file delle rose puo' limitarsi a "
-        "`squadra`, `giocatore`, `anni`, `ingaggio`.",
+        "Il listone ufficiale **non contiene** le assegnazioni alle squadre "
+        "della lega, gli anni di contratto, gli stipendi Capology, le "
+        "nazionalita' ne' le date di nascita. Per avere tutto in un file solo "
+        "usa la pagina **Listone giocatori**, che unisce le due fonti e "
+        "accetta anche un CSV con dentro id, nome, cognome, squadra, ruolo "
+        "Classic, ruolo Mantra, data di nascita, nazionalita' e stipendio "
+        "lordo.",
         icon="ℹ️",
     )
 
@@ -121,10 +173,55 @@ with listone:
 
 with rose:
     st.markdown(
-        "Una riga per giocatore. Le intestazioni sono riconosciute anche se "
-        "scritte diversamente (`Fantasquadra`, `Calciatore`, `Stipendio`, "
-        "`Durata`...), il separatore puo' essere `;` o `,`, e gli importi si "
-        "possono scrivere all'italiana: `3.500.000`, `3,5M`, `€ 2.100.000`."
+        "Chi appartiene a chi, una riga per giocatore. E' il file che si "
+        "compila dopo il draft."
+    )
+    st.markdown("**Le colonne che legge**")
+    tabella_formato(
+        [
+            (
+                "squadra",
+                True,
+                "Tiri Team",
+                "La squadra della lega. Anche `fantasquadra`, `team`.",
+            ),
+            ("giocatore", True, "Dybala", "Anche `nome`, `calciatore`, `player`."),
+            (
+                "anni",
+                True,
+                "3",
+                "Anni di contratto. Anche `durata`, "
+                "`contratto`, `costo` — nell'export di Leghe Fantacalcio la "
+                "colonna «costo» contiene gli anni residui.",
+            ),
+            (
+                "ingaggio",
+                True,
+                "6000000",
+                "Stipendio lordo annuo, fonte Capology. Anche `stipendio`, `salario`.",
+            ),
+            (
+                "ruoli",
+                True,
+                "A/Pc",
+                "Ruoli Mantra. Si puo' omettere se il "
+                "listone e' gia' caricato: si ricava dal nome.",
+            ),
+            (
+                "club",
+                False,
+                "Roma",
+                "Squadra di Serie A. Anche questa si ricava dal listone.",
+            ),
+            ("nazionalita", False, "Argentina", "Serve al minimo italiani."),
+            ("datanascita", False, "15/11/1993", "Serve all'Under 21."),
+            (
+                "prolungato",
+                False,
+                "no",
+                "Se ha gia' usato il prolungamento da scambio (Lodo Corti).",
+            ),
+        ]
     )
     st.download_button(
         "Scarica il modello CSV",
@@ -249,6 +346,16 @@ with risultati:
         "I gol vengono calcolati dalle fasce della lega (primo gol a "
         f"{ui.parametri().soglia_primo_gol:.0f}, poi uno ogni "
         f"{ui.parametri().passo_gol:.0f})."
+    )
+    st.markdown("**Le colonne che legge**")
+    tabella_formato(
+        [
+            ("giornata", True, "1", "Numero di giornata del fantacampionato."),
+            ("casa", True, "Tiri Team", "Squadra di casa."),
+            ("trasferta", True, "Padel United", "Squadra ospite."),
+            ("punticasa", True, "72,5", "Fantapunti della squadra di casa."),
+            ("puntitrasferta", True, "66", "Fantapunti della squadra ospite."),
+        ]
     )
     st.download_button(
         "Scarica il modello CSV",

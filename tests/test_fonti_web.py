@@ -334,6 +334,7 @@ class TestFileUnico:
                 nome="Dybala",
                 club="Roma",
                 ruoli=("A", "Pc"),
+                ruolo_classic="A",
                 quotazione=24,
                 fvm=70,
                 ingaggio=6_000_000,
@@ -343,8 +344,8 @@ class TestFileUnico:
         ]
         testo = a_csv(righe)
         intestazioni, prima = testo.strip().split("\n")
-        assert intestazioni.startswith("id_ufficiale;nome;club;ruoli")
-        assert "2071;Dybala;Roma;A/Pc" in prima
+        assert intestazioni.startswith("id_ufficiale;nome;club;ruolo_classic;ruoli")
+        assert "2071;Dybala;Roma;A;A/Pc" in prima
         assert "6000000" in prima
         assert "1993-11-15" in prima
 
@@ -426,3 +427,306 @@ class TestScritturaInArchivio:
 
 def test_esito_vuoto_non_e_riuscito():
     assert not EsitoAggiornamento().riuscito
+
+
+class TestIntestazioniDaBrowser:
+    """Il 403 di un CDN si evita somigliando a un visitatore, non insistendo."""
+
+    def test_il_referer_si_deduce_dal_dominio(self):
+        from fantacalcio.fonti_web import (
+            RIFERIMENTO_CAPOLOGY,
+            RIFERIMENTO_QUOTAZIONI,
+            riferimento_per,
+        )
+
+        assert (
+            riferimento_per("https://content.fantacalcio.it/statico/x.xlsx")
+            == RIFERIMENTO_QUOTAZIONI
+        )
+        assert (
+            riferimento_per("https://www.capology.com/it/serie-a/salaries/")
+            == RIFERIMENTO_CAPOLOGY
+        )
+        assert riferimento_per("https://esempio.it/file.xlsx") == ""
+
+    def test_la_richiesta_porta_referer_e_user_agent(self, monkeypatch):
+        from fantacalcio import fonti_web
+
+        viste = {}
+
+        class FintaRisposta:
+            headers = {"Content-Encoding": ""}
+
+            def read(self):
+                return b"contenuto"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        def finto_urlopen(richiesta, timeout=None):
+            viste["headers"] = dict(richiesta.headers)
+            viste["url"] = richiesta.full_url
+            return FintaRisposta()
+
+        import urllib.request
+
+        monkeypatch.setattr(urllib.request, "urlopen", finto_urlopen)
+        assert fonti_web.scarica(fonti_web.url_quotazioni("2026_27")) == b"contenuto"
+        # urllib normalizza i nomi delle intestazioni in Camel-Case.
+        intestazioni = {k.lower(): v for k, v in viste["headers"].items()}
+        assert "fantacalcio.it" in intestazioni["referer"]
+        assert "Mozilla" in intestazioni["user-agent"]
+        assert intestazioni["accept-language"].startswith("it-IT")
+
+    def test_una_risposta_gzip_viene_scompattata(self, monkeypatch):
+        import gzip
+        import urllib.request
+
+        from fantacalcio import fonti_web
+
+        class FintaRisposta:
+            headers = {"Content-Encoding": "gzip"}
+
+            def read(self):
+                return gzip.compress(b"<html>ciao</html>")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+        monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: FintaRisposta())
+        assert fonti_web.scarica("https://esempio.it/x") == b"<html>ciao</html>"
+
+    def test_un_403_diventa_un_messaggio_leggibile(self, monkeypatch):
+        import urllib.error
+        import urllib.request
+
+        from fantacalcio import fonti_web
+
+        def rifiuta(*_a, **_k):
+            raise urllib.error.HTTPError(
+                "https://esempio.it/x", 403, "Forbidden", {}, None
+            )
+
+        monkeypatch.setattr(urllib.request, "urlopen", rifiuta)
+        with pytest.raises(FonteNonRaggiungibile, match="403"):
+            fonti_web.scarica("https://esempio.it/x")
+
+
+class TestStipendiDaFile:
+    """Quando il CDN dice di no, gli stipendi si caricano a mano."""
+
+    def test_legge_un_csv_col_punto_e_virgola(self):
+        from fantacalcio.fonti_web import MODELLO_CSV_STIPENDI, leggi_stipendi_csv
+
+        stipendi = leggi_stipendi_csv(MODELLO_CSV_STIPENDI)
+        assert [s.nome for s in stipendi] == ["Paulo Dybala", "Nicolo Barella"]
+        assert stipendi[0].lordo_annuo == 6_000_000
+        assert stipendi[0].club == "Roma"
+        assert stipendi[1].data_nascita == date(1997, 2, 7)
+
+    def test_legge_anche_con_la_virgola_e_in_inglese(self):
+        from fantacalcio.fonti_web import leggi_stipendi_csv
+
+        stipendi = leggi_stipendi_csv(
+            "player,team,gross,country\nMile Svilar,Roma,€ 3.000.000,Serbia\n"
+        )
+        assert stipendi[0].lordo_annuo == 3_000_000
+        assert stipendi[0].nazionalita == "Serbia"
+
+    def test_colonne_sbagliate_lo_dicono(self):
+        from fantacalcio.fonti_web import leggi_stipendi_csv
+
+        with pytest.raises(FonteNonRaggiungibile, match="colonne"):
+            leggi_stipendi_csv("pippo;pluto\n1;2\n")
+
+    def test_file_vuoto(self):
+        from fantacalcio.fonti_web import leggi_stipendi_csv
+
+        with pytest.raises(FonteNonRaggiungibile, match="vuoto"):
+            leggi_stipendi_csv("")
+
+
+class TestAggiornamentoDaFile:
+    """La via che non passa dalla rete, quindi non puo' fallire per colpa sua."""
+
+    def test_listone_piu_stipendi_caricati_a_mano(self):
+        from fantacalcio.fonti_web import aggiorna_da_file
+
+        esito = aggiorna_da_file(
+            listone_xlsx(LISTONE),
+            stipendi_csv=(
+                "giocatore;squadra;lordo;nazionalita\n"
+                "Paulo Dybala;Roma;6000000;Argentina\n"
+                "Nicolo Barella;Inter;9000000;Italia\n"
+            ),
+        )
+        assert esito.riuscito
+        assert len(esito.righe) == 4
+        assert esito.con_stipendio == 2
+        assert [f.ok for f in esito.fonti] == [True, True]
+        assert esito.fonti[0].nome == "Listone (file caricato)"
+
+    def test_il_solo_listone_basta(self):
+        from fantacalcio.fonti_web import aggiorna_da_file
+
+        esito = aggiorna_da_file(listone_xlsx(LISTONE))
+        assert esito.riuscito
+        assert esito.con_stipendio == 0
+        assert len(esito.fonti) == 1
+
+    def test_un_xlsx_che_non_e_il_listone(self):
+        from fantacalcio.fonti_web import aggiorna_da_file
+
+        # Comincia per PK come uno zip, quindi si prova a leggerlo da Excel.
+        esito = aggiorna_da_file(b"PK\x03\x04 e poi spazzatura")
+        assert not esito.riuscito
+        assert esito.fonti[0].ok is False
+        assert "Listone non leggibile" in esito.fonti[0].dettaglio
+
+    def test_un_file_che_non_e_ne_xlsx_ne_csv(self):
+        from fantacalcio.fonti_web import aggiorna_da_file
+
+        esito = aggiorna_da_file(b"questo e' un pdf, non un listone")
+        assert not esito.riuscito
+        assert esito.fonti[0].ok is False
+        # Il messaggio dice quali colonne cercava: e' quello che serve sapere.
+        assert "colonne" in esito.fonti[0].dettaglio.lower()
+
+    def test_stipendi_illeggibili_non_fermano_il_listone(self):
+        from fantacalcio.fonti_web import aggiorna_da_file
+
+        esito = aggiorna_da_file(listone_xlsx(LISTONE), stipendi_csv="pippo;pluto\n1;2\n")
+        assert esito.riuscito
+        assert len(esito.righe) == 4
+        assert [f.ok for f in esito.fonti] == [True, False]
+
+
+class TestIndirizziAlternativi:
+    def test_si_puo_puntare_altrove_senza_toccare_il_codice(self):
+        chiamati = []
+
+        def apri(url: str) -> bytes:
+            chiamati.append(url)
+            if url.endswith(".xlsx"):
+                return listone_xlsx(LISTONE)
+            raise FonteNonRaggiungibile("non serve")
+
+        esito = aggiorna_da_web(
+            apri=apri,
+            stagione_="2026_27",
+            url_listone="https://esempio.it/mio_listone.xlsx",
+            url_stipendi="https://esempio.it/stipendi.html",
+        )
+        assert chiamati == [
+            "https://esempio.it/mio_listone.xlsx",
+            "https://esempio.it/stipendi.html",
+        ]
+        assert esito.riuscito
+
+
+class TestListoneInUnFileSolo:
+    """Il CSV con tutto dentro: quel che si prepara in Excel e si carica."""
+
+    def test_legge_il_modello(self):
+        from fantacalcio.fonti_web import MODELLO_CSV_LISTONE, leggi_listone_csv
+
+        righe = leggi_listone_csv(MODELLO_CSV_LISTONE)
+        assert [r.nome for r in righe] == ["Paulo Dybala", "Nicolo Barella"]
+        primo = righe[0]
+        assert primo.id_ufficiale == 2071
+        assert primo.club == "Roma"
+        assert primo.ruolo_classic == "A"
+        assert primo.ruoli == ("A", "Pc")
+        assert primo.data_nascita == date(1993, 11, 15)
+        assert primo.nazionalita == "Argentina"
+        assert primo.ingaggio == 6_000_000
+
+    def test_il_cognome_da_solo_basta(self):
+        from fantacalcio.fonti_web import leggi_listone_csv
+
+        righe = leggi_listone_csv(
+            "id;cognome;ruolo mantra;stipendio lordo\n555;Barella;M/C;9000000\n"
+        )
+        assert righe[0].nome == "Barella"
+        assert righe[0].ruoli == ("M", "C")
+
+    def test_senza_id_non_si_puo_procedere(self):
+        # Senza id i contratti non saprebbero piu' a chi puntano.
+        from fantacalcio.fonti_web import leggi_listone_csv
+
+        with pytest.raises(FonteNonRaggiungibile, match="id giocatore"):
+            leggi_listone_csv("nome;ruolo mantra\nBarella;M\n")
+
+    def test_senza_ruolo_mantra_nemmeno(self):
+        from fantacalcio.fonti_web import leggi_listone_csv
+
+        with pytest.raises(FonteNonRaggiungibile, match="ruolo mantra"):
+            leggi_listone_csv("id;nome\n555;Barella\n")
+
+    def test_un_ruolo_inventato_si_dichiara(self):
+        from fantacalcio.fonti_web import leggi_listone_csv
+
+        with pytest.raises(FonteNonRaggiungibile, match="Nessuna riga leggibile"):
+            leggi_listone_csv("id;nome;ruolo mantra\n555;Barella;Mediano\n")
+
+    def test_una_riga_rotta_non_butta_via_le_altre(self):
+        from fantacalcio.fonti_web import leggi_listone_csv
+
+        righe = leggi_listone_csv(
+            "id;nome;ruolo mantra\n555;Barella;M/C\nxx;Rotto;M\n999;Svilar;Por\n"
+        )
+        assert [r.nome for r in righe] == ["Barella", "Svilar"]
+
+    def test_passa_da_aggiorna_da_file(self):
+        from fantacalcio.fonti_web import MODELLO_CSV_LISTONE, aggiorna_da_file
+
+        esito = aggiorna_da_file(MODELLO_CSV_LISTONE.encode("utf-8"))
+        assert esito.riuscito
+        assert esito.con_stipendio == 2
+        assert esito.fonti[0].nome == "Listone (CSV caricato)"
+
+    def test_un_ingaggio_a_zero_tiene_quello_che_c_era(self):
+        from fantacalcio.fonti_web import aggiorna_da_file
+
+        esito = aggiorna_da_file(
+            b"id;nome;ruolo mantra;stipendio lordo\n555;Barella;M/C;\n",
+            ingaggi_correnti={555: 8_000_000},
+        )
+        assert esito.righe[0].ingaggio == 8_000_000
+        assert esito.senza_stipendio == []
+
+
+class TestConteggioNuovi:
+    """«Nuovi» conta chi non c'era, non la differenza fra due totali."""
+
+    def archivio(self, tmp_path, nome="conteggio.db"):
+        from fantacalcio.data import ArchivioSQLite
+
+        arch = ArchivioSQLite(tmp_path / nome)
+        arch.svuota("giocatori")
+        return arch
+
+    def test_su_un_catalogo_gia_pieno(self, tmp_path):
+        from fantacalcio.fonti_web import applica
+
+        arch = self.archivio(tmp_path)
+        applica(
+            arch,
+            [
+                RigaListone(i, f"Tale {i}", "Roma", ("A",), ingaggio=1_000_000)
+                for i in range(1, 21)
+            ],
+        )
+        # Ne ricarico sei, di cui uno solo mai visto prima.
+        conteggio = applica(
+            arch,
+            [RigaListone(i, f"Tale {i}", "Roma", ("A",)) for i in (1, 2, 3, 4, 5, 99)],
+        )
+        assert conteggio["totali"] == 6
+        assert conteggio["nuovi"] == 1
