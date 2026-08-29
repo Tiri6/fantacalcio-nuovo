@@ -69,11 +69,27 @@ if utente.puo_importare:
         unsafe_allow_html=True,
     )
 
+    # Nessun filtro sull'estensione, di proposito. Con `type=[...]` Streamlit
+    # scarta il file **prima** di consegnarlo, e da fuori si vede solo un
+    # pulsante che resta spento: un `.CSV` maiuscolo, un `.txt`, o quel che
+    # produce il salvataggio da telefono bastavano a bloccare tutto senza
+    # dire perche'. Il formato lo riconosciamo dal contenuto, che e' piu'
+    # affidabile del nome, e se non lo capiamo lo diciamo.
     file_listone = st.file_uploader(
         "Il listone (.csv, oppure l'.xlsx ufficiale di Fantacalcio.it)",
-        type=["csv", "xlsx"],
         key="_file_listone",
     )
+
+    # Cosa e' arrivato davvero: senza questa riga, «non funziona» non si puo'
+    # distinguere da «non ho ancora scelto il file».
+    if file_listone is None:
+        st.caption("Nessun file ricevuto. Scegli il file qui sopra.")
+    else:
+        misura = len(file_listone.getvalue())
+        st.caption(
+            f"Ricevuto: **{file_listone.name}** ({misura / 1024:.1f} KB)."
+            + ("  ⚠️ Il file e' vuoto." if not misura else "")
+        )
 
     modo = st.radio(
         "Cosa fare con quello che c'e' gia'",
@@ -100,19 +116,24 @@ if utente.puo_importare:
             icon="⚠️",
         )
 
-    if st.button(
-        "📥 Consolida e carica",
-        type="primary",
-        disabled=file_listone is None,
-        use_container_width=True,
-    ):
-        with st.spinner("Leggo il file e lo metto in archivio…"):
-            _salva(
-                fonti_web.aggiorna_da_file(
-                    file_listone.getvalue(), ingaggi_correnti=ui.ingaggi_noti()
-                ),
-                sostituisci=bool(modo),
+    # Il pulsante resta acceso anche senza file: un pulsante spento non dice
+    # perche' lo e', e chi lo guarda non ha modo di capire se il problema e'
+    # suo o del sito.
+    if st.button("📥 Consolida e carica", type="primary", use_container_width=True):
+        if file_listone is None:
+            st.error(
+                "Non ho ricevuto nessun file. Scegli il listone qui sopra e "
+                "aspetta che compaia il suo nome, poi premi di nuovo.",
+                icon="📂",
             )
+        else:
+            with st.spinner("Leggo il file e lo metto in archivio…"):
+                _salva(
+                    fonti_web.aggiorna_da_file(
+                        file_listone.getvalue(), ingaggi_correnti=ui.ingaggi_noti()
+                    ),
+                    sostituisci=bool(modo),
+                )
 
     riga = st.columns([1, 1])
     riga[0].download_button(
