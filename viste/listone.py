@@ -132,6 +132,23 @@ if utente.puo_importare:
             "nazionalita, nascita. Senza questo file gli ingaggi restano "
             "quelli che sono gia' in archivio.",
         )
+
+        # Capology non offre l'esportazione, ma la tabella si seleziona e si
+        # copia: incollata qui arriva separata da tabulazioni, e va bene
+        # uguale. E' la strada piu' corta fra una pagina web e il sito.
+        incollati = st.text_area(
+            "…oppure incolla qui la tabella degli stipendi",
+            height=140,
+            key="_incolla_stipendi",
+            placeholder=(
+                "Seleziona la tabella nel browser, Ctrl+C, e incolla qui.\n"
+                "Giocatore\tSquadra\tLordo annuale\n"
+                "Paulo Dybala\tRoma\t€ 6.000.000"
+            ),
+            help="Accetta il copia-incolla da una pagina (colonne separate da "
+            "tabulazione), il CSV di un foglio di calcolo, o l'HTML della "
+            "tabella. La prima riga deve essere l'intestazione.",
+        )
         modelli = st.columns(2)
         modelli[0].download_button(
             "⬇️ Modello del listone in CSV",
@@ -233,7 +250,9 @@ if utente.puo_importare:
                     fonti_web.aggiorna_da_file(
                         file_listone.getvalue(),
                         stipendi_csv=(
-                            file_stipendi.getvalue() if file_stipendi else None
+                            file_stipendi.getvalue()
+                            if file_stipendi
+                            else (incollati.strip() or None)
                         ),
                         ingaggi_correnti=ui.ingaggi_noti(),
                     )
@@ -410,12 +429,26 @@ st.caption(
     "chi compie 21 anni dopo resta Under per tutta la stagione."
 )
 
-st.download_button(
+scarichi = st.columns(2)
+scarichi[0].download_button(
     "⬇️ Scarica il listone consolidato (CSV)",
     filtrati.drop(columns=["Id"]).to_csv(index=False, sep=";").encode("utf-8"),
     file_name=f"listone-{stagione}.csv",
     mime="text/csv",
     help="Le righe che stai vedendo, filtri compresi.",
+    use_container_width=True,
+)
+# Il giro completo: si scarica quel che c'e', si riempiono le tre colonne che
+# mancano e si ricarica dalla scheda «Dai file». Gli id non cambiano, quindi
+# le rose non si scollegano.
+scarichi[1].download_button(
+    "📝 Scarica da completare (stipendi, nascita, nazionalita')",
+    ui.listone_da_completare().encode("utf-8"),
+    file_name=f"listone-{stagione}-da-completare.csv",
+    mime="text/csv",
+    help="Tutti i giocatori in archivio, con le colonne da riempire vuote. "
+    "Si compila in Excel e si ricarica da «Dai file scaricati a mano».",
+    use_container_width=True,
 )
 
 with st.expander("Legenda dei ruoli Mantra"):

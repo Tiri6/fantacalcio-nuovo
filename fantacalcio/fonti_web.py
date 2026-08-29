@@ -484,6 +484,41 @@ def leggi_stipendi(pagina: bytes | str) -> list[Stipendio]:
     return stipendi
 
 
+def _separatore(testo: str) -> str:
+    """Punto e virgola, virgola o tabulazione: si guarda la prima riga.
+
+    La tabulazione c'e' perche' copiare una tabella da una pagina web e
+    incollarla produce colonne separate da TAB: e' il modo piu' veloce di
+    portare qui i dati di un sito che non offre l'esportazione.
+    """
+    prima = testo.splitlines()[0] if testo.splitlines() else ""
+    conteggi = {carattere: prima.count(carattere) for carattere in ("\t", ";", ",")}
+    migliore = max(conteggi, key=lambda c: conteggi[c])
+    return migliore if conteggi[migliore] else ";"
+
+
+def leggi_stipendi_incollati(contenuto: bytes | str) -> list[Stipendio]:
+    """Gli stipendi da quel che si e' copiato da una pagina, comunque sia.
+
+    Selezionare una tabella nel browser e premere Ctrl+C da colonne separate
+    da TAB; copiare il sorgente da' HTML. Qui si accettano tutti e due, piu'
+    il CSV di un foglio di calcolo, perche' chi incolla non deve sapere quale
+    dei tre gli e' uscito.
+    """
+    testo = (
+        contenuto.decode("utf-8-sig", "replace")
+        if isinstance(contenuto, bytes)
+        else contenuto
+    )
+    sembra_html = "<" in testo and ("<tr" in testo.lower() or "<table" in testo.lower())
+    if sembra_html:
+        try:
+            return leggi_stipendi(testo)
+        except FonteNonRaggiungibile:
+            pass  # non era una tabella HTML leggibile: si prova come testo
+    return leggi_stipendi_csv(testo)
+
+
 def leggi_stipendi_csv(contenuto: bytes | str) -> list[Stipendio]:
     """Gli stipendi da un file scritto a mano, quando la fonte non si lascia leggere.
 
@@ -502,17 +537,19 @@ def leggi_stipendi_csv(contenuto: bytes | str) -> list[Stipendio]:
     if not testo.strip():
         raise FonteNonRaggiungibile("Il file degli stipendi e' vuoto.")
 
-    prima = testo.splitlines()[0]
-    separatore = ";" if prima.count(";") >= prima.count(",") else ","
-    righe = list(csv.DictReader(io.StringIO(testo), delimiter=separatore))
+    righe = list(csv.DictReader(io.StringIO(testo), delimiter=_separatore(testo)))
     if not righe:
         raise FonteNonRaggiungibile("Il file degli stipendi non ha righe.")
 
     campi = _mappa_campi(righe[0].keys())
     if "nome" not in campi or "lordo" not in campi:
+        # Le intestazioni si stampano filtrando: se una riga ha piu' campi
+        # dell'intestazione, DictReader mette `None` come chiave, e un join
+        # su quella lista scoppierebbe proprio mentre si spiega l'errore.
+        lette = ", ".join(c for c in righe[0] if isinstance(c, str) and c.strip())
         raise FonteNonRaggiungibile(
             "Nel file degli stipendi non trovo le colonne del giocatore e "
-            f"dell'importo. Intestazioni lette: {', '.join(righe[0])}."
+            f"dell'importo. Intestazioni lette: {lette or '(nessuna)'}."
         )
 
     stipendi = []
@@ -623,9 +660,7 @@ def leggi_listone_csv(contenuto: bytes | str) -> list[RigaListone]:
     if not testo.strip():
         raise FonteNonRaggiungibile("Il file del listone e' vuoto.")
 
-    prima = testo.splitlines()[0]
-    separatore = ";" if prima.count(";") >= prima.count(",") else ","
-    grezze = list(csv.DictReader(io.StringIO(testo), delimiter=separatore))
+    grezze = list(csv.DictReader(io.StringIO(testo), delimiter=_separatore(testo)))
     if not grezze:
         raise FonteNonRaggiungibile(
             "Il file del listone non ha righe sotto l'intestazione — o non e' "
@@ -773,15 +808,58 @@ def _indicizza_stipendi(stipendi: Iterable[Stipendio]) -> dict:
     return {"per_nome": per_nome, "per_club": per_club}
 
 
+def _parole(nome: str) -> list[str]:
+    """Il nome ridotto a parole confrontabili: senza accenti, minuscole."""
+    return [p for p in re.split(r"[^a-z0-9]+", _senza_accenti(str(nome)).lower()) if p]
+
+
+def scomponi_nome_listone(nome: str) -> tuple[tuple[str, ...], str]:
+    """Il cognome e l'iniziale, dal modo in cui scrive il listone.
+
+    Fantacalcio.it distingue gli omonimi abbreviando il nome di battesimo:
+    «Martinez Jo.» e «Martinez L.» sono Josep e Lautaro. L'ultima parola, se
+    e' corta o finisce col punto, e' quell'abbreviazione e non un pezzo di
+    cognome. Torna `(parole del cognome, iniziale)`.
+    """
+    parole = _parole(nome)
+    if len(parole) >= 2 and len(parole[-1]) <= 3 and nome.strip().endswith("."):
+        return tuple(parole[:-1]), parole[-1]
+    return tuple(parole), ""
+
+
+def _compatibile(candidato: Stipendio, cognome: tuple[str, ...], iniziale: str) -> bool:
+    """Vero se il nome intero di Capology puo' essere quello del listone.
+
+    Deve contenere **tutte** le parole del cognome come parole intere, e — se
+    il listone abbreviava il nome di battesimo — un'altra parola che comincia
+    per quell'abbreviazione. Il confronto per parole intere e' il punto: con
+    il vecchio «e' contenuto dentro», «Martin» del Genoa si prendeva lo
+    stipendio di «Josep Martinez» dell'Inter, perche' m-a-r-t-i-n sta dentro
+    «martinez». Un ingaggio sbagliato in rosa costa piu' di uno mancante.
+    """
+    parole = _parole(candidato.nome)
+    if not parole:
+        return False
+    # Il secondo confronto serve a chi ha il cognome staccato: il listone a
+    # volte unisce quel che Capology separa («De Ketelaere»).
+    if not set(cognome) <= set(parole) and "".join(cognome) != "".join(parole):
+        return False
+    if not iniziale:
+        return True
+    resto = [p for p in parole if p not in cognome]
+    return any(p.startswith(iniziale) for p in resto)
+
+
 def abbina(nome: str, club: str, indici: dict) -> Stipendio | None:
     """Trova la riga Capology di un giocatore del listone, o niente.
 
     Il listone scrive il cognome («Barella»), Capology il nome intero
     («Nicolo Barella»): l'uguaglianza secca non basta. Si prova, in ordine:
-    nome identico; contenuto dentro un nome della stessa squadra, se e' uno
-    solo; contenuto in un nome qualsiasi, se e' uno solo in tutta la lega.
-    Un abbinamento ambiguo si scarta: un ingaggio sbagliato in rosa costa piu'
-    di un ingaggio mancante, che almeno si vede.
+    nome identico; compatibile per parole intere dentro la stessa squadra;
+    compatibile in tutta la lega, ma solo se e' uno solo.
+
+    Un abbinamento ambiguo si scarta di proposito. Meglio uno stipendio che
+    manca, e si vede nel rapporto, di uno sbagliato che entra in rosa zitto.
     """
     chiave = normalizza_nome_giocatore(nome)
     if not chiave:
@@ -791,21 +869,24 @@ def abbina(nome: str, club: str, indici: dict) -> Stipendio | None:
     if esatti:
         return esatti[0]
 
+    cognome, iniziale = scomponi_nome_listone(nome)
+    if not cognome:
+        return None
+
     compagni = indici["per_club"].get(normalizza_club(club), [])
-    candidati = [s for s in compagni if chiave in normalizza_nome_giocatore(s.nome)]
+    candidati = [s for s in compagni if _compatibile(s, cognome, iniziale)]
     if len(candidati) == 1:
         return candidati[0]
+    if candidati:
+        return None  # due compagni di squadra plausibili: non si indovina
 
-    if len(chiave) >= 5:
-        ovunque = [
-            s
-            for lista in indici["per_nome"].values()
-            for s in lista
-            if chiave in normalizza_nome_giocatore(s.nome)
-        ]
-        if len(ovunque) == 1:
-            return ovunque[0]
-    return None
+    ovunque = [
+        s
+        for lista in indici["per_nome"].values()
+        for s in lista
+        if _compatibile(s, cognome, iniziale)
+    ]
+    return ovunque[0] if len(ovunque) == 1 else None
 
 
 def completa_ingaggi(
@@ -999,7 +1080,7 @@ def aggiorna_da_file(
     letti: list[Stipendio] = []
     if stipendi_csv:
         try:
-            letti = leggi_stipendi_csv(stipendi_csv)
+            letti = leggi_stipendi_incollati(stipendi_csv)
         except FonteNonRaggiungibile as errore:
             esito.fonti.append(
                 StatoFonte("Stipendi (file caricato)", "", False, str(errore))
@@ -1068,6 +1149,37 @@ def a_csv(righe: Iterable[RigaListone]) -> str:
                 f"{riga.ingaggio:.0f}",
                 riga.nazionalita,
                 riga.data_nascita.isoformat() if riga.data_nascita else "",
+            ]
+        )
+    return buffer.getvalue()
+
+
+def a_csv_da_completare(righe: Iterable[RigaListone]) -> str:
+    """Il listone nel formato che il sito rilegge, con i buchi da riempire.
+
+    Serve a chi ha il listone ufficiale ma non gli stipendi: si scarica questo,
+    si riempiono a mano le tre colonne che mancano — stipendio lordo, data di
+    nascita, nazionalita' — e lo si ricarica. Le colonne gia' note (id, nome,
+    squadra, ruoli) restano dove sono, cosi' non si sbaglia l'abbinamento.
+    """
+    import csv
+    import io
+
+    buffer = io.StringIO()
+    scrittore = csv.writer(buffer, delimiter=";", lineterminator="\n")
+    scrittore.writerow(COLONNE_LISTONE_CSV)
+    for riga in righe:
+        scrittore.writerow(
+            [
+                riga.id_ufficiale,
+                riga.nome,
+                "",  # cognome: il listone tiene nome e cognome in un campo solo
+                riga.club,
+                riga.ruolo_classic,
+                "/".join(riga.ruoli),
+                riga.data_nascita.strftime("%d/%m/%Y") if riga.data_nascita else "",
+                riga.nazionalita,
+                f"{riga.ingaggio:.0f}" if riga.ingaggio else "",
             ]
         )
     return buffer.getvalue()

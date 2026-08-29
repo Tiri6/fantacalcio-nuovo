@@ -235,6 +235,44 @@ class TestAbbinamento:
         indici = self.indici(Stipendio("Paulo Dybala", "Roma", 6_000_000))
         assert abbina("Vlahovic", "Juventus", indici) is None
 
+    def test_un_cognome_piu_corto_non_ruba_lo_stipendio(self):
+        # Caso vero, trovato sul listone 2026/27: «Martin» del Genoa si
+        # prendeva lo stipendio di «Josep Martinez» dell'Inter, perche'
+        # m-a-r-t-i-n sta dentro «martinez». Il confronto e' per parole
+        # intere proprio per questo.
+        indici = self.indici(Stipendio("Josep Martinez", "Inter", 2_000_000))
+        assert abbina("Martin", "Genoa", indici) is None
+        assert abbina("Martin", "Inter", indici) is None
+
+    def test_l_iniziale_abbreviata_distingue_gli_omonimi(self):
+        # Il listone scrive «Martinez Jo.» e «Martinez L.» per Josep e Lautaro.
+        indici = self.indici(
+            Stipendio("Josep Martinez", "Inter", 2_000_000),
+            Stipendio("Lautaro Martinez", "Inter", 11_000_000),
+        )
+        primo = abbina("Martinez Jo.", "Inter", indici)
+        secondo = abbina("Martinez L.", "Inter", indici)
+        assert primo is not None and primo.lordo_annuo == 2_000_000
+        assert secondo is not None and secondo.lordo_annuo == 11_000_000
+
+    def test_senza_iniziale_due_omonimi_restano_ambigui(self):
+        indici = self.indici(
+            Stipendio("Josep Martinez", "Inter", 2_000_000),
+            Stipendio("Lautaro Martinez", "Inter", 11_000_000),
+        )
+        assert abbina("Martinez", "Inter", indici) is None
+
+    def test_il_cognome_staccato_o_attaccato_e_lo_stesso(self):
+        indici = self.indici(Stipendio("Charles De Ketelaere", "Atalanta", 4_000_000))
+        assert abbina("De Ketelaere", "Atalanta", indici) is not None
+
+    def test_scomposizione_del_nome_del_listone(self):
+        from fantacalcio.fonti_web import scomponi_nome_listone
+
+        assert scomponi_nome_listone("Martinez Jo.") == (("martinez",), "jo")
+        assert scomponi_nome_listone("Barella") == (("barella",), "")
+        assert scomponi_nome_listone("De Ketelaere") == (("de", "ketelaere"), "")
+
 
 class TestConsolidamento:
     def test_mette_insieme_listone_e_stipendi(self):
@@ -750,3 +788,86 @@ class TestConteggioNuovi:
         )
         assert conteggio["totali"] == 6
         assert conteggio["nuovi"] == 1
+
+
+class TestTabellaIncollata:
+    """Capology non esporta: si copia la tabella e si incolla. Deve bastare."""
+
+    def test_colonne_separate_da_tabulazione(self):
+        from fantacalcio.fonti_web import leggi_stipendi_incollati
+
+        incollato = (
+            "Giocatore\tSquadra\tLordo annuale\tNazionalita\n"
+            "Paulo Dybala\tRoma\t€ 6.000.000\tArgentina\n"
+            "Nicolo Barella\tInter\t€ 9.000.000\tItalia\n"
+        )
+        stipendi = leggi_stipendi_incollati(incollato)
+        assert [s.nome for s in stipendi] == ["Paulo Dybala", "Nicolo Barella"]
+        assert stipendi[0].lordo_annuo == 6_000_000
+        assert stipendi[1].club == "Inter"
+
+    def test_html_della_tabella(self):
+        from fantacalcio.fonti_web import leggi_stipendi_incollati
+
+        incollato = (
+            "<table><tr><th>Player</th><th>Gross</th></tr>"
+            "<tr><td>Mile Svilar</td><td>3000000</td></tr></table>"
+        )
+        stipendi = leggi_stipendi_incollati(incollato)
+        assert stipendi[0].nome == "Mile Svilar"
+        assert stipendi[0].lordo_annuo == 3_000_000
+
+    def test_il_csv_di_un_foglio_di_calcolo(self):
+        from fantacalcio.fonti_web import leggi_stipendi_incollati
+
+        stipendi = leggi_stipendi_incollati("giocatore;lordo\nSvilar;3000000\n")
+        assert stipendi[0].lordo_annuo == 3_000_000
+
+    def test_html_rotto_ripiega_sul_testo(self):
+        from fantacalcio.fonti_web import leggi_stipendi_incollati
+
+        # C'e' un <tr> ma la tabella non e' leggibile: si prova come testo,
+        # e li' l'intestazione e' quella giusta.
+        incollato = "<tr></tr>\ngiocatore;lordo\nSvilar;3000000\n"
+        stipendi = leggi_stipendi_incollati("giocatore;lordo\nSvilar;3000000\n")
+        assert stipendi[0].nome == "Svilar"
+        # Con la riga di troppo in testa non si indovina: si dice cosa si e'
+        # letto, invece di scoppiare mentre si spiega l'errore.
+        with pytest.raises(FonteNonRaggiungibile, match="Intestazioni lette"):
+            leggi_stipendi_incollati(incollato)
+
+
+class TestListoneVeroDiSerieA:
+    """Il file vero di Fantacalcio.it, non uno costruito su misura."""
+
+    def listone(self):
+        from pathlib import Path
+
+        percorso = Path(__file__).parent / "dati" / "listone_2026_27.xlsx"
+        if not percorso.exists():
+            pytest.skip("il listone vero non e' nel repository")
+        return percorso.read_bytes()
+
+    def test_si_legge_per_intero(self):
+        from fantacalcio.fonti_web import aggiorna_da_file
+
+        esito = aggiorna_da_file(self.listone())
+        assert esito.riuscito
+        assert len(esito.righe) > 400
+        assert len({r.club for r in esito.righe}) == 20
+        assert all(r.ruoli for r in esito.righe)
+        assert all(r.ruolo_classic in ("P", "D", "C", "A") for r in esito.righe)
+
+    def test_il_file_da_completare_ritorna_indietro_uguale(self):
+        from fantacalcio.fonti_web import (
+            a_csv_da_completare,
+            aggiorna_da_file,
+            leggi_listone_csv,
+        )
+
+        righe = aggiorna_da_file(self.listone()).righe
+        tornate = leggi_listone_csv(a_csv_da_completare(righe))
+        assert len(tornate) == len(righe)
+        assert [r.id_ufficiale for r in tornate] == [r.id_ufficiale for r in righe]
+        assert [r.ruoli for r in tornate] == [r.ruoli for r in righe]
+        assert [r.ruolo_classic for r in tornate] == [r.ruolo_classic for r in righe]

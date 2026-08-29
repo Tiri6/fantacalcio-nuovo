@@ -722,6 +722,35 @@ def listone() -> pd.DataFrame:
     return _listone(versione_dati())
 
 
+def listone_da_completare() -> str:
+    """Il catalogo nel formato che il sito rilegge, con i buchi da riempire.
+
+    Si scarica, si riempiono a mano stipendio, data di nascita e nazionalita',
+    e si ricarica dalla stessa pagina. Gli id restano quelli, quindi le rose
+    non si scollegano.
+    """
+    from .data import carica_giocatori
+    from .fonti_web import RigaListone, a_csv_da_completare
+
+    return a_csv_da_completare(
+        RigaListone(
+            id_ufficiale=g.id_ufficiale or g.id,
+            nome=g.nome,
+            club=g.club,
+            ruoli=g.ruoli,
+            ruolo_classic=g.ruolo_classic,
+            quotazione=g.quotazione,
+            fvm=g.fvm,
+            ingaggio=g.ingaggio,
+            nazionalita=g.nazionalita
+            if g.nazionalita != "Italia" or g.data_nascita
+            else "",
+            data_nascita=g.data_nascita,
+        )
+        for g in sorted(carica_giocatori(dati()).values(), key=lambda g: g.nome)
+    )
+
+
 def ingaggi_noti() -> dict[int, float]:
     """Ingaggio per id ufficiale, per non azzerarli quando la fonte tace."""
     from .data import carica_giocatori
