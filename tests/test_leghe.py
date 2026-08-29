@@ -375,3 +375,28 @@ class TestAnniContratto:
     def test_sopravvive_al_json(self):
         originali = OpzioniLega(anni_contratto_massimi=3)
         assert OpzioniLega.da_json(originali.a_json()).anni_contratto_massimi == 3
+
+
+class TestOpzioniDraft:
+    """L'ordine di chiamata vive nelle opzioni: niente tabella nuova."""
+
+    def test_sopravvive_al_giro_in_json(self):
+        opzioni = OpzioniLega(ordine_draft=(3, 1, 2), draft_serpente=False)
+        tornate = OpzioniLega.da_json(opzioni.a_json())
+        assert tornate.ordine_draft == (3, 1, 2)
+        assert tornate.draft_serpente is False
+
+    def test_il_valore_di_partenza_e_nessun_ordine_a_serpente(self):
+        opzioni = OpzioniLega()
+        assert opzioni.ordine_draft == ()
+        assert opzioni.draft_serpente is True
+
+    def test_un_json_vecchio_senza_i_campi_si_legge_lo_stesso(self):
+        # Le leghe create prima di questa funzione non hanno le due chiavi.
+        tornate = OpzioniLega.da_json('{"partecipanti": 10}')
+        assert tornate.ordine_draft == ()
+        assert tornate.partecipanti == 10
+
+    def test_un_ordine_scritto_male_non_fa_saltare_la_lega(self):
+        tornate = OpzioniLega.da_json('{"ordine_draft": ["a", "b"]}')
+        assert tornate.ordine_draft == ()

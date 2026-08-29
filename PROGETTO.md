@@ -156,7 +156,7 @@ Bacheca · Cruscotto · Campionato · *Coppa Italia* · *Supercoppa* · Calendar
 Albo d'oro · Regolamento
 
 **Squadre e giocatori**
-Squadre · Lista giocatori · Identita' squadre
+Squadre · Lista giocatori · Listone giocatori · Identita' squadre
 
 **Mercato**
 Draft · *Assegnazioni* · Scambi · Componi scambio
@@ -221,9 +221,51 @@ I tre lodi sui prolungamenti:
 Il limite di scambi a stagione conta solo i **ratificati**: una proposta in
 attesa o rifiutata non ha spostato nessuno.
 
+### Listone e fonti dei dati
+
+Il catalogo dei giocatori nasce da due fonti pubbliche, messe insieme in una
+lista sola dalla pagina **Listone giocatori**:
+
+| Cosa | Da dove | Indirizzo |
+|---|---|---|
+| Nomi, squadre di Serie A, ruoli Mantra, quotazioni e FVM | Listone ufficiale di Fantacalcio.it (`.xlsx`) | `content.fantacalcio.it/statico/quotazioni/Quotazioni_Fantacalcio_Stagione_<stagione>.xlsx` |
+| Stipendi lordi annui, nazionalita', data di nascita | Capology (art. 4) | `capology.com/it/serie-a/salaries/<annata>/` |
+
+Il pulsante **Aggiorna listone** le scarica tutte e due, abbina i giocatori e
+riscrive il catalogo. Le rose non si toccano: i contratti puntano all'id
+interno, che non cambia mai.
+
+Due scelte che contano:
+
+- **una fonte giu' non ferma l'altra.** Se Capology non risponde, nomi e ruoli
+  si aggiornano lo stesso e gli ingaggi restano quelli che c'erano — non
+  vanno a zero;
+- **un abbinamento ambiguo si scarta.** Il listone scrive «Barella», Capology
+  «Nicolo Barella»: si abbina per contenimento, ma solo se il candidato e'
+  uno. Due omonimi nella stessa squadra restano senza stipendio, e si vede.
+  Un ingaggio sbagliato in rosa costa piu' di un ingaggio mancante.
+
+Le stesse cose si fanno da riga di comando con
+`python scripts/aggiorna_listone.py --prova`, utile quando il server del sito
+non ha rete verso quei domini.
+
 ### Draft (art. 3)
 Draft Lottery a due fasce, ordine di chiamata con la deroga dei round multipli
 di 3, probabilita' delle pick stimate per simulazione.
+
+Accanto alla Lottery, che decide *chi chiama per primo*, c'e' il **tabellone
+delle chiamate**, che e' quel che si usa mentre il draft si fa:
+
+- le squadre si mettono in fila una volta e l'ordine resta (sta nelle opzioni
+  della lega, non in una tabella nuova: nessuna migrazione da far girare);
+- l'andamento e' **a serpente** — i round pari al contrario — oppure **in
+  ordine**, con ogni round che riparte dal primo;
+- il progressivo della chiamata si deduce da quanti contratti esistono, quindi
+  al primo draft e' sempre giusto, e resta correggibile a mano;
+- si sceglie il giocatore da un menu (solo gli svincolati), si mettono gli anni
+  di contratto e si assegna: monte ingaggi, spazio cap e monte anni si
+  aggiornano subito, per tutte e dieci le squadre;
+- l'ultima chiamata si annulla con un pulsante.
 
 ---
 
@@ -234,7 +276,7 @@ app.py            i quattro cancelli e la navigazione
 fantacalcio/      la logica: non importa Streamlit (tranne ui e schermate)
 viste/            una pagina per file, eseguite da st.navigation
 db/schema.sql     lo schema Postgres, rieseguibile
-tests/            542 test, sotto i dieci secondi
+tests/            734 test, una trentina di secondi
 ```
 
 ### Le regole che tengono in piedi il progetto
@@ -280,17 +322,17 @@ tests/            542 test, sotto i dieci secondi
 
 In ordine di utilita'.
 
-1. **Assegnazioni, contratti e ingaggi veri.** Il listone e' caricato ma non
-   dice chi appartiene a chi. Finche' mancano, Salary Cap e Floor sono a zero.
-2. **Date di nascita e nazionalita'** dei giocatori: senza, lo status Under 21
-   non si determina.
-3. **I vincoli sono dichiarati ma non applicati.** Minimo italiani, minimo
+1. **La prova sul campo delle due fonti.** Il pulsante «Aggiorna listone» e'
+   scritto e provato contro pagine finte, ma finche' non gira su una macchina
+   con la rete aperta non si sa se Fantacalcio.it e Capology rispondono
+   davvero in quel formato. Se non lo fanno, la pagina lo dice e il
+   caricamento manuale resta.
+2. **I vincoli sono dichiarati ma non applicati.** Minimo italiani, minimo
    Under 21 e limite scambi si vedono ma nessuno impedisce di violarli.
-4. **Risultati di coppa e supercoppa** non si importano separatamente.
-5. **Svincoli registrati**: il Dead Money si calcola ma non si scrive.
-6. **Dati anagrafici non modificabili** dopo l'iscrizione (quelli della squadra si modificano dalla pagina Squadre).
-7. **Registro dei lodi**: la tabella c'e', manca la pagina.
-8. **Tabellone del draft** da proiettare durante l'asta.
+3. **Risultati di coppa e supercoppa** non si importano separatamente.
+4. **Svincoli registrati**: il Dead Money si calcola ma non si scrive.
+5. **Dati anagrafici non modificabili** dopo l'iscrizione (quelli della squadra si modificano dalla pagina Squadre).
+6. **Registro dei lodi**: la tabella c'e', manca la pagina.
 
 ---
 

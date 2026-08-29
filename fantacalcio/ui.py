@@ -667,6 +667,57 @@ def giocatori_con_proprietario() -> pd.DataFrame:
     return _giocatori_con_proprietario(versione_dati())
 
 
+@st.cache_data(ttl=TTL)
+def _listone(versione: int) -> pd.DataFrame:
+    """Il listone cosi' com'e' in archivio: anagrafica, quotazioni, ingaggi.
+
+    Diverso da `giocatori_con_proprietario`, che ci aggiunge chi li possiede:
+    qui c'e' la fonte, con l'id interno in prima colonna perche' il draft
+    assegna per id e non per nome.
+    """
+    from .data import carica_giocatori
+
+    giocatori = carica_giocatori(dati())
+    if not giocatori:
+        return pd.DataFrame()
+
+    riferimento = data_u21()
+    par = parametri()
+    righe = [
+        {
+            "Id": g.id,
+            "Giocatore": g.nome,
+            "Club": g.club,
+            "Ruoli": "/".join(g.ruoli),
+            "Quotazione": g.quotazione,
+            "FVM": g.fvm,
+            "Ingaggio": g.ingaggio,
+            "Nazionalita": g.nazionalita,
+            "Nato": g.data_nascita.strftime("%d/%m/%Y") if g.data_nascita else "",
+            "Eta": g.eta_al(riferimento) or 0,
+            "Ita": g.italiano,
+            "U21": g.under_21(riferimento, par),
+        }
+        for g in giocatori.values()
+    ]
+    return pd.DataFrame(righe).sort_values("Giocatore").reset_index(drop=True)
+
+
+def listone() -> pd.DataFrame:
+    return _listone(versione_dati())
+
+
+def ingaggi_noti() -> dict[int, float]:
+    """Ingaggio per id ufficiale, per non azzerarli quando la fonte tace."""
+    from .data import carica_giocatori
+
+    return {
+        g.id_ufficiale: g.ingaggio
+        for g in carica_giocatori(dati()).values()
+        if g.id_ufficiale is not None and g.ingaggio
+    }
+
+
 def nomi_squadre() -> dict[int, str]:
     return {id_: rosa.squadra.nome for id_, rosa in rose().items()}
 

@@ -254,6 +254,12 @@ class OpzioniLega:
     # Quanti scambi puo' fare una squadra in una stagione. 0 = illimitati.
     scambi_per_stagione: int = 0
 
+    # Draft: l'ordine di chiamata (id delle squadre, dal primo a chiamare) e
+    # l'andamento dei round. Vivono qui, e non in una tabella loro, per non
+    # chiedere una migrazione del database a chi il sito ce l'ha gia' su.
+    ordine_draft: tuple[int, ...] = ()
+    draft_serpente: bool = True
+
     # Formazione
     moduli_ammessi: tuple[str, ...] = MODULI_MANTRA
     panchinari: int = 12
@@ -430,6 +436,7 @@ def _serializza(opzioni: OpzioniLega) -> dict:
     dati["formato"] = opzioni.formato.name
     dati["tipo_asta"] = opzioni.tipo_asta.name
     dati["moduli_ammessi"] = list(opzioni.moduli_ammessi)
+    dati["ordine_draft"] = list(opzioni.ordine_draft)
     dati["regole_coppa"] = {
         **asdict(opzioni.regole_coppa),
         "formato": opzioni.regole_coppa.formato.name,
@@ -482,6 +489,12 @@ def _deserializza(grezzo: dict) -> dict:
 
     if "moduli_ammessi" in valori:
         valori["moduli_ammessi"] = tuple(valori["moduli_ammessi"])
+
+    if "ordine_draft" in valori:
+        try:
+            valori["ordine_draft"] = tuple(int(x) for x in valori["ordine_draft"])
+        except (TypeError, ValueError):
+            valori.pop("ordine_draft")
 
     if "bonus" in valori:
         grezzo_bonus = valori["bonus"]

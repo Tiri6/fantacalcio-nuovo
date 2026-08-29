@@ -778,6 +778,52 @@ def salva_annuncio(arch: Archivio, annuncio: Annuncio) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Contratti, uno alla volta
+# ---------------------------------------------------------------------------
+#
+# L'importazione delle rose riscrive tutto in blocco: va bene a fine asta, non
+# durante. Al draft si assegna un giocatore per volta, e serve poterlo anche
+# disfare subito dopo averlo sbagliato.
+
+
+def assegna_contratto(
+    arch: Archivio, giocatore_id: int, squadra_id: int, anni_residui: int
+) -> None:
+    """Mette un giocatore in una rosa. Se un contratto c'era, lo sostituisce.
+
+    `giocatore_id` e' la chiave primaria della tabella: nessuno puo' avere due
+    contratti insieme, e l'assegnazione a una squadra nuova e' un aggiornamento
+    invece di un doppione.
+    """
+    arch.scrivi(
+        "contratti",
+        [
+            {
+                "giocatore_id": int(giocatore_id),
+                "squadra_id": int(squadra_id),
+                "anni_residui": int(anni_residui),
+                "prolungato": False,
+                "stagione_prolungamento": None,
+            }
+        ],
+        chiave="giocatore_id",
+    )
+
+
+def svincola_giocatore(arch: Archivio, giocatore_id: int) -> None:
+    """Toglie il contratto: il giocatore torna svincolato e richiamabile."""
+    if isinstance(arch, ArchivioSQLite):
+        with sqlite3.connect(arch.percorso) as conn:
+            conn.execute(
+                "delete from contratti where giocatore_id = ?", (int(giocatore_id),)
+            )
+        return
+    arch._client.table("contratti").delete().eq(
+        "giocatore_id", int(giocatore_id)
+    ).execute()
+
+
 def elimina_annuncio(arch: Archivio, annuncio_id: int) -> None:
     """Cancella un annuncio. Il backend demo e Supabase cancellano diversamente."""
     if isinstance(arch, ArchivioSQLite):

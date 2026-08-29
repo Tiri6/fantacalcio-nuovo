@@ -96,6 +96,9 @@ sezione_lega += [
 sezione_squadre = [
     st.Page("viste/squadre.py", title="Squadre", icon="🛡️"),
     st.Page("viste/giocatori.py", title="Lista giocatori", icon="👥"),
+    # Il listone e' la fonte: chi possiede chi si guarda in «Lista giocatori»,
+    # da dove arrivano i dati e come si aggiornano si guarda qui.
+    st.Page("viste/listone.py", title="Listone giocatori", icon="📋"),
     st.Page("viste/identita.py", title="Identita' squadre", icon="🎨"),
 ]
 

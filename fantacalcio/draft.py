@@ -148,3 +148,74 @@ def distribuzione_pick(
         squadra: {pick: conteggio / simulazioni for pick, conteggio in sorted(c.items())}
         for squadra, c in conteggi.items()
     }
+
+
+# ---------------------------------------------------------------------------
+# Il tabellone delle chiamate
+# ---------------------------------------------------------------------------
+#
+# Sopra c'e' la Lottery dell'articolo 3, che decide *chi chiama per primo*.
+# Qui sotto c'e' la cosa piu' semplice e piu' usata: dato un ordine, di chi e'
+# il turno alla chiamata numero N. Serpente o ordine fisso: la differenza sta
+# tutta nel fatto che i round pari si leggano al contrario.
+
+
+@dataclass(frozen=True)
+class Chiamata:
+    """Una singola chiamata del draft."""
+
+    numero: int  # progressivo assoluto, dalla prima chiamata del draft
+    round: int
+    posizione: int  # posizione dentro il round, da 1
+    squadra: str
+
+    @property
+    def etichetta(self) -> str:
+        return f"Round {self.round} · pick {self.posizione}"
+
+
+def chiamata_numero(
+    ordine: Sequence[str], numero: int, serpente: bool = True
+) -> Chiamata:
+    """Chi chiama alla chiamata `numero` (dalla 1), senza costruire il tabellone.
+
+    Con `serpente` i round pari vanno al contrario: l'ultima squadra del round
+    dispari chiama due volte di fila, che e' esattamente il compenso per aver
+    aspettato tutti gli altri.
+    """
+    squadre = list(ordine)
+    if not squadre:
+        raise ValueError("Serve l'ordine di chiamata di almeno una squadra")
+    if numero < 1:
+        raise ValueError(f"Le chiamate partono da 1, ricevuto {numero}")
+
+    quante = len(squadre)
+    round_ = (numero - 1) // quante + 1
+    posizione = (numero - 1) % quante + 1
+    indice = quante - posizione if (serpente and round_ % 2 == 0) else posizione - 1
+    return Chiamata(
+        numero=numero, round=round_, posizione=posizione, squadra=squadre[indice]
+    )
+
+
+def turni_di_chiamata(
+    ordine: Sequence[str], round_totali: int, serpente: bool = True
+) -> list[Chiamata]:
+    """Tutte le chiamate di `round_totali` round, in fila."""
+    if round_totali < 1:
+        raise ValueError(f"Servono almeno un round, ricevuti {round_totali}")
+    return [
+        chiamata_numero(ordine, numero, serpente)
+        for numero in range(1, len(ordine) * round_totali + 1)
+    ]
+
+
+def griglia_chiamate(
+    ordine: Sequence[str], round_totali: int, serpente: bool = True
+) -> list[tuple[int, tuple[str, ...]]]:
+    """Il tabellone round per round, pronto da mostrare."""
+    chiamate = turni_di_chiamata(ordine, round_totali, serpente)
+    per_round: dict[int, list[str]] = {}
+    for chiamata in chiamate:
+        per_round.setdefault(chiamata.round, []).append(chiamata.squadra)
+    return [(numero, tuple(squadre)) for numero, squadre in sorted(per_round.items())]
