@@ -398,3 +398,102 @@ def test_il_ruolo_editor_scrive_in_bacheca_ma_non_importa():
 
     normale = Utente(id=6, nome_utente="lu", nome="Lu", ruolo=Ruolo.FANTALLENATORE)
     assert not puo_pubblicare(normale, lega)
+
+
+class TestCancellazioni:
+    """Togliere giocatori dal listone, e i contratti che li nominano."""
+
+    def archivio(self, tmp_path):
+        from fantacalcio.data import ArchivioSQLite
+
+        arch = ArchivioSQLite(tmp_path / "cancella.db")
+        arch.svuota("contratti")
+        arch.svuota("giocatori")
+        arch.scrivi(
+            "giocatori",
+            [
+                {
+                    "id": i,
+                    "id_ufficiale": 1000 + i,
+                    "nome": f"Tale {i}",
+                    "club": "Roma",
+                    "ruoli": "A",
+                    "ruolo_classic": "A",
+                    "ingaggio": 1_000_000,
+                    "nazionalita": "Italia",
+                    "data_nascita": None,
+                    "quotazione": 10,
+                    "fvm": 20,
+                }
+                for i in (1, 2, 3)
+            ],
+            chiave="id",
+        )
+        arch.scrivi(
+            "contratti",
+            [
+                {
+                    "giocatore_id": 1,
+                    "squadra_id": 7,
+                    "anni_residui": 2,
+                    "prolungato": False,
+                    "stagione_prolungamento": None,
+                }
+            ],
+            chiave="giocatore_id",
+        )
+        return arch
+
+    def test_elimina_giocatori_porta_via_anche_i_contratti(self, tmp_path):
+        from fantacalcio.data import elimina_giocatori
+
+        arch = self.archivio(tmp_path)
+        assert elimina_giocatori(arch, [1]) == 1
+        assert sorted(arch.giocatori()["id"]) == [2, 3]
+        # Il contratto non resta appeso a un giocatore che non c'e' piu'.
+        assert arch.contratti().empty
+
+    def test_eliminare_niente_non_fa_niente(self, tmp_path):
+        from fantacalcio.data import elimina_giocatori
+
+        arch = self.archivio(tmp_path)
+        assert elimina_giocatori(arch, []) == 0
+        assert len(arch.giocatori()) == 3
+
+    def test_svuota_listone_dice_quanto_ha_cancellato(self, tmp_path):
+        from fantacalcio.data import svuota_listone
+
+        arch = self.archivio(tmp_path)
+        assert svuota_listone(arch) == {"giocatori": 3, "contratti": 1}
+        assert arch.giocatori().empty
+        assert arch.contratti().empty
+
+    def test_su_supabase_i_contratti_si_svuotano_sulla_loro_chiave(self):
+        # `contratti` non ha la colonna `id`: filtrare su quella fallirebbe.
+        from fantacalcio.data import ArchivioSupabase
+
+        chiamate = []
+
+        class FintaTabella:
+            def __init__(self, nome):
+                self.nome = nome
+
+            def delete(self):
+                return self
+
+            def neq(self, colonna, valore):
+                chiamate.append((self.nome, colonna))
+                return self
+
+            def execute(self):
+                return None
+
+        class FintoClient:
+            def table(self, nome):
+                return FintaTabella(nome)
+
+        arch = ArchivioSupabase.__new__(ArchivioSupabase)
+        arch._client = FintoClient()
+        arch.svuota("contratti")
+        arch.svuota("giocatori")
+        assert chiamate == [("contratti", "giocatore_id"), ("giocatori", "id")]

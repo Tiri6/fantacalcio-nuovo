@@ -1245,8 +1245,20 @@ def a_righe_archivio(righe: Iterable[RigaListone], esistenti) -> list[dict]:
     return fuori
 
 
-def applica(arch, righe: Iterable[RigaListone]) -> dict:
-    """Scrive il listone consolidato in archivio. Torna un conteggio."""
+def applica(arch, righe: Iterable[RigaListone], sostituisci: bool = False) -> dict:
+    """Scrive il listone consolidato in archivio. Torna un conteggio.
+
+    Senza `sostituisci` il file si **unisce** a quel che c'e': chi non compare
+    resta dov'e'. E' il modo giusto per caricare gli stipendi un pezzo alla
+    volta.
+
+    Con `sostituisci` il listone diventa esattamente quello del file: chi non
+    c'e' viene cancellato, **e con lui il suo contratto**. Serve quando il
+    file precedente era sbagliato e lo si vuole buttare, non per un normale
+    aggiornamento.
+    """
+    from .data import elimina_giocatori
+
     righe = list(righe)
     esistenti = arch.giocatori()
     da_scrivere = a_righe_archivio(righe, esistenti)
@@ -1264,8 +1276,16 @@ def applica(arch, righe: Iterable[RigaListone]) -> dict:
     nuovi = sum(1 for r in da_scrivere if int(r["id_ufficiale"]) not in gia_noti)
 
     arch.scrivi("giocatori", da_scrivere, chiave="id")
+
+    rimossi = 0
+    if sostituisci and esistenti is not None and not esistenti.empty:
+        tenuti = {int(r["id"]) for r in da_scrivere}
+        da_togliere = [int(i) for i in esistenti["id"] if int(i) not in tenuti]
+        rimossi = elimina_giocatori(arch, da_togliere)
+
     return {
         "totali": len(da_scrivere),
         "nuovi": nuovi,
+        "rimossi": rimossi,
         "con_stipendio": sum(1 for r in righe if r.ingaggio > 0),
     }

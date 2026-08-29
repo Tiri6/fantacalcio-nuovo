@@ -223,32 +223,33 @@ attesa o rifiutata non ha spostato nessuno.
 
 ### Listone e fonti dei dati
 
-Il catalogo dei giocatori nasce da due fonti pubbliche, messe insieme in una
-lista sola dalla pagina **Listone giocatori**:
+Il catalogo dei giocatori si carica da **un file solo**, dalla pagina
+**Listone giocatori**: un CSV con tutto dentro — id, nome, cognome, squadra di
+Serie A, ruolo Classic, ruolo Mantra, data di nascita, nazionalita', stipendio
+lordo (`fonti_web.COLONNE_LISTONE_CSV`). Lo stesso caricamento accetta anche
+l'`.xlsx` ufficiale di Fantacalcio.it, che pero' contiene solo nomi, squadre,
+ruoli e quotazioni.
 
-| Cosa | Da dove | Indirizzo |
-|---|---|---|
-| Nomi, squadre di Serie A, ruoli Mantra, quotazioni e FVM | Listone ufficiale di Fantacalcio.it (`.xlsx`) | `content.fantacalcio.it/statico/quotazioni/Quotazioni_Fantacalcio_Stagione_<stagione>.xlsx` |
-| Stipendi lordi annui, nazionalita', data di nascita | Capology (art. 4) | `capology.com/it/serie-a/salaries/<annata>/` |
+Tre pulsanti e una scelta:
 
-Il pulsante **Aggiorna listone** le scarica tutte e due, abbina i giocatori e
-riscrive il catalogo. Le rose non si toccano: i contratti puntano all'id
-interno, che non cambia mai.
+- **Consolida e carica**, con «Aggiorna» (unisce: chi non e' nel file resta
+  dov'e') oppure «Sostituisci il listone» (chi non e' nel file viene
+  cancellato, e con lui il suo contratto);
+- **Scarica da completare**, che esporta il catalogo nel formato che il sito
+  rilegge, con vuote le colonne da riempire: si compila in Excel e si
+  ricarica. Gli id non cambiano, quindi le rose non si scollegano;
+- **Cancella tutto il listone**, dietro una conferma scritta a mano.
 
-**Il 403 di Fantacalcio.it.** Quei file stanno dietro a un CDN che difende gli
-statici: a una richiesta fatta da un server, e non da un browser, puo'
-rispondere 403 Forbidden anche se il file e' pubblico. Il sito ci prova
-presentandosi come un browser — User-Agent, lingua, e la pagina delle
-quotazioni come `Referer` — ma se il filtro guarda l'indirizzo IP di chi
-chiama non c'e' altro da fare dal nostro lato. Per questo l'aggiornamento ha
-**tre vie**, e la terza non puo' fallire:
-
-1. il pulsante, che scarica da solo;
-2. gli **indirizzi alternativi**, per puntare altrove senza toccare il codice;
-3. i **file scaricati a mano** dal browser — l'`.xlsx` ufficiale, oppure un
-   unico CSV con tutto dentro (`fonti_web.COLONNE_LISTONE_CSV`: id, nome,
-   cognome, squadra, ruolo Classic, ruolo Mantra, data di nascita,
-   nazionalita', stipendio lordo).
+**Perche' non si scarica da solo.** C'e' stata una versione che andava a
+prendere il listone da `content.fantacalcio.it` e gli stipendi da Capology.
+Quei file stanno dietro a un CDN che difende gli statici e risponde **403
+Forbidden** a una richiesta fatta da un server, anche se il file e' pubblico:
+presentarsi come un browser — User-Agent, lingua, `Referer` — non e' bastato,
+e se il filtro guarda l'indirizzo IP di chi chiama non c'e' niente da fare dal
+nostro lato. Dall'interfaccia quella strada e' stata tolta: restava un
+pulsante che falliva sempre. Il codice che la fa (`fonti_web.aggiorna_da_web`)
+e' ancora li' e si usa da riga di comando con `scripts/aggiorna_listone.py`,
+da una macchina che quei domini li raggiunge.
 
 **Il ruolo Classic sta in archivio, non si calcola.** Un esterno «E» in Mantra
 puo' essere difensore o centrocampista in Classic, e a deciderlo e' il
@@ -266,9 +267,8 @@ Due scelte che contano:
   uno. Due omonimi nella stessa squadra restano senza stipendio, e si vede.
   Un ingaggio sbagliato in rosa costa piu' di un ingaggio mancante.
 
-Le stesse cose si fanno da riga di comando con
-`python scripts/aggiorna_listone.py --prova`, utile quando il server del sito
-non ha rete verso quei domini.
+Su Capology non c'e' l'esportazione: la sua tabella si copia dal browser e si
+incolla in un foglio di calcolo, da cui esce il CSV da caricare.
 
 ### Draft (art. 3)
 Draft Lottery a due fasce, ordine di chiamata con la deroga dei round multipli
@@ -343,11 +343,10 @@ tests/            734 test, una trentina di secondi
 
 In ordine di utilita'.
 
-1. **La prova sul campo delle due fonti.** Il pulsante «Aggiorna listone» e'
-   scritto e provato contro pagine finte, ma finche' non gira su una macchina
-   con la rete aperta non si sa se Fantacalcio.it e Capology rispondono
-   davvero in quel formato. Se non lo fanno, la pagina lo dice e il
-   caricamento manuale resta.
+1. **Gli stipendi, le date di nascita e le nazionalita' vere.** Il listone
+   ufficiale non le contiene e Capology non si lascia leggere da un server:
+   vanno raccolte a mano e caricate col CSV. Finche' mancano, Salary Cap,
+   minimo italiani e Under 21 non hanno numeri su cui lavorare.
 2. **I vincoli sono dichiarati ma non applicati.** Minimo italiani, minimo
    Under 21 e limite scambi si vedono ma nessuno impedisce di violarli.
 3. **Risultati di coppa e supercoppa** non si importano separatamente.

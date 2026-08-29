@@ -30,22 +30,25 @@ ui.intestazione(
 
 giocatori = ui.listone()
 
-# --- l'aggiornamento --------------------------------------------------------
+# --- caricare il listone ----------------------------------------------------
 #
-# Il risultato dell'ultimo aggiornamento resta a schermo finche' non si cambia
-# pagina: dice quante righe sono arrivate da dove, ed e' l'unico modo per
-# accorgersi che una delle due fonti ha cambiato formato.
+# Un solo file, uno solo: il CSV con tutto dentro. C'e' stata una fase con due
+# fonti da scaricare dal web e da mettere insieme, ma quei siti un server non
+# li raggiunge, e due caselle di caricamento per una cosa sola confondevano e
+# basta. Il lettore accetta anche l'.xlsx ufficiale, perche' riconoscerlo
+# costa una riga e ogni tanto serve.
 
 CHIAVE_ESITO = "_listone_esito"
+CHIAVE_CONFERMA = "_listone_conferma_cancella"
 
 
-def _salva(esito) -> None:
-    """Scrive in archivio quel che l'aggiornamento ha prodotto, e lo racconta."""
+def _salva(esito, sostituisci: bool) -> None:
+    """Scrive in archivio quel che il file ha prodotto, e lo racconta."""
     if not esito.riuscito:
         st.session_state[CHIAVE_ESITO] = ("giu", None, esito)
         return
     try:
-        conteggio = fonti_web.applica(archivio(), esito.righe)
+        conteggio = fonti_web.applica(archivio(), esito.righe, sostituisci=sostituisci)
     except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
         st.session_state[CHIAVE_ESITO] = ("errore", str(errore), esito)
         return
@@ -55,208 +58,149 @@ def _salva(esito) -> None:
 
 
 if utente.puo_importare:
-    dal_web, dal_file = st.tabs(["🌐 Dal web", "📁 Dai file scaricati a mano"])
+    st.markdown(
+        tema.scheda(
+            "Come si carica",
+            "Un file solo, con tutto dentro: id, nome, squadra, ruoli, data di "
+            "nascita, nazionalita' e stipendio lordo. Le colonne si "
+            "riconoscono dal nome, in qualsiasi ordine.",
+            icona="📥",
+        ),
+        unsafe_allow_html=True,
+    )
 
-    with dal_web:
-        riga = st.columns([2, 1])
-        with riga[0]:
-            st.markdown(
-                tema.scheda(
-                    "Da dove arriva",
-                    "Il listone ufficiale di Fantacalcio.it per nomi, squadre "
-                    "e ruoli Mantra; Capology per gli stipendi lordi e le "
-                    "nazionalita' (art. 4). Il pulsante scarica le due fonti e "
-                    "le mette insieme.",
-                    icona="🌐",
+    file_listone = st.file_uploader(
+        "Il listone (.csv, oppure l'.xlsx ufficiale di Fantacalcio.it)",
+        type=["csv", "xlsx"],
+        key="_file_listone",
+    )
+
+    modo = st.radio(
+        "Cosa fare con quello che c'e' gia'",
+        options=[False, True],
+        index=0,
+        format_func=lambda sostituisci: (
+            "Sostituisci il listone — chi non e' nel file viene cancellato, "
+            "insieme al suo contratto"
+            if sostituisci
+            else "Aggiorna — unisce al listone esistente, non cancella nessuno"
+        ),
+        key="_listone_modo",
+        disabled=giocatori.empty,
+        help="Al primo caricamento non cambia niente: il listone e' vuoto.",
+    )
+
+    if modo and not giocatori.empty:
+        tesserati = int((giocatori["Squadra"] != ui.SVINCOLATO).sum())
+        st.warning(
+            f"In sostituzione, i giocatori che non compaiono nel file vengono "
+            f"cancellati. Oggi ce ne sono {len(giocatori)} in archivio, di cui "
+            f"{tesserati} sotto contratto: se non sono nel file, perdono anche "
+            f"il contratto.",
+            icon="⚠️",
+        )
+
+    if st.button(
+        "📥 Consolida e carica",
+        type="primary",
+        disabled=file_listone is None,
+        use_container_width=True,
+    ):
+        with st.spinner("Leggo il file e lo metto in archivio…"):
+            _salva(
+                fonti_web.aggiorna_da_file(
+                    file_listone.getvalue(), ingaggi_correnti=ui.ingaggi_noti()
                 ),
-                unsafe_allow_html=True,
-            )
-        with riga[1]:
-            aggiorna = st.button(
-                "🔄 Aggiorna listone",
-                type="primary",
-                use_container_width=True,
-                help="Scarica dal web e riscrive il catalogo. Le rose non si "
-                "toccano: i contratti restano dove sono.",
-            )
-            if st.button("↩︎ Nascondi il rapporto", use_container_width=True):
-                st.session_state.pop(CHIAVE_ESITO, None)
-
-        with st.expander("Indirizzi alternativi"):
-            st.caption(
-                "Se una delle due fonti risponde 403 o cambia posto, qui si "
-                "punta altrove senza aspettare una modifica al codice. "
-                "Vuoti = gli indirizzi soliti."
-            )
-            alt_listone = st.text_input(
-                "Indirizzo del listone (.xlsx)",
-                placeholder=fonti_web.url_quotazioni(stagione),
-                key="_alt_listone",
-            )
-            alt_stipendi = st.text_input(
-                "Indirizzo degli stipendi",
-                placeholder=fonti_web.url_capology(stagione),
-                key="_alt_stipendi",
+                sostituisci=bool(modo),
             )
 
-        if aggiorna:
-            with st.spinner("Scarico il listone e gli stipendi…"):
-                _salva(
-                    fonti_web.aggiorna_da_web(
-                        ingaggi_correnti=ui.ingaggi_noti(),
-                        url_listone=alt_listone,
-                        url_stipendi=alt_stipendi,
-                    )
-                )
+    riga = st.columns([1, 1])
+    riga[0].download_button(
+        "⬇️ Scarica il modello del CSV",
+        fonti_web.MODELLO_CSV_LISTONE.encode("utf-8"),
+        file_name="listone-modello.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+    if riga[1].button("↩︎ Nascondi il rapporto", use_container_width=True):
+        st.session_state.pop(CHIAVE_ESITO, None)
 
-    # Il browser, sulle stesse pagine, entra sempre: ha i cookie e una
-    # provenienza. Un server no, e contro un CDN che lo rifiuta non c'e'
-    # niente da fare dal nostro lato. Questa via non passa dalla rete.
-    with dal_file:
-        st.caption(
-            "Scarica i due file dal tuo browser e caricali qui: e' la via che "
-            "funziona sempre, anche quando il sito viene rifiutato dal CDN."
-        )
-        file_listone = st.file_uploader(
-            "Listone: l'.xlsx ufficiale, oppure un .csv con tutto dentro",
-            type=["xlsx", "csv"],
-            key="_file_listone",
-            help=f"L'xlsx si scarica da {fonti_web.url_quotazioni(stagione)}. "
-            "Il CSV lo prepari tu: le colonne sono elencate qui sotto.",
-        )
-        file_stipendi = st.file_uploader(
-            "Stipendi (.csv, facoltativo)",
-            type=["csv", "txt"],
-            key="_file_stipendi",
-            help="Colonne riconosciute dal nome: giocatore, squadra, lordo, "
-            "nazionalita, nascita. Senza questo file gli ingaggi restano "
-            "quelli che sono gia' in archivio.",
-        )
-
-        # Capology non offre l'esportazione, ma la tabella si seleziona e si
-        # copia: incollata qui arriva separata da tabulazioni, e va bene
-        # uguale. E' la strada piu' corta fra una pagina web e il sito.
-        incollati = st.text_area(
-            "…oppure incolla qui la tabella degli stipendi",
-            height=140,
-            key="_incolla_stipendi",
-            placeholder=(
-                "Seleziona la tabella nel browser, Ctrl+C, e incolla qui.\n"
-                "Giocatore\tSquadra\tLordo annuale\n"
-                "Paulo Dybala\tRoma\t€ 6.000.000"
+    with st.expander("Che colonne deve avere il file"):
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Colonna": "id giocatore",
+                        "Obbligatoria": True,
+                        "Esempio": "2071",
+                        "Nota": "L'id del listone ufficiale. E' quel che tiene "
+                        "insieme le rose: i contratti puntano all'id, non al "
+                        "nome, quindi correggere una grafia non scollega "
+                        "nessuno.",
+                    },
+                    {
+                        "Colonna": "nome giocatore",
+                        "Obbligatoria": True,
+                        "Esempio": "Paulo",
+                        "Nota": "Basta anche solo il cognome.",
+                    },
+                    {
+                        "Colonna": "cognome giocatore",
+                        "Obbligatoria": False,
+                        "Esempio": "Dybala",
+                        "Nota": "Se c'e', viene unito al nome.",
+                    },
+                    {
+                        "Colonna": "squadra di provenienza",
+                        "Obbligatoria": False,
+                        "Esempio": "Roma",
+                        "Nota": "La squadra di Serie A.",
+                    },
+                    {
+                        "Colonna": "ruolo classic",
+                        "Obbligatoria": False,
+                        "Esempio": "A",
+                        "Nota": "P, D, C o A. Non si ricava dal Mantra: un "
+                        "esterno «E» in Classic puo' essere D o C.",
+                    },
+                    {
+                        "Colonna": "ruolo mantra",
+                        "Obbligatoria": True,
+                        "Esempio": "A/Pc",
+                        "Nota": "Piu' ruoli separati da / o da ;",
+                    },
+                    {
+                        "Colonna": "data di nascita",
+                        "Obbligatoria": False,
+                        "Esempio": "15/11/1993",
+                        "Nota": "gg/mm/aaaa o aaaa-mm-gg. Senza, l'Under 21 "
+                        "non si puo' determinare.",
+                    },
+                    {
+                        "Colonna": "nazionalita",
+                        "Obbligatoria": False,
+                        "Esempio": "Argentina",
+                        "Nota": "Serve al minimo italiani in rosa.",
+                    },
+                    {
+                        "Colonna": "stipendio lordo",
+                        "Obbligatoria": False,
+                        "Esempio": "6000000",
+                        "Nota": "In euro, fonte Capology (art. 4). Se la "
+                        "casella e' vuota resta l'ingaggio gia' in archivio, "
+                        "non diventa zero.",
+                    },
+                ]
             ),
-            help="Accetta il copia-incolla da una pagina (colonne separate da "
-            "tabulazione), il CSV di un foglio di calcolo, o l'HTML della "
-            "tabella. La prima riga deve essere l'intestazione.",
-        )
-        modelli = st.columns(2)
-        modelli[0].download_button(
-            "⬇️ Modello del listone in CSV",
-            fonti_web.MODELLO_CSV_LISTONE.encode("utf-8"),
-            file_name="listone.csv",
-            mime="text/csv",
+            hide_index=True,
             use_container_width=True,
+            column_config={"Obbligatoria": st.column_config.CheckboxColumn("Obbl.")},
         )
-        modelli[1].download_button(
-            "⬇️ Modello del file stipendi",
-            fonti_web.MODELLO_CSV_STIPENDI.encode("utf-8"),
-            file_name="stipendi.csv",
-            mime="text/csv",
-            use_container_width=True,
+        st.caption(
+            "L'ordine delle colonne non conta: si riconoscono dal nome. "
+            "Separatore `;` o `,`; gli importi si possono scrivere "
+            "`3.500.000`, `3,5M` o `€ 2.100.000`."
         )
-
-        with st.expander("Che colonne deve avere il CSV del listone"):
-            st.dataframe(
-                pd.DataFrame(
-                    [
-                        {
-                            "Colonna": "id giocatore",
-                            "Obbligatoria": True,
-                            "Esempio": "2071",
-                            "Nota": "L'id del listone ufficiale. E' quel che "
-                            "tiene insieme le rose: i contratti puntano "
-                            "all'id, non al nome.",
-                        },
-                        {
-                            "Colonna": "nome giocatore",
-                            "Obbligatoria": True,
-                            "Esempio": "Paulo",
-                            "Nota": "Basta anche solo il cognome.",
-                        },
-                        {
-                            "Colonna": "cognome giocatore",
-                            "Obbligatoria": False,
-                            "Esempio": "Dybala",
-                            "Nota": "Se c'e', viene unito al nome.",
-                        },
-                        {
-                            "Colonna": "squadra di provenienza",
-                            "Obbligatoria": False,
-                            "Esempio": "Roma",
-                            "Nota": "La squadra di Serie A.",
-                        },
-                        {
-                            "Colonna": "ruolo classic",
-                            "Obbligatoria": False,
-                            "Esempio": "A",
-                            "Nota": "P, D, C o A. Non si ricava dal Mantra: "
-                            "un esterno «E» in Classic puo' essere D o C.",
-                        },
-                        {
-                            "Colonna": "ruolo mantra",
-                            "Obbligatoria": True,
-                            "Esempio": "A/Pc",
-                            "Nota": "Piu' ruoli separati da / o da ;",
-                        },
-                        {
-                            "Colonna": "data di nascita",
-                            "Obbligatoria": False,
-                            "Esempio": "15/11/1993",
-                            "Nota": "gg/mm/aaaa o aaaa-mm-gg. Senza, l'Under "
-                            "21 non si puo' determinare.",
-                        },
-                        {
-                            "Colonna": "nazionalita",
-                            "Obbligatoria": False,
-                            "Esempio": "Argentina",
-                            "Nota": "Serve al minimo italiani in rosa.",
-                        },
-                        {
-                            "Colonna": "stipendio lordo",
-                            "Obbligatoria": False,
-                            "Esempio": "6000000",
-                            "Nota": "In euro, fonte Capology (art. 4). Se "
-                            "manca resta quello gia' in archivio.",
-                        },
-                    ]
-                ),
-                hide_index=True,
-                use_container_width=True,
-                column_config={"Obbligatoria": st.column_config.CheckboxColumn("Obbl.")},
-            )
-            st.caption(
-                "L'ordine delle colonne non conta: si riconoscono dal nome. "
-                "Separatore punto e virgola o virgola, come esce da Excel."
-            )
-
-        if st.button(
-            "📥 Consolida e salva",
-            type="primary",
-            disabled=file_listone is None,
-            use_container_width=True,
-        ):
-            with st.spinner("Leggo i file e li metto insieme…"):
-                _salva(
-                    fonti_web.aggiorna_da_file(
-                        file_listone.getvalue(),
-                        stipendi_csv=(
-                            file_stipendi.getvalue()
-                            if file_stipendi
-                            else (incollati.strip() or None)
-                        ),
-                        ingaggi_correnti=ui.ingaggi_noti(),
-                    )
-                )
 
 memoria = st.session_state.get(CHIAVE_ESITO)
 if memoria:
@@ -264,16 +208,17 @@ if memoria:
     if stato == "ok":
         st.success(
             f"{dettaglio['totali']} giocatori nel listone "
-            f"({dettaglio['nuovi']} nuovi), "
-            f"{dettaglio['con_stipendio']} con lo stipendio.",
+            f"({dettaglio['nuovi']} nuovi"
+            + (f", {dettaglio['rimossi']} cancellati" if dettaglio["rimossi"] else "")
+            + f"), {dettaglio['con_stipendio']} con lo stipendio.",
             icon="✅",
         )
     elif stato == "errore":
-        st.error(f"Scaricato, ma non salvato: {dettaglio}", icon="⛔")
+        st.error(f"Letto, ma non salvato: {dettaglio}", icon="⛔")
     else:
         st.error(
-            "Il listone non e' arrivato: il catalogo e' rimasto quello di "
-            "prima. Sotto c'e' il dettaglio, e piu' in basso il modo manuale.",
+            "Il file non si e' lasciato leggere: il listone e' rimasto quello "
+            "di prima. Il dettaglio e' qui sotto.",
             icon="🚧",
         )
 
@@ -284,7 +229,6 @@ if memoria:
                     "Fonte": f.nome,
                     "Esito": "✅" if f.ok else "⛔",
                     "Dettaglio": f.dettaglio,
-                    "Indirizzo": f.url,
                 }
                 for f in esito.fonti
             ]
@@ -295,9 +239,9 @@ if memoria:
     if esito.senza_stipendio:
         with st.expander(f"{len(esito.senza_stipendio)} giocatori senza stipendio"):
             st.caption(
-                "Capology li scrive con un nome che non ho saputo abbinare, "
-                "oppure non li ha proprio. Restano a zero finche' non si "
-                "correggono a mano: meglio di un ingaggio inventato."
+                "Nel file la casella dello stipendio era vuota e in archivio "
+                "non ce n'era uno da tenere. Restano a zero finche' non si "
+                "ricarica il file completo: meglio di un ingaggio inventato."
             )
             st.write(", ".join(esito.senza_stipendio))
 
@@ -459,41 +403,52 @@ with st.expander("Legenda dei ruoli Mantra"):
         unsafe_allow_html=True,
     )
 
-# --- quando la rete non basta ----------------------------------------------
+# --- cancellare il listone --------------------------------------------------
+#
+# In fondo, dietro una conferma scritta a mano. E' l'unica azione del sito che
+# porta via anche le rose: senza giocatori i contratti non hanno piu' un
+# soggetto, e restare a puntare nel vuoto sarebbe peggio che sparire.
 
-if utente.puo_importare:
+if utente.puo_importare and not giocatori.empty:
     st.divider()
-    with st.expander("🛟 Se l'aggiornamento dal web risponde 403"):
-        st.markdown(
-            f"""
-Le due fonti sono pubbliche ma non sono nostre, e i loro file stanno dietro a
-un CDN che difende gli statici. **403 Forbidden vuol dire che la richiesta e'
-arrivata e che il server l'ha rifiutata**: non e' un indirizzo sbagliato, e'
-che una richiesta fatta da un server non somiglia a un visitatore. Il sito ci
-prova presentandosi come un browser — User-Agent, lingua, e la pagina delle
-quotazioni come provenienza — ma se il filtro guarda l'indirizzo IP di chi
-chiama, dal nostro lato non c'e' altro da fare.
-
-**La via che funziona sempre** e' la scheda «Dai file scaricati a mano»:
-
-1. apri
-   [{fonti_web.url_quotazioni(stagione)}]({fonti_web.url_quotazioni(stagione)})
-   nel tuo browser (dal browser scende: ha i cookie e la cronologia del sito);
-2. torna qui, scheda **📁 Dai file scaricati a mano**, e caricalo;
-3. gli stipendi, se li hai, si caricano nello stesso posto come CSV — il
-   modello si scarica da li'. Senza, nomi e ruoli si aggiornano lo stesso e
-   gli ingaggi restano quelli che sono gia' in archivio.
-
-Gli indirizzi che il pulsante prova sono questi, e cambiano solo nella
-stagione:
-"""
-        )
-        st.code(
-            f"{fonti_web.url_quotazioni(stagione)}\n{fonti_web.url_capology(stagione)}",
-            language=None,
+    with st.expander("🗑️ Cancella tutto il listone"):
+        tesserati = int((giocatori["Squadra"] != ui.SVINCOLATO).sum())
+        st.warning(
+            f"Cancella **tutti i {len(giocatori)} giocatori** e, con loro, "
+            f"**i {tesserati} contratti** che li assegnano alle squadre. Le "
+            f"squadre restano, ma le rose si svuotano. Non si torna indietro.",
+            icon="⚠️",
         )
         st.caption(
-            "Da un computer con la rete aperta si puo' anche usare "
-            "`python scripts/aggiorna_listone.py --csv listone.csv`, che "
-            "produce lo stesso file consolidato."
+            "Per ricaricare un listone sbagliato non serve cancellare: basta "
+            "caricare il file giusto scegliendo «Sostituisci il listone»."
         )
+        # «e premi Invio» non e' pedanteria: Streamlit consegna il testo solo
+        # quando la casella perde il fuoco, quindi finche' non lo si fa il
+        # pulsante resta spento e sembra rotto.
+        conferma = st.text_input(
+            "Scrivi CANCELLA e premi Invio per confermare",
+            key=CHIAVE_CONFERMA,
+            placeholder="CANCELLA",
+        )
+        if st.button(
+            "🗑️ Cancella il listone e tutte le rose",
+            type="primary",
+            disabled=conferma.strip().upper() != "CANCELLA",
+            use_container_width=True,
+        ):
+            from fantacalcio.data import svuota_listone
+
+            try:
+                andati = svuota_listone(archivio())
+            except Exception as errore:  # noqa: BLE001 - i backend variano
+                st.error(f"Non riesco a cancellare: {errore}", icon="⛔")
+            else:
+                ui.invalida_dati()
+                st.session_state.pop(CHIAVE_ESITO, None)
+                st.session_state[schermate.CHIAVE_MESSAGGIO] = (
+                    "warning",
+                    f"Listone cancellato: {andati['giocatori']} giocatori e "
+                    f"{andati['contratti']} contratti.",
+                )
+                st.rerun()

@@ -444,7 +444,12 @@ class TestScritturaInArchivio:
                 RigaListone(555, "Barella", "Inter", ("M", "C")),
             ],
         )
-        assert conteggio == {"totali": 2, "nuovi": 2, "con_stipendio": 1}
+        assert conteggio == {
+            "totali": 2,
+            "nuovi": 2,
+            "rimossi": 0,
+            "con_stipendio": 1,
+        }
         salvati = arch.giocatori()
         assert set(salvati["nome"]) == {"Dybala", "Barella"}
 
@@ -871,3 +876,60 @@ class TestListoneVeroDiSerieA:
         assert [r.id_ufficiale for r in tornate] == [r.id_ufficiale for r in righe]
         assert [r.ruoli for r in tornate] == [r.ruoli for r in righe]
         assert [r.ruolo_classic for r in tornate] == [r.ruolo_classic for r in righe]
+
+
+class TestSostituzioneDelListone:
+    """Unire e sostituire sono due cose diverse, e si scelgono."""
+
+    def archivio(self, tmp_path, nome):
+        from fantacalcio.data import ArchivioSQLite
+        from fantacalcio.fonti_web import applica
+
+        arch = ArchivioSQLite(tmp_path / nome)
+        arch.svuota("contratti")
+        arch.svuota("giocatori")
+        applica(
+            arch,
+            [
+                RigaListone(2071, "Dybala", "Roma", ("A",), ingaggio=6_000_000),
+                RigaListone(555, "Barella", "Inter", ("M",), ingaggio=9_000_000),
+                RigaListone(999, "Svilar", "Roma", ("Por",), ingaggio=3_000_000),
+            ],
+        )
+        return arch
+
+    def test_unire_lascia_stare_chi_non_c_e_nel_file(self, tmp_path):
+        from fantacalcio.fonti_web import applica
+
+        arch = self.archivio(tmp_path, "unisci.db")
+        conteggio = applica(arch, [RigaListone(2071, "Dybala", "Roma", ("A", "Pc"))])
+        assert conteggio["rimossi"] == 0
+        assert len(arch.giocatori()) == 3
+
+    def test_sostituire_cancella_chi_non_c_e_nel_file(self, tmp_path):
+        from fantacalcio.fonti_web import applica
+
+        arch = self.archivio(tmp_path, "sostituisci.db")
+        conteggio = applica(
+            arch,
+            [RigaListone(2071, "Dybala", "Roma", ("A", "Pc"), ingaggio=6_000_000)],
+            sostituisci=True,
+        )
+        assert conteggio["totali"] == 1
+        assert conteggio["rimossi"] == 2
+        rimasti = arch.giocatori()
+        assert list(rimasti["nome"]) == ["Dybala"]
+
+    def test_sostituire_porta_via_anche_i_contratti(self, tmp_path):
+        from fantacalcio.data import assegna_contratto
+        from fantacalcio.fonti_web import applica
+
+        arch = self.archivio(tmp_path, "sostituisci2.db")
+        elenco = arch.giocatori()
+        interno = int(elenco.loc[elenco["id_ufficiale"] == 555, "id"].iloc[0])
+        assegna_contratto(arch, interno, squadra_id=1, anni_residui=3)
+        assert len(arch.contratti()) == 1
+
+        applica(arch, [RigaListone(2071, "Dybala", "Roma", ("A",))], sostituisci=True)
+        # Barella non c'e' piu': il suo contratto non puo' restare appeso.
+        assert arch.contratti().empty

@@ -8,6 +8,7 @@ costruiti (`carica_rose`).
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from functools import lru_cache
@@ -315,7 +316,13 @@ class ArchivioSupabase(Archivio):
     def svuota(self, nome: str) -> None:
         if nome not in TABELLE:
             raise ValueError(f"Tabella non prevista: {nome}")
-        self._client.table(nome).delete().neq("id", -1).execute()
+        # PostgREST rifiuta una delete senza filtro, quindi se ne mette uno
+        # sempre vero. La colonna non puo' essere «id» a occhi chiusi:
+        # `contratti` non ce l'ha, la sua chiave e' `giocatore_id`, e la
+        # cancellazione fallirebbe. Si prende la prima colonna attesa, che per
+        # ogni tabella e' la sua chiave.
+        chiave = COLONNE_ATTESE.get(nome, ("id",))[0]
+        self._client.table(nome).delete().neq(chiave, -1).execute()
 
 
 def crea_archivio(impostazioni: Impostazioni | None = None) -> Archivio:
@@ -824,6 +831,56 @@ def svincola_giocatore(arch: Archivio, giocatore_id: int) -> None:
     arch._client.table("contratti").delete().eq(
         "giocatore_id", int(giocatore_id)
     ).execute()
+
+
+def elimina_giocatori(arch: Archivio, giocatori_ids: Iterable[int]) -> int:
+    """Toglie giocatori dal listone, e con loro i contratti che li nominano.
+
+    I contratti si cancellano **esplicitamente**, non per effetto di una
+    regola del database: su Postgres la chiave esterna e' `on delete cascade`,
+    su SQLite le chiavi esterne sono spente e resterebbero righe che puntano
+    a un giocatore che non c'e' piu'. Farlo qui rende i due backend uguali.
+    """
+    identificativi = [int(i) for i in giocatori_ids]
+    if not identificativi:
+        return 0
+
+    if isinstance(arch, ArchivioSQLite):
+        segnaposto = ",".join("?" * len(identificativi))
+        with sqlite3.connect(arch.percorso) as conn:
+            conn.execute(
+                f"delete from contratti where giocatore_id in ({segnaposto})",
+                identificativi,
+            )
+            conn.execute(
+                f"delete from giocatori where id in ({segnaposto})", identificativi
+            )
+        return len(identificativi)
+
+    # PostgREST accetta liste con `in_`, ma non infinite: si va a blocchi.
+    for inizio in range(0, len(identificativi), 200):
+        blocco = identificativi[inizio : inizio + 200]
+        arch._client.table("contratti").delete().in_("giocatore_id", blocco).execute()
+        arch._client.table("giocatori").delete().in_("id", blocco).execute()
+    return len(identificativi)
+
+
+def svuota_listone(arch: Archivio) -> dict:
+    """Cancella tutto il listone e tutti i contratti. Torna quanti ne sono andati.
+
+    E' l'azione piu' distruttiva del sito: senza giocatori non esistono rose.
+    Sta qui in chiaro, con questo nome, proprio perche' chi la chiama non
+    possa averlo fatto per sbaglio.
+    """
+    giocatori = arch.giocatori()
+    contratti = arch.contratti()
+    quanti = {
+        "giocatori": 0 if giocatori.empty else len(giocatori),
+        "contratti": 0 if contratti.empty else len(contratti),
+    }
+    arch.svuota("contratti")
+    arch.svuota("giocatori")
+    return quanti
 
 
 def elimina_annuncio(arch: Archivio, annuncio_id: int) -> None:
