@@ -10,7 +10,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -21,6 +21,7 @@ from .bacheca import Annuncio, AnnuncioNonValido, TipoAnnuncio
 from .competizioni import CompetizioneNonValida, TipoCompetizione, Titolo
 from .config import Impostazioni, carica_impostazioni
 from .demo_data import costruisci_db
+from .formazioni import Formazione, Voto
 from .identita import IdentitaSquadra, StileMaglia
 from .leghe import (
     CodiceNonValido,
@@ -49,6 +50,8 @@ TABELLE = (
     "utenti",
     "scambi",
     "scambi_movimenti",
+    "formazioni",
+    "voti",
 )
 
 
@@ -145,6 +148,7 @@ COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
         "competizione",
         "giornata_serie_a",
         "data_prevista",
+        "inizio_previsto",
         "turno",
         "casa_id",
         "trasferta_id",
@@ -152,6 +156,32 @@ COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
         "gol_trasferta",
         "punti_casa",
         "punti_trasferta",
+    ),
+    "formazioni": (
+        "id",
+        "squadra_id",
+        "giornata",
+        "competizione",
+        "modulo",
+        "titolari",
+        "panchina",
+        "aggiornata_il",
+    ),
+    "voti": (
+        "id",
+        "giocatore_id",
+        "giornata",
+        "voto",
+        "gol",
+        "gol_su_rigore",
+        "rigori_sbagliati",
+        "rigori_parati",
+        "autogol",
+        "assist",
+        "ammonizioni",
+        "espulsioni",
+        "gol_subiti",
+        "imbattuto",
     ),
     "utenti": (
         "id",
@@ -785,6 +815,225 @@ def salva_annuncio(arch: Archivio, annuncio: Annuncio) -> None:
         ],
         chiave="id",
     )
+
+
+# ---------------------------------------------------------------------------
+# Formazioni e voti
+# ---------------------------------------------------------------------------
+
+
+def _lista_id(testo) -> tuple[int, ...]:
+    """«3,7,12» -> (3, 7, 12). L'ordine conta e si conserva."""
+    if testo is None or (isinstance(testo, float) and pd.isna(testo)):
+        return ()
+    pezzi = [p.strip() for p in str(testo).split(",") if p.strip()]
+    fuori = []
+    for pezzo in pezzi:
+        try:
+            fuori.append(int(float(pezzo)))
+        except ValueError:
+            continue
+    return tuple(fuori)
+
+
+def carica_formazioni(
+    arch: Archivio, giornata: int | None = None, competizione: str = "CAMPIONATO"
+) -> dict[int, Formazione]:
+    """Le formazioni salvate, per squadra. Le righe rotte si saltano."""
+    righe = arch.tabella("formazioni")
+    if righe.empty:
+        return {}
+    trovate: dict[int, Formazione] = {}
+    for _, riga in righe.iterrows():
+        try:
+            quale = int(riga["giornata"])
+            squadra = int(riga["squadra_id"])
+        except (TypeError, ValueError):
+            continue
+        if giornata is not None and quale != giornata:
+            continue
+        if str(riga.get("competizione") or "CAMPIONATO") != competizione:
+            continue
+        trovate[squadra] = Formazione(
+            squadra_id=squadra,
+            giornata=quale,
+            modulo=str(riga.get("modulo") or ""),
+            titolari=_lista_id(riga.get("titolari")),
+            panchina=_lista_id(riga.get("panchina")),
+            competizione=str(riga.get("competizione") or "CAMPIONATO"),
+            aggiornata_il=str(riga.get("aggiornata_il") or ""),
+        )
+    return trovate
+
+
+def salva_formazione(arch: Archivio, formazione: Formazione) -> None:
+    """Scrive la formazione di una squadra per una giornata.
+
+    La chiave e' (squadra, giornata, competizione): salvare due volte
+    sostituisce, non aggiunge. L'id si ricava dalla riga gia' presente, se
+    c'e', perche' i backend fanno l'upsert sulla chiave primaria.
+    """
+    righe = arch.tabella("formazioni")
+    identificativo = None
+    if not righe.empty:
+        uguali = righe[
+            (righe["squadra_id"].astype("Int64") == formazione.squadra_id)
+            & (righe["giornata"].astype("Int64") == formazione.giornata)
+            & (righe["competizione"].astype(str) == formazione.competizione)
+        ]
+        if not uguali.empty:
+            identificativo = int(uguali.iloc[0]["id"])
+
+    arch.scrivi(
+        "formazioni",
+        [
+            {
+                "id": identificativo or prossimo_id(arch, "formazioni"),
+                "squadra_id": int(formazione.squadra_id),
+                "giornata": int(formazione.giornata),
+                "competizione": formazione.competizione,
+                "modulo": formazione.modulo,
+                "titolari": ",".join(str(g) for g in formazione.titolari),
+                "panchina": ",".join(str(g) for g in formazione.panchina),
+                "aggiornata_il": formazione.aggiornata_il
+                or datetime.now(timezone.utc).isoformat(),
+            }
+        ],
+        chiave="id",
+    )
+
+
+def carica_voti(arch: Archivio, giornata: int | None = None) -> dict[int, Voto]:
+    """I voti di una giornata, per giocatore. Senza giornata, tutti."""
+    righe = arch.tabella("voti")
+    if righe.empty:
+        return {}
+
+    def numero(valore, difetto=0):
+        if valore is None or (isinstance(valore, float) and pd.isna(valore)):
+            return difetto
+        try:
+            return int(float(valore))
+        except (TypeError, ValueError):
+            return difetto
+
+    trovati: dict[int, Voto] = {}
+    for _, riga in righe.iterrows():
+        try:
+            quale = int(riga["giornata"])
+            giocatore = int(riga["giocatore_id"])
+        except (TypeError, ValueError):
+            continue
+        if giornata is not None and quale != giornata:
+            continue
+        grezzo = riga.get("voto")
+        voto = None
+        if grezzo is not None and not (isinstance(grezzo, float) and pd.isna(grezzo)):
+            try:
+                voto = float(grezzo)
+            except (TypeError, ValueError):
+                voto = None
+        trovati[giocatore] = Voto(
+            giocatore_id=giocatore,
+            giornata=quale,
+            voto=voto,
+            gol=numero(riga.get("gol")),
+            gol_su_rigore=numero(riga.get("gol_su_rigore")),
+            rigori_sbagliati=numero(riga.get("rigori_sbagliati")),
+            rigori_parati=numero(riga.get("rigori_parati")),
+            autogol=numero(riga.get("autogol")),
+            assist=numero(riga.get("assist")),
+            ammonizioni=numero(riga.get("ammonizioni")),
+            espulsioni=numero(riga.get("espulsioni")),
+            gol_subiti=numero(riga.get("gol_subiti")),
+            imbattuto=bool(numero(riga.get("imbattuto"))),
+        )
+    return trovati
+
+
+def salva_voti(arch: Archivio, voti: Iterable[Voto]) -> int:
+    """Scrive i voti di una giornata, sostituendo quelli che c'erano gia'."""
+    voti = list(voti)
+    if not voti:
+        return 0
+
+    esistenti = arch.tabella("voti")
+    per_chiave: dict[tuple[int, int], int] = {}
+    prossimo = 1
+    if not esistenti.empty:
+        for _, riga in esistenti.iterrows():
+            try:
+                chiave = (int(riga["giocatore_id"]), int(riga["giornata"]))
+                per_chiave[chiave] = int(riga["id"])
+                prossimo = max(prossimo, int(riga["id"]) + 1)
+            except (TypeError, ValueError):
+                continue
+
+    righe = []
+    for voto in voti:
+        chiave = (voto.giocatore_id, voto.giornata)
+        identificativo = per_chiave.get(chiave)
+        if identificativo is None:
+            identificativo = prossimo
+            prossimo += 1
+        righe.append(
+            {
+                "id": identificativo,
+                "giocatore_id": int(voto.giocatore_id),
+                "giornata": int(voto.giornata),
+                "voto": voto.voto,
+                "gol": voto.gol,
+                "gol_su_rigore": voto.gol_su_rigore,
+                "rigori_sbagliati": voto.rigori_sbagliati,
+                "rigori_parati": voto.rigori_parati,
+                "autogol": voto.autogol,
+                "assist": voto.assist,
+                "ammonizioni": voto.ammonizioni,
+                "espulsioni": voto.espulsioni,
+                "gol_subiti": voto.gol_subiti,
+                "imbattuto": bool(voto.imbattuto),
+            }
+        )
+    arch.scrivi("voti", righe, chiave="id")
+    return len(righe)
+
+
+def salva_risultato(
+    arch: Archivio,
+    partita_id: int,
+    gol_casa: int,
+    gol_trasferta: int,
+    punti_casa: float,
+    punti_trasferta: float,
+) -> None:
+    """Scrive l'esito di una partita gia' in calendario."""
+    righe = arch.calendario()
+    uguali = righe[righe["id"].astype("Int64") == int(partita_id)]
+    if uguali.empty:
+        raise ValueError(f"Nessuna partita con id {partita_id} in calendario")
+    riga = uguali.iloc[0].to_dict()
+    riga.update(
+        {
+            "gol_casa": int(gol_casa),
+            "gol_trasferta": int(gol_trasferta),
+            "punti_casa": float(punti_casa),
+            "punti_trasferta": float(punti_trasferta),
+        }
+    )
+    arch.scrivi("calendario", [_ripulisci(riga)], chiave="id")
+
+
+def _ripulisci(riga: dict) -> dict:
+    """I NaN di pandas non sono NULL: si traducono prima di scrivere."""
+    pulita = {}
+    for chiave, valore in riga.items():
+        if isinstance(valore, float) and pd.isna(valore):
+            pulita[chiave] = None
+        elif hasattr(valore, "item"):
+            pulita[chiave] = valore.item()
+        else:
+            pulita[chiave] = valore
+    return pulita
 
 
 # ---------------------------------------------------------------------------

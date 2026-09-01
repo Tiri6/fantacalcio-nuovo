@@ -388,3 +388,109 @@ def pastiglia_squadra(nome: str, primario: str, secondario: str) -> str:
 
 def codice_invito(codice: str) -> str:
     return f'<div class="fanta-codice">{_scudo(codice)}</div>'
+
+
+# --- Il campo ---------------------------------------------------------------
+#
+# La formazione disegnata sul prato e' la cosa che si guarda piu' spesso in un
+# fantacalcio: una tabella con undici nomi dice le stesse informazioni e non
+# comunica niente. Qui si costruisce con del CSS a griglia, senza librerie e
+# senza immagini: una riga per reparto, i giocatori distribuiti in larghezza.
+
+CSS_CAMPO = f"""
+<style>
+.fanta-campo {{
+  background:
+    linear-gradient(180deg, {VERDE_SCURO} 0%, #17512a 50%, {VERDE_SCURO} 100%);
+  border: 2px solid {con_trasparenza("#ffffff", 0.25)};
+  border-radius: 14px;
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+}}
+/* Le righe chiare del prato appena tagliato. */
+.fanta-campo::before {{
+  content: "";
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    {con_trasparenza("#ffffff", 0.05)} 0 24px,
+    transparent 24px 48px
+  );
+  pointer-events: none;
+}}
+.fanta-campo .cerchio {{
+  position: absolute; left: 50%; top: 50%;
+  width: 92px; height: 92px; margin: -46px 0 0 -46px;
+  border: 2px solid {con_trasparenza("#ffffff", 0.22)};
+  border-radius: 50%;
+  pointer-events: none;
+}}
+.fanta-reparto {{
+  display: flex; justify-content: space-evenly; align-items: stretch;
+  gap: 6px; position: relative; z-index: 1;
+}}
+.fanta-maglia {{
+  flex: 0 1 96px;
+  background: {con_trasparenza("#000000", 0.42)};
+  border: 1px solid {con_trasparenza("#ffffff", 0.18)};
+  border-radius: 10px;
+  padding: 6px 4px;
+  text-align: center;
+  color: {TESTO};
+}}
+.fanta-maglia .nome {{
+  font-size: 0.74rem; font-weight: 600; line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}}
+.fanta-maglia .ruolo {{
+  font-size: 0.62rem; color: {TESTO_TENUE}; letter-spacing: .04em;
+}}
+.fanta-maglia .punti {{
+  font-size: 0.95rem; font-weight: 700; margin-top: 2px;
+}}
+.fanta-maglia.vuota {{ opacity: .45; border-style: dashed; }}
+.fanta-maglia.entrato {{ box-shadow: inset 0 0 0 2px {AMBRA}; }}
+.fanta-maglia.senza-voto {{ opacity: .55; }}
+</style>
+"""
+
+
+def maglia_in_campo(
+    nome: str,
+    ruolo: str = "",
+    punti: float | None = None,
+    entrato: bool = False,
+    senza_voto: bool = False,
+) -> str:
+    """Un giocatore sul campo: nome, ruolo, e i punti quando ci sono."""
+    classi = ["fanta-maglia"]
+    if entrato:
+        classi.append("entrato")
+    if senza_voto:
+        classi.append("senza-voto")
+    if not nome:
+        classi.append("vuota")
+
+    pezzi = [f'<div class="nome">{_scudo(nome or "—")}</div>']
+    if ruolo:
+        pezzi.append(f'<div class="ruolo">{_scudo(ruolo)}</div>')
+    if punti is not None:
+        colore = VERDE_CHIARO if punti >= 6 else (ROSSO if punti < 5.5 else TESTO)
+        pezzi.append(f'<div class="punti" style="color:{colore}">{punti:.1f}</div>')
+    return f'<div class="{" ".join(classi)}">{"".join(pezzi)}</div>'
+
+
+def campo(reparti: list[list[str]]) -> str:
+    """Il campo con le sue righe di maglie, dalla porta all'attacco.
+
+    `reparti` e' gia' HTML: chi chiama decide cosa mettere in ogni maglia,
+    perche' in una pagina servono i nomi e in un'altra anche i punti.
+    """
+    righe = "".join(
+        f'<div class="fanta-reparto">{"".join(maglie)}</div>' for maglie in reparti
+    )
+    return f'<div class="fanta-campo"><div class="cerchio"></div>{righe}</div>'

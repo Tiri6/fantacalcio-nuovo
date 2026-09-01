@@ -152,8 +152,8 @@ numerazioni, ed e' cio' che la pagina esiste per mostrare.
 ## 6. Il menu
 
 **Lega · <nome della lega>**
-Bacheca · Cruscotto · Campionato · *Coppa Italia* · *Supercoppa* · Calendario ·
-Albo d'oro · Regolamento
+Bacheca · Cruscotto · Formazione · Giornata · Campionato · *Coppa Italia* ·
+*Supercoppa* · Calendario · Albo d'oro · Regolamento
 
 **Squadre e giocatori**
 Squadre · Listone giocatori · Identita' squadre
@@ -179,6 +179,8 @@ Impostazioni profilo · *Importa dati* · Impostazioni lega
 | Proporre scambi | per chiunque | per la sua | per la sua |
 | **Ratificare** uno scambio | si | no | no |
 | **Importare** dati e assegnazioni | si | no | no |
+| Schierare la propria formazione | si | si | si |
+| **Caricare i voti e calcolare** la giornata | si | no | no |
 | Reimpostare le password | si | no | no |
 
 L'**editor** e' una delega stretta: scrive in bacheca e basta.
@@ -270,6 +272,43 @@ Due scelte che contano:
 Su Capology non c'e' l'esportazione: la sua tabella si copia dal browser e si
 incolla in un foglio di calcolo, da cui esce il CSV da caricare.
 
+### La giornata: formazione, voti, calcolo (art. 1)
+
+E' il giro che si ripete ventisette volte l'anno, ed e' diviso in due pagine.
+
+**Formazione.** Si sceglie il modulo fra quelli ammessi dalla lega, si riempie
+un posto alla volta — ogni casella propone solo chi puo' occuparla — e si
+ordina la panchina, perche' **l'ordine e' la volonta' del fantallenatore**: la
+sostituzione automatica prende il primo che puo' entrare, non il migliore.
+Chi apre la pagina non trova undici caselle vuote ma una proposta gia' valida,
+da correggere. Le formazioni si salvano una per squadra, giornata e
+competizione.
+
+**Il blocco.** Si schiera fino a **un minuto prima del calcio d'inizio** della
+giornata (`calendario.inizio_previsto`). Dopo, la pagina non mostra piu' il
+pulsante: mostra le formazioni di tutte le squadre, disegnate sul campo
+secondo il loro modulo. Se una giornata non ha l'orario in calendario non si
+blocca niente, e si dice apertamente invece di far finta che sia chiusa.
+
+**Voti.** Li carica il presidente dalla pagina **Giornata**, con un file CSV o
+incollando la tabella. Il lettore riconosce i sinonimi delle colonne, accetta
+l'id del listone quando c'e', e **dichiara chi non e' riuscito ad abbinare**
+invece di perderlo in silenzio. Un voto lasciato in bianco vuol dire *senza
+voto*, che non e' uno zero: e' quel che fa scattare la sostituzione.
+
+**Calcolo.** «Calcola giornata» applica le regole: fino a **3 sostituzioni**
+per chi e' rimasto senza voto, il **modificatore di difesa** sulla media di
+portiere e tre migliori difensori — calcolato sul *voto puro*, senza bonus —
+e le fasce di gol (primo gol a 66, poi uno ogni 6). Gol e fantapunti finiscono
+in calendario, e la classifica si muove. Una squadra senza formazione non fa
+saltare l'intera giornata: si salta quella partita e lo si dice. Il calcolo si
+puo' rifare quando arrivano voti corretti.
+
+Finche' i voti non ci sono, la pagina mostra comunque le formazioni; appena ci
+sono, mostra il risultato **provvisorio** con i punti su ogni maglia, e
+distingue a colpo d'occhio chi e' entrato dal campo e chi e' rimasto senza
+voto. Il conto vero e' quello scritto col pulsante.
+
 ### Draft (art. 3)
 Draft Lottery a due fasce, ordine di chiamata con la deroga dei round multipli
 di 3, probabilita' delle pick stimate per simulazione.
@@ -297,7 +336,7 @@ app.py            i quattro cancelli e la navigazione
 fantacalcio/      la logica: non importa Streamlit (tranne ui e schermate)
 viste/            una pagina per file, eseguite da st.navigation
 db/schema.sql     lo schema Postgres, rieseguibile
-tests/            734 test, una trentina di secondi
+tests/            869 test, una quarantina di secondi
 ```
 
 ### Le regole che tengono in piedi il progetto
@@ -349,10 +388,13 @@ In ordine di utilita'.
    minimo italiani e Under 21 non hanno numeri su cui lavorare.
 2. **I vincoli sono dichiarati ma non applicati.** Minimo italiani, minimo
    Under 21 e limite scambi si vedono ma nessuno impedisce di violarli.
-3. **Risultati di coppa e supercoppa** non si importano separatamente.
-4. **Svincoli registrati**: il Dead Money si calcola ma non si scrive.
-5. **Dati anagrafici non modificabili** dopo l'iscrizione (quelli della squadra si modificano dalla pagina Squadre).
-6. **Registro dei lodi**: la tabella c'e', manca la pagina.
+3. **I voti non arrivano da soli.** Li carica il presidente, con un file o un
+   copia-incolla, perche' le fonti rispondono 403 a un server (vedi
+   PUNTI_APERTI.md). Il calcolo della giornata, invece, e' automatico.
+4. **Risultati di coppa e supercoppa** non si importano separatamente.
+5. **Svincoli registrati**: il Dead Money si calcola ma non si scrive.
+6. **Dati anagrafici non modificabili** dopo l'iscrizione (quelli della squadra si modificano dalla pagina Squadre).
+7. **Registro dei lodi**: la tabella c'e', manca la pagina.
 
 ---
 
@@ -362,8 +404,10 @@ In ordine di utilita'.
 `alter table ... add column if not exists`. Se qualcosa manca, la pagina
 «Impostazioni lega» lo dice e mostra la query da incollare. Per le aggiunte
 piccole ci sono i file dedicati, da incollare nel SQL Editor di Supabase:
-`db/aggiornamento_listone.sql` (ruolo Classic), `db/aggiornamento_bacheca.sql`,
-`db/aggiornamento_leghe.sql`, `db/permessi.sql`.
+`db/aggiornamento_listone.sql` (ruolo Classic),
+`db/aggiornamento_giornata.sql` (formazioni, voti e orario d'inizio),
+`db/aggiornamento_bacheca.sql`, `db/aggiornamento_leghe.sql`,
+`db/permessi.sql`.
 
 **Se il sito da' errore dopo un aggiornamento** — ⋮ → *Reboot app*. I dati
 stanno su Supabase, non si perde niente.

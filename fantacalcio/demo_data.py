@@ -565,6 +565,34 @@ create table if not exists giocatori (
     quotazione real,
     fvm real
 );
+create table if not exists formazioni (
+    id integer primary key,
+    squadra_id integer not null,
+    giornata integer not null,
+    competizione text not null default 'CAMPIONATO',
+    modulo text not null,
+    titolari text not null default '',
+    panchina text not null default '',
+    aggiornata_il text,
+    unique (squadra_id, giornata, competizione)
+);
+create table if not exists voti (
+    id integer primary key,
+    giocatore_id integer not null,
+    giornata integer not null,
+    voto real,
+    gol integer not null default 0,
+    gol_su_rigore integer not null default 0,
+    rigori_sbagliati integer not null default 0,
+    rigori_parati integer not null default 0,
+    autogol integer not null default 0,
+    assist integer not null default 0,
+    ammonizioni integer not null default 0,
+    espulsioni integer not null default 0,
+    gol_subiti integer not null default 0,
+    imbattuto integer not null default 0,
+    unique (giocatore_id, giornata)
+);
 create table if not exists contratti (
     giocatore_id integer primary key,
     squadra_id integer not null,
@@ -640,6 +668,7 @@ create table if not exists calendario (
     competizione text not null default 'CAMPIONATO',
     giornata_serie_a integer,
     data_prevista text,
+    inizio_previsto text,
     turno text not null default '',
     casa_id integer not null,
     trasferta_id integer not null,
@@ -663,9 +692,17 @@ def _schema_aggiornato(percorso: Path) -> bool:
         "inviti": {"id", "lega_id", "email", "codice", "stato"},
         "annunci": {"id", "lega_id", "titolo", "testo", "tipo", "pubblicato"},
         "albo": {"id", "lega_id", "competizione", "stagione", "squadra_nome"},
-        "calendario": {"competizione", "giornata_serie_a", "data_prevista", "turno"},
+        "calendario": {
+            "competizione",
+            "giornata_serie_a",
+            "data_prevista",
+            "inizio_previsto",
+            "turno",
+        },
         "squadre": {"citta", "curva", "lega_id"},
         "giocatori": {"ruolo_classic"},
+        "formazioni": {"squadra_id", "modulo", "titolari"},
+        "voti": {"giocatore_id", "voto"},
         "utenti": {
             "creato_il",
             "email",

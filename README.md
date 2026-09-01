@@ -34,7 +34,7 @@ le rose della demo sono conformi al regolamento, quindi sono un banco di prova
 valido per le regole.
 
 ```bash
-.venv/bin/pytest        # 143 test
+.venv/bin/pytest        # 869 test
 .venv/bin/ruff check .
 ```
 
@@ -46,6 +46,8 @@ valido per le regole.
 |---|---|
 | **Il mio profilo** | Chi sei nella lega e dove si cambia la password. |
 | **Bacheca** | Notizie, comunicazioni e recap di giornata. Scrive chi amministra, leggono tutti. E' la pagina d'ingresso. |
+| **Formazione** | Si schiera e si salva la formazione, fino a un minuto prima del calcio d'inizio. Dopo il blocco si vedono quelle di tutti, disegnate sul campo. |
+| **Giornata** | Gli scontri diretti di campionato o coppa, le due formazioni una di fronte all'altra con i punti su ogni maglia, e il pulsante del presidente che carica i voti e calcola la giornata. |
 | **Calendario** | Tutti gli incroci della stagione: per giornata, la griglia degli scontri diretti, e la stagione di una singola squadra. |
 | **Cruscotto** | Chi e' in regola e chi no: rosa, monte anni, annuali, cap e floor di tutte e 10 le squadre in una tabella. |
 | **Rose e contratti** | La rosa di una squadra con anni residui, ingaggi, status U21 e quanto costerebbe tagliare ciascun giocatore. |
@@ -76,12 +78,15 @@ fantacalcio/
   autenticazione.py       utenti, password (scrypt) e permessi
   scambi.py               ciclo di vita di uno scambio e persistenza
   standings.py            calendario e classifica
+  formazioni.py           moduli, blocco, sostituzioni e punteggio (art. 1)
+  giornata.py             lettura dei voti e calcolo di una giornata
+  fonti_web.py            listone e stipendi: lettura, abbinamento, consolidamento
   data.py                 accesso ai dati: Supabase o SQLite demo
   vista.py                dai dati grezzi alle tabelle a schermo
   ui.py                   helper Streamlit (l'unico modulo che importa st)
   demo_data.py            genera la lega di demo
 db/schema.sql             schema Postgres da incollare in Supabase
-tests/                    143 test sulle regole, i dati e le viste
+tests/                    869 test sulle regole, i dati e le viste
 ```
 
 Due regole tengono insieme il progetto:
@@ -93,8 +98,8 @@ motivo per cui la pagina Regolamento puo' stampare i parametri veri invece di
 una copia scritta a mano che prima o poi diverge.
 
 **La logica non conosce Streamlit.** `regole`, `modelli`, `conformita`,
-`draft`, `mercato` e `vista` sono Python puro. I 143 test girano in poco piu'
-di un secondo senza avviare nulla — ed e' il motivo per cui questa parte
+`draft`, `mercato`, `formazioni`, `giornata` e `vista` sono Python puro. I 869
+test girano in una quarantina di secondi senza avviare nulla — ed e' il motivo per cui questa parte
 sopravvivrebbe intatta a un cambio di tecnologia del sito.
 
 ### La verifica non e' un si'/no

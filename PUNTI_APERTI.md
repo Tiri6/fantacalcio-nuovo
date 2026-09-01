@@ -200,3 +200,41 @@ su 27 giornate.
 finestre di mercato dopo la 9ª e la 18ª giornata (art. 5), che e' il testo
 vigente. Le tre date dei draft non sono modellate: quando saranno votate,
 diventano il calendario delle sessioni.
+
+## Voti di giornata: si caricano a mano, non si pescano dal web
+
+**Limite tecnico, non una scelta.** Come per il listone e gli stipendi
+(vedi PROGETTO.md), le fonti dei voti — Fantacalcio.it in testa — rispondono
+**403** a una richiesta fatta da un server: sia da questo ambiente di sviluppo
+sia da Streamlit Cloud, dove il sito gira. Non e' una questione di
+intestazioni: e' il CDN che rifiuta il traffico che non viene da un browser.
+
+**Oggi il presidente** carica i voti dalla pagina **Giornata**, con un file
+CSV o incollando la tabella; il lettore accetta i nomi delle colonne piu'
+comuni, riconosce l'id del listone quando c'e', e dichiara i giocatori che non
+e' riuscito ad abbinare invece di perderli in silenzio. Poi «Calcola giornata»
+scrive gol e fantapunti in calendario.
+
+Il codice e' gia' diviso in modo che la fonte non conti: `leggi_voti` prende
+del testo, da qualunque parte arrivi. Se un giorno la lega avesse una API con
+credenziali (l'app ufficiale, o un servizio a pagamento), servirebbe solo la
+funzione che scarica quel testo — il calcolo non cambia.
+
+**Da decidere**, se la cosa diventa fastidiosa: comprare un accesso a
+pagamento a una fonte voti, oppure tenere il copia-incolla, che per 27
+giornate all'anno costa pochi minuti a giornata.
+
+## Slot Mantra: il sito valida per reparto, non casella per casella
+
+Leghe Fantacalcio, in Mantra, ha una tabella di caselle esatte per ogni
+modulo: un 3-4-1-2 vuole *quel* tipo di difensori e *quel* tipo di esterni.
+
+**Oggi il sito** valida in modo piu' largo: controlla che ogni giocatore possa
+occupare il **reparto** (porta, difesa, centrocampo, attacco), con i ruoli di
+confine — E, W, T — che valgono in due reparti. Le formazioni ammesse sono
+quindi un po' piu' d'una lega ufficiale, mai di meno.
+
+E' scritto anche nel modulo `fantacalcio/formazioni.py`, per non far credere a
+chi legge il codice che sia la stessa cosa. Se la lega vuole la regola esatta,
+serve la tabella delle caselle modulo per modulo: e' un lavoro di dati, non di
+logica.

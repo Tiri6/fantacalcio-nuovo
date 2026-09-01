@@ -76,6 +76,10 @@ except AttributeError as disallineamento:
 sezione_lega = [
     st.Page("viste/bacheca.py", title="Bacheca", icon="📣", default=True),
     st.Page("viste/home.py", title="Cruscotto", icon="🏠"),
+    # Le due pagine della settimana: si schiera, e poi si guarda la giornata.
+    # Stanno in alto perche' sono quelle che si aprono piu' spesso.
+    st.Page("viste/formazione.py", title="Formazione", icon="📋"),
+    st.Page("viste/giornata.py", title="Giornata", icon="⚔️"),
     st.Page("viste/campionato.py", title="Campionato", icon="🏆"),
 ]
 

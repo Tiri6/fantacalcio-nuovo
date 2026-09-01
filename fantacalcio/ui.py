@@ -726,6 +726,101 @@ def listone() -> pd.DataFrame:
     return _listone(versione_dati())
 
 
+def formazioni(giornata: int, competizione: str = "CAMPIONATO") -> dict:
+    """Le formazioni salvate di una giornata, per squadra."""
+    from .data import carica_formazioni
+
+    return carica_formazioni(dati(), giornata, competizione)
+
+
+def voti(giornata: int) -> dict:
+    """I voti di una giornata, per id giocatore."""
+    from .data import carica_voti
+
+    return carica_voti(dati(), giornata)
+
+
+def parametri_punteggio() -> ParametriLega:
+    """I parametri con cui si calcola una giornata nella lega attiva.
+
+    Le fasce di gol e il modificatore stanno nel regolamento
+    (`ParametriLega`), ma la lega puo' averli cambiati nelle sue opzioni: qui
+    le due cose si incontrano una volta sola, cosi' chi calcola non deve
+    scegliere quale delle due guardare.
+    """
+    from dataclasses import replace
+
+    base = parametri()
+    lega = lega_corrente()
+    if lega is None:
+        return base
+    return replace(
+        base,
+        soglia_primo_gol=lega.opzioni.soglia_primo_gol,
+        passo_gol=lega.opzioni.passo_gol,
+        modificatore_difesa=lega.opzioni.modificatore_difesa,
+    )
+
+
+def abbinamento_voti() -> tuple[dict[str, int], dict[int, int]]:
+    """Le due chiavi per riconoscere un giocatore in un file di voti.
+
+    La prima va dal nome normalizzato all'id interno, la seconda dall'id del
+    listone ufficiale allo stesso id interno. L'id e' piu' sicuro del nome, ma
+    non tutti i file dei voti ce l'hanno.
+    """
+    from .data import carica_giocatori
+    from .importazione import normalizza_nome_giocatore
+
+    giocatori = carica_giocatori(dati()).values()
+    per_nome = {normalizza_nome_giocatore(g.nome): g.id for g in giocatori}
+    per_id_ufficiale = {g.id_ufficiale: g.id for g in giocatori if g.id_ufficiale}
+    return per_nome, per_id_ufficiale
+
+
+def ruoli_per_giocatore() -> dict[int, tuple[str, ...]]:
+    """Da id giocatore ai suoi ruoli Mantra: serve a validare le formazioni."""
+    from .data import carica_giocatori
+
+    return {g.id: g.ruoli for g in carica_giocatori(dati()).values()}
+
+
+def nomi_giocatori() -> dict[int, str]:
+    from .data import carica_giocatori
+
+    return {g.id: g.nome for g in carica_giocatori(dati()).values()}
+
+
+def inizio_giornata(giornata: int, competizione: str = "CAMPIONATO"):
+    """Quando comincia una giornata, se sta in calendario.
+
+    E' l'orario su cui si chiudono le formazioni. Torna None quando la
+    giornata non e' stata programmata: li' non si blocca niente.
+    """
+    from datetime import datetime
+
+    partite = calendario()
+    if partite.empty or "inizio_previsto" not in partite.columns:
+        return None
+    scelte = partite[partite["giornata"].astype("Int64") == int(giornata)]
+    if "competizione" in scelte.columns:
+        scelte = scelte[scelte["competizione"].astype(str) == competizione]
+    orari = [str(v) for v in scelte["inizio_previsto"].tolist() if v and str(v) != "nan"]
+    if not orari:
+        return None
+    letti = []
+    for grezzo in orari:
+        try:
+            letti.append(datetime.fromisoformat(grezzo.replace("Z", "+00:00")))
+        except ValueError:
+            continue
+    if not letti:
+        return None
+    # La giornata comincia con la prima partita in programma.
+    primo = min(letti)
+    return primo.replace(tzinfo=None) if primo.tzinfo else primo
+
+
 def listone_da_completare() -> str:
     """Il catalogo nel formato che il sito rilegge, con i buchi da riempire.
 

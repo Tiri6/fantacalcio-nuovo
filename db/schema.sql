@@ -261,6 +261,47 @@ alter table utenti  add column if not exists lega_id bigint references leghe(id)
 
 alter table giocatori add column if not exists ruolo_classic text not null default '';
 
+alter table calendario add column if not exists inizio_previsto timestamptz;
+
+-- ---------------------------------------------------------------------------
+-- Formazioni e voti
+-- ---------------------------------------------------------------------------
+-- `titolari` e `panchina` sono liste di id separate da virgola, **in ordine**:
+-- l'ordine della panchina decide chi entra nelle sostituzioni automatiche, e
+-- una tabella di righe lo perderebbe se qualcuno non ci mettesse una colonna
+-- di posizione. Una stringa ordinata e' piu' onesta di una finta relazione.
+create table if not exists formazioni (
+    id            bigserial primary key,
+    squadra_id    bigint not null references squadre(id) on delete cascade,
+    giornata      integer not null,
+    competizione  text not null default 'CAMPIONATO',
+    modulo        text not null,
+    titolari      text not null default '',
+    panchina      text not null default '',
+    aggiornata_il text,
+    unique (squadra_id, giornata, competizione)
+);
+
+-- Un voto per giocatore per giornata. `voto` nullo = senza voto: e' diverso
+-- da zero, ed e' quel che fa scattare la sostituzione.
+create table if not exists voti (
+    id               bigserial primary key,
+    giocatore_id     bigint not null references giocatori(id) on delete cascade,
+    giornata         integer not null,
+    voto             numeric(4, 2),
+    gol              integer not null default 0,
+    gol_su_rigore    integer not null default 0,
+    rigori_sbagliati integer not null default 0,
+    rigori_parati    integer not null default 0,
+    autogol          integer not null default 0,
+    assist           integer not null default 0,
+    ammonizioni      integer not null default 0,
+    espulsioni       integer not null default 0,
+    gol_subiti       integer not null default 0,
+    imbattuto        boolean not null default false,
+    unique (giocatore_id, giornata)
+);
+
 create index if not exists idx_scambi_stato on scambi (stato);
 create index if not exists idx_scambi_movimenti on scambi_movimenti (scambio_id);
 
@@ -275,6 +316,8 @@ create index if not exists idx_utenti_lega on utenti (lega_id);
 create index if not exists idx_contratti_squadra on contratti (squadra_id);
 create index if not exists idx_dead_money_squadra on dead_money (squadra_id);
 create index if not exists idx_calendario_giornata on calendario (giornata);
+create index if not exists idx_formazioni_giornata on formazioni (giornata, competizione);
+create index if not exists idx_voti_giornata on voti (giornata);
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security
@@ -298,6 +341,8 @@ alter table squadre     enable row level security;
 alter table giocatori   enable row level security;
 alter table contratti   enable row level security;
 alter table dead_money  enable row level security;
+alter table formazioni  enable row level security;
+alter table voti        enable row level security;
 alter table calendario  enable row level security;
 alter table parametri   enable row level security;
 alter table lodi        enable row level security;
@@ -312,7 +357,10 @@ declare
 begin
     foreach t in array array[
         'leghe', 'annunci', 'albo', 'squadre', 'giocatori', 'contratti', 'dead_money',
-        'calendario', 'parametri', 'lodi', 'scambi', 'scambi_movimenti'
+        'calendario', 'parametri', 'lodi', 'scambi', 'scambi_movimenti',
+        -- Formazioni e voti si leggono: nel fantacalcio la formazione degli
+        -- altri e' pubblica, e i voti sono gli stessi per tutti.
+        'formazioni', 'voti'
     ]
     loop
         execute format('drop policy if exists "lettura pubblica" on %I', t);

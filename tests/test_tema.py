@@ -98,3 +98,39 @@ def test_il_css_definisce_tutte_le_variabili_che_usa():
     definite = set(re.findall(r"(--fanta-[a-z-]+):", tema.CSS))
     usate = set(re.findall(r"var\((--fanta-[a-z-]+)\)", tema.CSS))
     assert usate <= definite, f"variabili non definite: {sorted(usate - definite)}"
+
+
+class TestCampo:
+    """Il campo e' HTML costruito a mano: qui si controlla che sia sano."""
+
+    def test_una_riga_per_reparto(self):
+        from fantacalcio.tema import campo, maglia_in_campo
+
+        html = campo([[maglia_in_campo("Svilar")], [maglia_in_campo("Mancini")]])
+        assert html.count('class="fanta-reparto"') == 2
+        assert "Svilar" in html and "Mancini" in html
+
+    def test_il_nome_del_giocatore_e_scudato(self):
+        # Un nome con dentro dell'HTML non deve finire nella pagina come tale.
+        from fantacalcio.tema import maglia_in_campo
+
+        html = maglia_in_campo("<script>alert(1)</script>")
+        assert "<script>" not in html
+        assert "&lt;script&gt;" in html
+
+    def test_la_casella_vuota_si_riconosce(self):
+        from fantacalcio.tema import maglia_in_campo
+
+        assert "vuota" in maglia_in_campo("")
+        assert "vuota" not in maglia_in_campo("Dybala")
+
+    def test_chi_e_entrato_si_vede(self):
+        from fantacalcio.tema import maglia_in_campo
+
+        assert "entrato" in maglia_in_campo("Dybala", entrato=True)
+
+    def test_i_punti_compaiono_solo_se_ci_sono(self):
+        from fantacalcio.tema import maglia_in_campo
+
+        assert "punti" not in maglia_in_campo("Dybala")
+        assert "7.5" in maglia_in_campo("Dybala", punti=7.5)
