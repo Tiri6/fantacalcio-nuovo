@@ -33,6 +33,7 @@ from .leghe import (
     ModalitaSostituzioni,
     bonus_modificatore,
 )
+from .mantra import Esito, esito_effettivo
 from .regole import ParametriLega, fasce_gol
 
 
@@ -128,16 +129,26 @@ class Formazione:
     aggiornata_il: str = ""
 
 
-def puo_occupare(reparto: Reparto, ruoli_giocatore) -> bool:
-    """Se quel giocatore puo' stare li', anche adattandosi e pagando il malus.
+def esito_reparto(reparto: Reparto, ruoli_giocatore) -> Esito:
+    """Cosa succede se quel giocatore occupa un posto in quel reparto.
 
-    Il portiere e' l'unico caso assoluto del Mantra: **non si adatta mai**, in
-    nessuna delle due direzioni. Un portiere non gioca in movimento e un
-    giocatore di movimento non va in porta, nemmeno pagando. Fra i reparti di
-    movimento, invece, ci si adatta sempre — a un prezzo.
+    Si chiede alla tabella delle sostituzioni del Mantra, prendendo il miglior
+    esito fra i ruoli del reparto e quelli del giocatore. Da li' escono da
+    sole due regole che altrimenti andrebbero scritte a mano: il portiere non
+    si adatta mai, e verso l'attacco non si sale — un difensore puo' giocare
+    piu' avanti pagando, una punta non puo' arretrare in difesa.
+
+    Nota onesta: il reparto e' un'approssimazione della casella esatta del
+    modulo, che non abbiamo (vedi PUNTI_APERTI.md). Fra i ruoli del reparto si
+    prende il migliore, quindi il sito e' un filo piu' permissivo della
+    piattaforma, mai piu' severo.
     """
-    portiere = any(r in Reparto.PORTA.ruoli for r in ruoli_giocatore)
-    return portiere if reparto is Reparto.PORTA else not portiere
+    return esito_effettivo(reparto.ruoli, ruoli_giocatore)
+
+
+def puo_occupare(reparto: Reparto, ruoli_giocatore) -> bool:
+    """Se quel giocatore puo' stare li', anche adattandosi e pagando il malus."""
+    return esito_reparto(reparto, ruoli_giocatore).possibile
 
 
 def valida(
@@ -203,7 +214,7 @@ def adattamenti(
     for reparto, giocatori in schieramento(formazione):
         for giocatore in giocatori:
             ruoli = ruoli_per_giocatore.get(giocatore, ())
-            if not reparto.accetta(ruoli) and puo_occupare(reparto, ruoli):
+            if esito_reparto(reparto, ruoli) is Esito.MALUS:
                 fuori.append((giocatore, reparto))
     return fuori
 
@@ -229,13 +240,20 @@ def _problemi_di_reparto(
                 posizione += 1
                 continue
             if not puo_occupare(reparto, ruoli):
-                dove = (
-                    "in porta" if reparto is Reparto.PORTA else "in un ruolo di movimento"
+                tocca_la_porta = reparto is Reparto.PORTA or any(
+                    r in Reparto.PORTA.ruoli for r in ruoli
+                )
+                perche = (
+                    "nel Mantra il portiere non si adatta mai"
+                    if tocca_la_porta
+                    else "la tabella Mantra non lo consente, perche' un posto "
+                    "si copre con la stessa linea o con una piu' arretrata, "
+                    "mai con una piu' avanzata"
                 )
                 problemi.append(
                     f"Il giocatore in posizione {posizione + 1} ha ruolo "
-                    f"{'/'.join(ruoli) or '?'} e non puo' giocare {dove}: "
-                    f"nel Mantra il portiere non si adatta mai."
+                    f"{'/'.join(ruoli) or '?'} e non puo' occupare un posto in "
+                    f"{reparto.etichetta.lower()}: {perche}."
                 )
             elif modalita is ModalitaSostituzioni.EASY:
                 problemi.append(
@@ -428,7 +446,9 @@ def calcola_squadra(
 
     def punti_di(giocatore: int, reparto: Reparto) -> tuple[float, bool]:
         """Quanto vale, e se ha dovuto adattarsi per stare li'."""
-        adattato = not reparto.accetta(ruoli_per_giocatore.get(giocatore, ()))
+        adattato = (
+            esito_reparto(reparto, ruoli_per_giocatore.get(giocatore, ())) is Esito.MALUS
+        )
         punti = punteggio_giocatore(voti[giocatore], bonus)
         return (round(punti - malus, 2) if adattato else punti), adattato
 
@@ -439,10 +459,10 @@ def calcola_squadra(
         adatta mai. Chi non e' ammesso vale zero: non e' un dettaglio da
         arrotondare, e' una formazione che non si sarebbe potuta schierare.
         """
-        ruoli = ruoli_per_giocatore.get(giocatore, ())
+        esito = esito_reparto(reparto, ruoli_per_giocatore.get(giocatore, ()))
         if modalita is ModalitaSostituzioni.EASY:
-            return reparto.accetta(ruoli)
-        return puo_occupare(reparto, ruoli)
+            return esito is Esito.LIBERA
+        return esito.possibile
 
     def registra(reparto: Reparto, giocatore: int) -> None:
         punti, adattato = punti_di(giocatore, reparto)
@@ -463,7 +483,7 @@ def calcola_squadra(
 
             tabellino.senza_voto.append(giocatore)
             sostituto = (
-                _chi_entra(disponibili, usati, reparto, ruoli_per_giocatore, modalita)
+                _chi_entra(disponibili, usati, giocatore, ruoli_per_giocatore, modalita)
                 if len(tabellino.sostituzioni) < sostituzioni_massime
                 else None
             )
@@ -473,15 +493,25 @@ def calcola_squadra(
                 continue
 
             usati.add(sostituto)
-            tabellino.sostituzioni.append(
-                Sostituzione(
-                    giocatore,
-                    sostituto,
-                    reparto,
-                    adattato=not reparto.accetta(ruoli_per_giocatore.get(sostituto, ())),
-                )
+            # Il cambio si valuta fra i due giocatori, non contro il reparto:
+            # e' la tabella delle sostituzioni a dire se chi entra si sta
+            # adattando, e quindi se paga.
+            esito = esito_effettivo(
+                ruoli_per_giocatore.get(giocatore, ()),
+                ruoli_per_giocatore.get(sostituto, ()),
             )
-            registra(reparto, sostituto)
+            adattato = esito is Esito.MALUS
+            tabellino.sostituzioni.append(
+                Sostituzione(giocatore, sostituto, reparto, adattato=adattato)
+            )
+            punti = punteggio_giocatore(voti[sostituto], bonus)
+            if adattato:
+                punti = round(punti - malus, 2)
+                tabellino.adattati.append(sostituto)
+                tabellino.malus_adattamento = round(
+                    tabellino.malus_adattamento - malus, 2
+                )
+            tabellino.schierati.append((reparto, sostituto, punti))
 
     tabellino.modificatore_difesa = (
         _modificatore_difesa(tabellino, voti, fasce_difesa)
@@ -498,47 +528,43 @@ def calcola_squadra(
 def _chi_entra(
     disponibili: list[int],
     usati: set[int],
-    reparto: Reparto,
+    uscito: int,
     ruoli_per_giocatore: dict[int, tuple[str, ...]],
     modalita: ModalitaSostituzioni,
 ) -> int | None:
-    """Chi entra in quel posto, secondo la modalita' della lega.
+    """Chi entra al posto di chi e' uscito, secondo la modalita' della lega.
 
-    - **Easy**: solo chi occupa il posto per ruolo. Nessun adattamento.
-    - **Basic**: prima chi occupa il posto, anche se sta piu' in fondo; solo
-      se non c'e' nessuno entra il primo disponibile, adattato.
-    - **Master**: il primo della panchina, punto. Se il ruolo non torna, si
-      adatta.
+    Chi puo' entrare lo dice la **tabella delle sostituzioni** del Mantra, che
+    guarda i due ruoli e non il reparto: per coprire una punta si puo' usare
+    un difensore pagando, per coprire un difensore non si puo' usare una
+    punta, e in porta va solo un portiere. Le modalita' scelgono *fra* i
+    possibili:
 
-    In tutte e tre, a parita' di condizioni vince l'ordine della panchina: e'
-    la volonta' del fantallenatore, non un dettaglio.
+    - **Easy**: solo chi entra senza malus.
+    - **Basic**: prima chi entra senza malus, anche se sta piu' in fondo;
+      solo se non c'e' nessuno, il primo che puo' entrare pagando.
+    - **Master**: il primo della panchina fra quelli che possono entrare,
+      pagando se serve.
+
+    A parita' di condizioni vince sempre l'ordine della panchina: e' la
+    volonta' del fantallenatore, non un dettaglio.
     """
-    # Il portiere non si adatta mai: in porta entra un portiere o non entra
-    # nessuno, e un portiere non va a fare il difensore nemmeno in Master.
-    liberi = [
-        g
+    ruoli_uscito = ruoli_per_giocatore.get(uscito, ())
+    esiti = [
+        (g, esito_effettivo(ruoli_uscito, ruoli_per_giocatore.get(g, ())))
         for g in disponibili
-        if g not in usati and puo_occupare(reparto, ruoli_per_giocatore.get(g, ()))
+        if g not in usati
     ]
+    possibili = [(g, e) for g, e in esiti if e is not Esito.VIETATA]
+    senza_malus = [g for g, e in possibili if e is Esito.LIBERA]
+
+    if modalita is ModalitaSostituzioni.EASY:
+        return senza_malus[0] if senza_malus else None
     if modalita is ModalitaSostituzioni.MASTER:
-        return liberi[0] if liberi else None
-
-    giusto = _primo_utile(liberi, reparto, ruoli_per_giocatore)
-    if giusto is not None or modalita is ModalitaSostituzioni.EASY:
-        return giusto
-    return liberi[0] if liberi else None
-
-
-def _primo_utile(
-    liberi: list[int],
-    reparto: Reparto,
-    ruoli_per_giocatore: dict[int, tuple[str, ...]],
-) -> int | None:
-    """Il primo in panchina, nell'ordine scelto, che puo' fare quel ruolo."""
-    for candidato in liberi:
-        if reparto.accetta(ruoli_per_giocatore.get(candidato, ())):
-            return candidato
-    return None
+        return possibili[0][0] if possibili else None
+    if senza_malus:
+        return senza_malus[0]
+    return possibili[0][0] if possibili else None
 
 
 def _modificatore_difesa(

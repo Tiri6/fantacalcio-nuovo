@@ -16,6 +16,7 @@ from fantacalcio.formazioni import (
     Formazione,
     Reparto,
     adattamenti,
+    esito_reparto,
     formazione_suggerita,
     leggi_modulo,
     puo_occupare,
@@ -24,6 +25,7 @@ from fantacalcio.formazioni import (
     valida,
 )
 from fantacalcio.leghe import ModalitaSostituzioni
+from fantacalcio.mantra import Esito
 
 ui.barra_laterale()
 schermate.mostra_messaggio()
@@ -124,6 +126,22 @@ else:
         st.stop()
 
     corrente = salvate.get(mia_squadra)
+    # Una formazione salvata puo' non valere piu': un giocatore ceduto, un
+    # ruolo corretto nel listone, una regola cambiata. A schermo le caselle si
+    # riempiono da sole con quel che e' valido, ma in archivio resta quella
+    # vecchia: se non lo si dice, si guarda una formazione e se ne gioca
+    # un'altra.
+    if corrente:
+        non_va_piu = valida(corrente, ruoli, set(in_rosa), opzioni.modalita_sostituzioni)
+        if non_va_piu:
+            st.warning(
+                "La formazione che avevi salvato non e' piu' valida: "
+                + non_va_piu[0]
+                + " Qui sotto trovi una versione corretta, ma **vale solo se "
+                "la salvi di nuovo**.",
+                icon="♻️",
+            )
+
     moduli = list(opzioni.moduli_ammessi)
     modulo = st.selectbox(
         "Modulo",
@@ -153,9 +171,13 @@ else:
     malus = ui.parametri_punteggio().malus_adattamento
 
     def etichetta_giocatore(giocatore: int, reparto: Reparto) -> str:
-        """Nome, ruoli, e il prezzo se quel posto non e' il suo."""
+        """Nome, ruoli, e il prezzo se quel posto non e' il suo.
+
+        Chi paga e chi no lo dice la tabella Mantra, la stessa che poi fa il
+        conto: l'etichetta e il punteggio non possono raccontare due storie.
+        """
         voce = f"{nomi.get(giocatore, giocatore)} ({'/'.join(ruoli.get(giocatore, ()))})"
-        if not reparto.accetta(ruoli.get(giocatore, ())):
+        if esito_reparto(reparto, ruoli.get(giocatore, ())) is Esito.MALUS:
             voce += f" — adattato −{malus:g}"
         return voce
 

@@ -314,12 +314,20 @@ si scelgono creando la lega. Cambiano *chi entra*, non quanti cambi si fanno:
 - **Master** — comanda l'ordine della panchina: entra il primo che hai messo,
   adattato se il ruolo non torna. Premia chi la panchina la ordina pensandoci.
 
+**Chi puo' entrare per chi.** Non lo decide il reparto ma la **tabella
+ufficiale delle sostituzioni** del Mantra (`fantacalcio/mantra.py`): dodici
+ruoli per dodici, con OK, malus o divieto in ogni casella. E' asimmetrica, e
+la direzione conta: un posto si copre con la stessa linea o con una piu'
+arretrata, **mai con una piu' avanzata**. Un difensore puo' giocare punta
+pagando il malus; una punta in difesa non ci va, nemmeno pagando. Il
+**portiere e' fuori da tutto**: in porta entra un portiere, e un portiere non
+gioca altrove.
+
 **Fuori posizione e malus.** Fuori dalla modalita' Easy si puo' schierare un
-giocatore in un reparto che non e' il suo: gioca, e perde **1 punto**
+giocatore dove la tabella lo consente: gioca, e perde **1 punto**
 (`ParametriLega.malus_adattamento`). L'elenco a tendina lo dice prima di
-sceglierlo («— adattato −1»), la pagina avvisa quanto costa in totale, e in
-campo la maglia lo segna. Il **portiere e' l'eccezione assoluta**: non si
-adatta mai, in nessuna delle tre modalita' e in nessuna delle due direzioni.
+sceglierlo («— adattato −1»), chi la tabella non ammette non compare proprio,
+la pagina avvisa quanto costa in totale, e in campo la maglia lo segna.
 
 **Calcolo.** «Calcola giornata» applica le regole: fino a **3 sostituzioni**
 per chi e' rimasto senza voto (il portiere per primo, perche' e' il primo
@@ -362,7 +370,7 @@ app.py            i quattro cancelli e la navigazione
 fantacalcio/      la logica: non importa Streamlit (tranne ui e schermate)
 viste/            una pagina per file, eseguite da st.navigation
 db/schema.sql     lo schema Postgres, rieseguibile
-tests/            890 test, una quarantina di secondi
+tests/            908 test, una quarantina di secondi
 ```
 
 ### Le regole che tengono in piedi il progetto

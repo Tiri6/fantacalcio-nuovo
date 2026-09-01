@@ -239,6 +239,31 @@ chi legge il codice che sia la stessa cosa. Se la lega vuole la regola esatta,
 serve la tabella delle caselle modulo per modulo: e' un lavoro di dati, non di
 logica.
 
+### La tabella delle sostituzioni c'e', quella delle caselle no
+
+Da settembre 2026 il sito ha **la tabella ufficiale delle sostituzioni**
+(`fantacalcio/mantra.py`): dodici ruoli per dodici, con OK, malus o divieto in
+ogni casella. Le righe sono chi esce, le colonne chi entra, e la direzione non
+e' un dettaglio — la tabella e' asimmetrica: per coprire una punta si puo'
+usare un difensore pagando, per coprire un difensore non si puo' usare una
+punta. E' il principio del regolamento («l'adattabilita' si concretizza solo
+con calciatori della stessa linea o di linee piu' arretrate») declinato caso
+per caso.
+
+Questo copre **le sostituzioni in modo esatto**, perche' li' i due termini
+sono due giocatori: chi esce e chi entra, e i loro ruoli si conoscono. Per i
+**titolari schierati fuori posizione**, invece, il termine di paragone
+sarebbe la casella del modulo, che non abbiamo: il sito confronta col
+*reparto* e prende il ruolo piu' favorevole fra quelli che il reparto ammette.
+Il risultato e' un filo piu' permissivo della piattaforma, mai piu' severo.
+
+**Quindici caselle portano un asterisco** (`*`, `**`, `***`) e la legenda non
+era nell'immagine che abbiamo. Oggi si pagano come un adattamento normale:
+non sono divieti — altrimenti sarebbero `NO` — quindi il conto puo' sbagliare
+di un punto, mai il verso. Quando la legenda arriva, si cambia
+`INTERPRETAZIONE_ASTERISCHI`, che e' tre righe, e i test dicono subito cosa si
+muove.
+
 ### Cosa questo comporta per Easy, Basic e Master
 
 Le tre modalita' di sostituzione del Mantra ci sono (`ModalitaSostituzioni`),
@@ -247,6 +272,8 @@ sapere dove il sito e' fedele e dove approssima.
 
 **Fedele al regolamento:**
 
+- **chi puo' entrare per chi**, casella per casella, secondo la tabella
+  ufficiale;
 - il malus di **1 punto** a chi gioca fuori posizione, titolare o subentrato;
 - **Easy** non adatta nessuno: se manca il ruolo giusto, il posto vale zero;
 - **Basic** cerca prima chi occupa il posto senza adattarsi, anche se sta piu'
@@ -273,4 +300,8 @@ sapere dove il sito e' fedele e dove approssima.
 **Da decidere**, se la differenza dara' fastidio: mettere a mano la tabella
 degli slot dei sedici moduli ammessi (undici caselle l'una, con i ruoli
 ammessi in ciascuna). Da li' in poi le tre modalita' diventano quelle esatte,
-perche' la logica per usarla e' gia' scritta.
+perche' la logica per usarla — la tabella delle sostituzioni — e' gia'
+scritta e provata.
+
+**Serve anche la legenda degli asterischi**, che sta sotto la tabella nella
+pagina del regolamento.

@@ -34,7 +34,7 @@ le rose della demo sono conformi al regolamento, quindi sono un banco di prova
 valido per le regole.
 
 ```bash
-.venv/bin/pytest        # 890 test
+.venv/bin/pytest        # 908 test
 .venv/bin/ruff check .
 ```
 
@@ -79,6 +79,7 @@ fantacalcio/
   scambi.py               ciclo di vita di uno scambio e persistenza
   standings.py            calendario e classifica
   formazioni.py           moduli, blocco, sostituzioni e punteggio (art. 1)
+  mantra.py               la tabella ufficiale delle sostituzioni, ruolo per ruolo
   giornata.py             lettura dei voti e calcolo di una giornata
   fonti_web.py            listone e stipendi: lettura, abbinamento, consolidamento
   data.py                 accesso ai dati: Supabase o SQLite demo
@@ -86,7 +87,7 @@ fantacalcio/
   ui.py                   helper Streamlit (l'unico modulo che importa st)
   demo_data.py            genera la lega di demo
 db/schema.sql             schema Postgres da incollare in Supabase
-tests/                    890 test sulle regole, i dati e le viste
+tests/                    908 test sulle regole, i dati e le viste
 ```
 
 Due regole tengono insieme il progetto:
@@ -98,7 +99,7 @@ motivo per cui la pagina Regolamento puo' stampare i parametri veri invece di
 una copia scritta a mano che prima o poi diverge.
 
 **La logica non conosce Streamlit.** `regole`, `modelli`, `conformita`,
-`draft`, `mercato`, `formazioni`, `giornata` e `vista` sono Python puro. I 890
+`draft`, `mercato`, `formazioni`, `giornata` e `vista` sono Python puro. I 908
 test girano in una quarantina di secondi senza avviare nulla — ed e' il
 motivo per cui questa parte sopravvivrebbe intatta a un cambio di tecnologia
 del sito.
