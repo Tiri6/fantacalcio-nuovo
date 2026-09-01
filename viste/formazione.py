@@ -151,6 +151,34 @@ else:
         f"posto se ha un ruolo di quel reparto."
     )
 
+    # Le caselle si disegnano una dopo l'altra, e ognuna sa solo di quelle
+    # gia' disegnate: mettere qui un giocatore che sta piu' avanti creerebbe
+    # un doppione. Invece di lasciarlo da correggere a mano, le due caselle si
+    # scambiano — che e' poi il gesto che si aveva in mente.
+    chiavi = [f"_titolare_{giornata}_{competizione}_{i}" for i in range(TITOLARI)]
+    reparto_di_posizione = [
+        reparto for reparto, quanti in schema.reparti for _ in range(quanti)
+    ]
+    chiave_precedenti = f"_titolari_prima_{giornata}_{competizione}_{modulo}"
+
+    def scambia_doppioni(posizione: int) -> None:
+        """Chi entra qui lascia all'altra casella il giocatore che usciva."""
+        prima = st.session_state.get(chiave_precedenti, {})
+        entrato = st.session_state.get(chiavi[posizione])
+        uscito = prima.get(posizione)
+        if entrato is None or uscito is None or entrato == uscito:
+            return
+        for altra, chiave in enumerate(chiavi):
+            if altra == posizione or st.session_state.get(chiave) != entrato:
+                continue
+            # Lo scambio vale solo se l'altra casella accetta chi esce: un
+            # attaccante in difesa sarebbe peggio del doppione.
+            if altra < len(reparto_di_posizione) and reparto_di_posizione[altra].accetta(
+                ruoli.get(uscito, ())
+            ):
+                st.session_state[chiave] = uscito
+            break
+
     scelti: list[int] = []
     posizione = 0
     for reparto, quanti in schema.reparti:
@@ -166,10 +194,14 @@ else:
                 base.titolari[posizione] if posizione < len(base.titolari) else None
             )
             # Chi era gia' in quel posto resta selezionabile: toglierlo
-            # dall'elenco farebbe saltare la scelta a ogni rerun.
+            # dall'elenco farebbe saltare la scelta a ogni rerun. Ma se nel
+            # frattempo e' finito in una casella precedente non si ripropone,
+            # altrimenti cambiando modulo lo stesso giocatore si ritrova
+            # schierato due volte.
             gia_li = (
                 precedente is not None
                 and precedente not in candidati
+                and precedente not in scelti
                 and reparto.accetta(ruoli.get(precedente, ()))
             )
             if gia_li:
@@ -183,11 +215,17 @@ else:
                 candidati,
                 index=candidati.index(precedente) if precedente in candidati else 0,
                 format_func=lambda g: f"{nomi.get(g, g)} ({'/'.join(ruoli.get(g, ()))})",
-                key=f"_titolare_{giornata}_{competizione}_{posizione}",
+                key=chiavi[posizione],
                 label_visibility="collapsed",
+                on_change=scambia_doppioni,
+                args=(posizione,),
             )
             scelti.append(scelta)
             posizione += 1
+
+    # Lo scambio ha bisogno di sapere chi c'era prima: il widget, quando la
+    # richiamata parte, ha gia' il valore nuovo.
+    st.session_state[chiave_precedenti] = dict(enumerate(scelti))
 
     st.markdown("**Panchina** — l'ordine conta: entra il primo che puo' farlo")
     panchina = st.multiselect(
