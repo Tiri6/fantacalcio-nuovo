@@ -169,3 +169,33 @@ una fascia diversa da cinque. Le due strade ovvie sono estendere la scala
 verso il basso (5% – 3% – 1%…) oppure rinormalizzare i cinque pesi sulla nuova
 lunghezza. E' un voto, non un dettaglio tecnico: cambia le probabilita' di
 tutti.
+
+## La data del draft decide chi e' Under 21
+
+L'articolo 2 della V2.1 dice che Under 21 e' l'italiano che non ha compiuto 21
+anni **alla data del draft di Settembre**. Il sito lo applica: la data di
+riferimento e' quella del draft, non piu' il 31 agosto.
+
+**Conseguenza da tenere presente**: spostare il draft sposta anche l'insieme
+degli Under. L'appendice del regolamento propone di fissare il primo draft
+«nella pausa nazionali ed entro l'11 ottobre»; se passa, chi compie 21 anni fra
+settembre e quella data smette di essere Under, e con lui si perde il posto
+rosa aggiuntivo che portava.
+
+**Oggi la data e' una costante** in `fantacalcio/ui.py` (`DATA_DRAFT`), non
+un'impostazione della lega. Finche' resta una sola lega va benissimo; se un
+giorno se ne aggiungono altre, o se la data cambia ogni anno, va spostata
+nelle opzioni della lega — dove gia' vivono l'ordine di chiamata e le altre
+scelte, quindi senza migrazioni del database.
+
+## Appendice V2.1 — calendario 2026/27 (da votare)
+
+La proposta in appendice: primo draft dopo la chiusura del mercato estivo,
+idealmente nella pausa nazionali ed entro l'11 ottobre; secondo draft nella
+settimana 6–13 dicembre; terzo draft nella settimana 7–14 febbraio; campionato
+su 27 giornate.
+
+**Oggi il codice** ha 27 giornate (`OpzioniLega.giornate_totali`) e le due
+finestre di mercato dopo la 9ª e la 18ª giornata (art. 5), che e' il testo
+vigente. Le tre date dei draft non sono modellate: quando saranno votate,
+diventano il calendario delle sessioni.

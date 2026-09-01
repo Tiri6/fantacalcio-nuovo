@@ -36,7 +36,9 @@ class TestDataU21:
         """Una stagione scritta male non deve impedire di caricare una rosa."""
         assert data_riferimento_u21(stagione).month == 8
 
-    def test_e_sempre_il_31_agosto(self):
+    def test_senza_draft_il_ripiego_e_il_31_agosto(self):
+        # La regola vera e' «alla data del draft» (art. 2). Il 31 agosto resta
+        # solo per quando il draft non e' ancora fissato: vedi TestDataUnder21.
         assert data_riferimento_u21("2026/27").day == 31
 
 
@@ -254,3 +256,51 @@ class TestBachecaDiUnaSquadra:
     def test_il_conteggio_elenca_tutte_le_competizioni(self):
         """Anche quelle a zero: la bacheca mostra i vuoti, non li nasconde."""
         assert set(conta_per_competizione([])) == set(TipoCompetizione)
+
+
+class TestDataUnder21:
+    """Articolo 2 V2.1: Under 21 si valuta alla data del draft di Settembre."""
+
+    def test_con_il_draft_fissato_vale_quella_data(self):
+        from datetime import date
+
+        from fantacalcio.competizioni import data_riferimento_u21
+
+        draft = date(2026, 9, 15)
+        assert data_riferimento_u21("2026/27", draft) == draft
+
+    def test_spostare_il_draft_sposta_chi_e_under(self):
+        from datetime import date
+
+        from fantacalcio.modelli import Giocatore
+        from fantacalcio.regole import ParametriLega
+
+        # Compie 21 anni il 1 ottobre 2026: Under al draft di settembre,
+        # non piu' Under se il draft slitta a meta' ottobre.
+        ragazzo = Giocatore(
+            id=1,
+            nome="Giovane",
+            club="Roma",
+            ruoli=("C",),
+            ingaggio=0,
+            nazionalita="Italia",
+            data_nascita=date(2005, 10, 1),
+        )
+        par = ParametriLega()
+        assert ragazzo.under_21(date(2026, 9, 15), par)
+        assert not ragazzo.under_21(date(2026, 10, 14), par)
+
+    def test_senza_draft_fissato_si_ripiega_sul_31_agosto(self):
+        from datetime import date
+
+        from fantacalcio.competizioni import data_riferimento_u21
+
+        assert data_riferimento_u21("2026/27") == date(2026, 8, 31)
+
+    def test_una_stagione_scritta_male_non_fa_fallire_niente(self):
+        from datetime import date
+
+        from fantacalcio.competizioni import data_riferimento_u21
+
+        assert data_riferimento_u21("boh").month == 8
+        assert data_riferimento_u21("boh").year == date.today().year

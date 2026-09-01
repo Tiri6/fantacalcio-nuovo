@@ -43,7 +43,7 @@ Non si riaprono senza un motivo nuovo.
 | Si entra con un **codice d'invito** di 8 caratteri | Alfabeto senza `O`/`0` e `I`/`1`: si ricopia da uno screenshot senza sbagliare |
 | Gli **inviti per email non spediscono niente** | Non c'e' un server di posta, e montarne uno per dieci persone non si giustifica |
 | Le **opzioni di lega** stanno in JSON, non in colonne | Cambiano ogni stagione: una migrazione per casella sarebbe un costo continuo |
-| **Under 21 al 31 agosto**, non alla data del draft | Lo status si cristallizza li' e vale per l'annata, come nei campionati veri |
+| **Under 21 alla data del draft di Settembre** | E' quel che dice l'articolo 2: lo status si cristallizza li' e vale per l'annata. Spostare il draft sposta anche chi e' Under |
 | **Niente recupero password via email** | Lo reimposta il presidente e lo consegna a voce. Serve fidarsi di una persona invece che di un link |
 | La **squadra si puo' rimandare** | Chi amministra e basta non deve restare chiuso fuori |
 | **Si resta su Streamlit** per la stagione di prova | La migrazione a un'autenticazione vera si valuta dopo aver giocato |
@@ -197,7 +197,7 @@ Rosa 30–33, fino a 36 con l'espansione Under 21. Massimo 3 portieri. Monte
 anni 66. Contratti da 1 a 5 anni. Regola «1/3»: 10 contratti annuali con rosa
 da 30, 11 fino a 33, 12 fino a 36.
 
-**Under 21**: italiano che al **31 agosto** della stagione non ha 21 anni.
+**Under 21**: italiano che alla **data del draft di Settembre** non ha ancora 21 anni.
 
 ### Economia (art. 4 e 7)
 Salary Cap 100M, Salary Floor 80M. Fonte degli stipendi: **Capology**.

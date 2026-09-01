@@ -67,7 +67,7 @@ all'avvio: non ricrearlo a mano.
 - **Le voci di menu delle competizioni sono condizionali.** Coppa e
   Supercoppa compaiono solo se la lega le gioca: una voce che parla di una
   competizione inesistente e' peggio di una voce mancante.
-- **Under 21 si valuta al 31 agosto**, non alla data del draft: lo status
+- **Under 21 si valuta alla data del draft di Settembre** (art. 2): lo status
   si cristallizza li' e vale per tutta la stagione. Vedi
   `competizioni.data_riferimento_u21` e `ui.data_u21()`.
 - **`st.stop()` dentro una scheda ferma tutto lo script**, quindi le schede

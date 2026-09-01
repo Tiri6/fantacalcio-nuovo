@@ -14,19 +14,29 @@ from dataclasses import dataclass, replace
 from datetime import date
 from enum import Enum
 
-# Articolo 2: Under 21 si valuta al 31 agosto, non alla data del draft.
-# Lo status si cristallizza a quella data e vale per tutta la stagione, come
-# nei campionati veri: chi compie 21 anni a ottobre resta Under per l'annata.
-GIORNO_RIFERIMENTO_U21 = (8, 31)
+# Articolo 2, V2.1: «si considera Under 21 il calciatore di nazionalita'
+# italiana che non abbia compiuto 21 anni **alla data del draft di Settembre**;
+# lo status cosi' determinato resta valido per l'intera stagione».
+#
+# La data e' quella del draft, non una data fissa di calendario: spostare il
+# draft sposta anche chi e' Under. Quando il draft non e' ancora fissato serve
+# comunque una data per mostrare qualcosa, e si usa il 31 agosto — l'ultimo
+# giorno prima del mese del draft.
+GIORNO_RIFERIMENTO_SENZA_DRAFT = (8, 31)
 
 
-def data_riferimento_u21(stagione: str) -> date:
-    """Il 31 agosto della stagione: da '2026/27' si ricava il 2026.
+def data_riferimento_u21(stagione: str, data_draft: date | None = None) -> date:
+    """La data a cui si guarda l'eta' per decidere chi e' Under 21.
 
-    Una stagione scritta male non deve far fallire il caricamento di una rosa:
-    in quel caso si usa l'anno corrente, che e' l'ipotesi meno sbagliata.
+    E' la data del draft di Settembre (articolo 2). `data_draft` a None vuol
+    dire che il draft non e' ancora fissato: si ripiega sul 31 agosto della
+    stagione, ricavato da '2026/27'. Una stagione scritta male non deve far
+    fallire il caricamento di una rosa: li' si usa l'anno corrente, che e'
+    l'ipotesi meno sbagliata.
     """
-    mese, giorno = GIORNO_RIFERIMENTO_U21
+    if data_draft is not None:
+        return data_draft
+    mese, giorno = GIORNO_RIFERIMENTO_SENZA_DRAFT
     try:
         anno = int(str(stagione).split("/")[0])
     except (ValueError, AttributeError, IndexError):

@@ -54,10 +54,9 @@ class Giocatore:
     def under_21(self, data_riferimento: date, parametri: ParametriLega) -> bool:
         """Articolo 2: italiano che non ha 21 anni alla data di riferimento.
 
-        La data e' il **31 agosto** della stagione, non quella del draft: lo
-        status si cristallizza li' e vale per tutta l'annata, come nei
-        campionati veri. Chi compie 21 anni a ottobre resta Under per la
-        stagione in corso. Vedi `competizioni.data_riferimento_u21`.
+        La data e' quella del **draft di Settembre**: lo status si cristallizza
+        li' e vale per tutta l'annata. Chi compie 21 anni a ottobre resta Under
+        per la stagione in corso. Vedi `competizioni.data_riferimento_u21`.
         """
         if self.nazionalita != parametri.nazionalita_u21:
             return False
