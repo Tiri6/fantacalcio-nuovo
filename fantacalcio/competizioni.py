@@ -14,29 +14,25 @@ from dataclasses import dataclass, replace
 from datetime import date
 from enum import Enum
 
-# Articolo 2, V2.1: «si considera Under 21 il calciatore di nazionalita'
-# italiana che non abbia compiuto 21 anni **alla data del draft di Settembre**;
-# lo status cosi' determinato resta valido per l'intera stagione».
+# Under 21 si valuta al **31 agosto**, uguale tutti gli anni.
 #
-# La data e' quella del draft, non una data fissa di calendario: spostare il
-# draft sposta anche chi e' Under. Quando il draft non e' ancora fissato serve
-# comunque una data per mostrare qualcosa, e si usa il 31 agosto — l'ultimo
-# giorno prima del mese del draft.
-GIORNO_RIFERIMENTO_SENZA_DRAFT = (8, 31)
+# L'articolo 2 scrive «alla data del draft di Settembre». La lega ha deciso di
+# usare invece una data fissa: cosi' lo status non si sposta se il draft
+# slitta, e chi e' Under lo si sa gia' prima di sapere quando si gioca l'asta.
+# E' una divergenza voluta dal testo, annotata in PUNTI_APERTI.md perche' alla
+# prossima revisione del regolamento venga scritta anche li'.
+GIORNO_RIFERIMENTO_U21 = (8, 31)
 
 
-def data_riferimento_u21(stagione: str, data_draft: date | None = None) -> date:
-    """La data a cui si guarda l'eta' per decidere chi e' Under 21.
+def data_riferimento_u21(stagione: str) -> date:
+    """Il 31 agosto della stagione: da '2026/27' si ricava il 2026.
 
-    E' la data del draft di Settembre (articolo 2). `data_draft` a None vuol
-    dire che il draft non e' ancora fissato: si ripiega sul 31 agosto della
-    stagione, ricavato da '2026/27'. Una stagione scritta male non deve far
-    fallire il caricamento di una rosa: li' si usa l'anno corrente, che e'
+    Data fissa per scelta della lega (vedi il commento qui sopra): non cambia
+    se il draft si sposta. Una stagione scritta male non deve far fallire il
+    caricamento di una rosa: in quel caso si usa l'anno corrente, che e'
     l'ipotesi meno sbagliata.
     """
-    if data_draft is not None:
-        return data_draft
-    mese, giorno = GIORNO_RIFERIMENTO_SENZA_DRAFT
+    mese, giorno = GIORNO_RIFERIMENTO_U21
     try:
         anno = int(str(stagione).split("/")[0])
     except (ValueError, AttributeError, IndexError):

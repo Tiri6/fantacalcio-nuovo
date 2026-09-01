@@ -170,23 +170,24 @@ verso il basso (5% – 3% – 1%…) oppure rinormalizzare i cinque pesi sulla n
 lunghezza. E' un voto, non un dettaglio tecnico: cambia le probabilita' di
 tutti.
 
-## La data del draft decide chi e' Under 21
+## Under 21: il sito usa il 31 agosto, l'articolo 2 dice «data del draft»
 
-L'articolo 2 della V2.1 dice che Under 21 e' l'italiano che non ha compiuto 21
-anni **alla data del draft di Settembre**. Il sito lo applica: la data di
-riferimento e' quella del draft, non piu' il 31 agosto.
+**Divergenza voluta, da regolarizzare nel testo.** L'articolo 2 della V2.1
+scrive che e' Under 21 l'italiano che non ha compiuto 21 anni *alla data del
+draft di Settembre*. Il sito guarda invece al **31 agosto**, uguale tutti gli
+anni, per decisione della lega.
 
-**Conseguenza da tenere presente**: spostare il draft sposta anche l'insieme
-degli Under. L'appendice del regolamento propone di fissare il primo draft
-«nella pausa nazionali ed entro l'11 ottobre»; se passa, chi compie 21 anni fra
-settembre e quella data smette di essere Under, e con lui si perde il posto
-rosa aggiuntivo che portava.
+Il motivo e' pratico: una data fissa si sa in anticipo e non si muove. Con la
+data del draft, spostare l'asta sposta anche l'insieme degli Under — e con
+loro i posti rosa aggiuntivi dell'espansione italiannextgen.it. L'appendice
+propone di far slittare il primo draft «entro l'11 ottobre»: con la regola
+scritta, chi compie 21 anni a settembre perderebbe lo status a asta gia'
+programmata.
 
-**Oggi la data e' una costante** in `fantacalcio/ui.py` (`DATA_DRAFT`), non
-un'impostazione della lega. Finche' resta una sola lega va benissimo; se un
-giorno se ne aggiungono altre, o se la data cambia ogni anno, va spostata
-nelle opzioni della lega — dove gia' vivono l'ordine di chiamata e le altre
-scelte, quindi senza migrazioni del database.
+**Da fare alla prossima revisione**: portare la modifica nel gruppo e votarla,
+cosi' l'articolo 2 dice quel che il sito fa. Finche' non succede, questa e' la
+differenza nota fra testo e codice. Cambiarla e' una riga:
+`GIORNO_RIFERIMENTO_U21` in `fantacalcio/competizioni.py`.
 
 ## Appendice V2.1 — calendario 2026/27 (da votare)
 

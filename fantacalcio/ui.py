@@ -505,19 +505,15 @@ def andamento_punti() -> pd.DataFrame:
 
 
 def data_u21() -> date:
-    """La data del draft di Settembre: e' li' che si decide chi e' Under 21.
+    """Il 31 agosto della stagione: la data fissa che decide gli Under 21.
 
-    Articolo 2: lo status si determina alla data del draft e vale per tutta la
-    stagione. Spostare il draft sposta anche chi e' Under, quindi la data
-    arriva dal calendario della lega e non da una costante di comodo.
+    La lega ha scelto una data uguale tutti gli anni invece di quella del
+    draft: lo status si cristallizza li' e non si muove se l'asta slitta.
     """
     from .competizioni import data_riferimento_u21
 
     lega = lega_corrente()
-    return data_riferimento_u21(
-        lega.stagione if lega else parametri().stagione,
-        CALENDARIO.data_draft_settembre,
-    )
+    return data_riferimento_u21(lega.stagione if lega else parametri().stagione)
 
 
 def stati(momento: Momento = Momento.STAGIONE):

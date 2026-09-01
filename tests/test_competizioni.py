@@ -259,24 +259,30 @@ class TestBachecaDiUnaSquadra:
 
 
 class TestDataUnder21:
-    """Articolo 2 V2.1: Under 21 si valuta alla data del draft di Settembre."""
+    """La data che decide gli Under 21: il 31 agosto, fissa tutti gli anni.
 
-    def test_con_il_draft_fissato_vale_quella_data(self):
+    L'articolo 2 scrive «alla data del draft di Settembre»; la lega ha scelto
+    una data fissa, cosi' lo status non si muove se l'asta slitta. E' una
+    divergenza voluta dal testo, e questi test la tengono ferma: se qualcuno
+    un giorno tornera' alla data del draft, dovra' passare di qui.
+    """
+
+    def test_e_il_31_agosto_della_stagione(self):
         from datetime import date
 
         from fantacalcio.competizioni import data_riferimento_u21
 
-        draft = date(2026, 9, 15)
-        assert data_riferimento_u21("2026/27", draft) == draft
+        assert data_riferimento_u21("2026/27") == date(2026, 8, 31)
+        assert data_riferimento_u21("2030/31") == date(2030, 8, 31)
 
-    def test_spostare_il_draft_sposta_chi_e_under(self):
+    def test_non_dipende_da_quando_si_fa_il_draft(self):
         from datetime import date
 
         from fantacalcio.modelli import Giocatore
         from fantacalcio.regole import ParametriLega
 
-        # Compie 21 anni il 1 ottobre 2026: Under al draft di settembre,
-        # non piu' Under se il draft slitta a meta' ottobre.
+        # Compie 21 anni il 1 ottobre 2026: al 31 agosto e' ancora Under, e
+        # resta Under per tutta la stagione anche se il draft slitta a ottobre.
         ragazzo = Giocatore(
             id=1,
             nome="Giovane",
@@ -286,16 +292,24 @@ class TestDataUnder21:
             nazionalita="Italia",
             data_nascita=date(2005, 10, 1),
         )
-        par = ParametriLega()
-        assert ragazzo.under_21(date(2026, 9, 15), par)
-        assert not ragazzo.under_21(date(2026, 10, 14), par)
+        assert ragazzo.under_21(data_riferimento_u21("2026/27"), ParametriLega())
 
-    def test_senza_draft_fissato_si_ripiega_sul_31_agosto(self):
+    def test_chi_li_compie_prima_del_31_agosto_non_e_under(self):
         from datetime import date
 
-        from fantacalcio.competizioni import data_riferimento_u21
+        from fantacalcio.modelli import Giocatore
+        from fantacalcio.regole import ParametriLega
 
-        assert data_riferimento_u21("2026/27") == date(2026, 8, 31)
+        grande = Giocatore(
+            id=2,
+            nome="Appena Grande",
+            club="Roma",
+            ruoli=("C",),
+            ingaggio=0,
+            nazionalita="Italia",
+            data_nascita=date(2005, 8, 30),
+        )
+        assert not grande.under_21(data_riferimento_u21("2026/27"), ParametriLega())
 
     def test_una_stagione_scritta_male_non_fa_fallire_niente(self):
         from datetime import date
