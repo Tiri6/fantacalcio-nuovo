@@ -151,3 +151,21 @@ scheda di configurazione che il sito conserva, non un calcolo che esegue.
 `OpzioniLega.giornate_totali` parte da 27, come `CalendarioStagione`. Resta il
 punto aperto gia' annotato altrove: 18 o 27. Ora che e' un'opzione di lega, la
 decisione si applica dalla schermata di creazione senza toccare il codice.
+
+## Lottery con un numero di squadre diverso da dieci
+
+I pesi dell'articolo 3 — *50% – 20% – 15% – 10% – 5%* — sono **cinque**,
+cioe' descrivono una fascia da cinque squadre e quindi una lega da dieci.
+
+**Oggi il codice**: con un numero **dispari** di squadre la Lottery si ferma e
+lo dice, perche' le due fasce non sarebbero uguali; con **piu' di dieci**
+squadre pure, perche' il regolamento non dice quanto pesino quelle in piu' e
+non tocca al sito inventarlo. Sotto le dieci funziona: i pesi si troncano alla
+lunghezza della fascia. In tutti i casi il tabellone delle chiamate resta
+disponibile, e con l'ordine messo a mano il draft si fa lo stesso.
+
+**Da decidere**, se un giorno la lega cambiasse numero: quali pesi valgono per
+una fascia diversa da cinque. Le due strade ovvie sono estendere la scala
+verso il basso (5% – 3% – 1%…) oppure rinormalizzare i cinque pesi sulla nuova
+lunghezza. E' un voto, non un dettaglio tecnico: cambia le probabilita' di
+tutti.

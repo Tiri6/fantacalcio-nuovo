@@ -52,6 +52,63 @@ ordine_ids += [
 ordine_nomi = [nomi_per_id[i] for i in ordine_ids]
 serpente = opzioni.draft_serpente
 
+
+def _perche_niente_lottery(ordine: list[str]) -> str:
+    """Perche' la Lottery non si puo' sorteggiare. Stringa vuota se si puo'.
+
+    L'articolo 3 divide la classifica in due fasce **uguali**, quindi con un
+    numero dispari di squadre la regola non e' definita e il sorteggio
+    rifiuta. Prima questo si vedeva come una pagina morta con un errore
+    illeggibile: la condizione va guardata qui, dove si puo' spiegare.
+    """
+    if not ordine:
+        return (
+            "La Lottery parte dalla classifica della stagione precedente: "
+            "senza risultati non c'e' niente da sorteggiare. Per il primo "
+            "draft l'ordine si mette a mano nella scheda «Chiamate»."
+        )
+    if len(ordine) % 2:
+        return (
+            f"L'articolo 3 divide la classifica in due fasce uguali, e "
+            f"{len(ordine)} squadre non si dividono in due. La lega ne ha un "
+            f"numero dispari: iscrivine un'altra, oppure metti l'ordine a "
+            f"mano nella scheda «Chiamate», che funziona con qualsiasi numero."
+        )
+    if len(set(ordine)) != len(ordine):
+        doppie = sorted({n for n in ordine if ordine.count(n) > 1})
+        return (
+            "In classifica ci sono due squadre con lo stesso nome "
+            f"({', '.join(doppie)}): la Lottery non saprebbe a chi assegnare "
+            "la pick. Rinominane una da «Squadre»."
+        )
+    if len(ordine) // 2 > len(PESI_FASCIA):
+        return (
+            f"I pesi dell'articolo 3 sono {len(PESI_FASCIA)}, cioe' una lega "
+            f"da {len(PESI_FASCIA) * 2} squadre. Qui sono {len(ordine)}: il "
+            f"regolamento non dice quanto pesano quelle in piu', e non tocca "
+            f"al sito deciderlo. L'ordine si mette a mano nella scheda "
+            f"«Chiamate»."
+        )
+    return ""
+
+
+niente_lottery = _perche_niente_lottery(ordine_classifica)
+
+
+def _sorteggia(ordine: list[str], seme: int):
+    """Il sorteggio, con l'errore raccontato invece che fatale.
+
+    La condizione la controlla gia' `_perche_niente_lottery`; questo e' il
+    paracadute per il caso che non abbiamo previsto. Una pagina che muore con
+    un errore oscurato non dice niente a nessuno.
+    """
+    try:
+        return sorteggia_lottery(ordine, random.Random(seme))
+    except ValueError as errore:
+        st.error(f"Non riesco a sorteggiare la Lottery: {errore}", icon="⛔")
+        return None
+
+
 chiamate, lottery, articolo, riparazione = st.tabs(
     ["🎯 Chiamate", "🎲 Draft Lottery", "📜 Ordine art. 3", "🔧 Asta di riparazione"]
 )
@@ -114,12 +171,13 @@ with chiamate:
                         )
                         st.rerun()
 
-            if ordine_classifica and riga[1].button(
+            if not niente_lottery and riga[1].button(
                 "🎲 Prendi l'ordine dalla Lottery", use_container_width=True
             ):
-                esito = sorteggia_lottery(ordine_classifica, random.Random(2026))
-                st.session_state["_draft_ordine"] = list(esito.ordine)
-                st.rerun()
+                esito = _sorteggia(ordine_classifica, 2026)
+                if esito is not None:
+                    st.session_state["_draft_ordine"] = list(esito.ordine)
+                    st.rerun()
 
     st.markdown(
         " ".join(
@@ -395,13 +453,8 @@ with chiamate:
 # --- la Lottery dell'articolo 3 ---------------------------------------------
 
 with lottery:
-    if not ordine_classifica:
-        st.info(
-            "La Lottery parte dalla classifica della stagione precedente: senza "
-            "risultati non c'e' niente da sorteggiare. Per il primo draft "
-            "l'ordine si mette a mano nella scheda «Chiamate».",
-            icon="🗓️",
-        )
+    if niente_lottery:
+        st.info(niente_lottery, icon="🗓️")
     else:
         st.caption(
             "Due estrazioni distinte: le pick 1-5 tra la 10a e la 6a "
@@ -414,7 +467,9 @@ with lottery:
             help="Stesso seme, stesso sorteggio: serve per rifare l'estrazione "
             "davanti a tutti.",
         )
-        esito = sorteggia_lottery(ordine_classifica, random.Random(int(seme)))
+        esito = _sorteggia(ordine_classifica, int(seme))
+        if esito is None:
+            st.stop()
 
         tabella = pd.DataFrame(
             {
@@ -457,11 +512,13 @@ with articolo:
         "sulla Lottery, i round multipli di 3 secondo l'ordine di arrivo della "
         "stagione precedente, gli altri di nuovo sulla Lottery."
     )
-    if not ordine_classifica:
-        st.info("Serve la classifica della stagione precedente.", icon="🗓️")
+    if niente_lottery:
+        st.info(niente_lottery, icon="🗓️")
     else:
         round_totali = st.slider("Round da mostrare", 3, 12, 6, key="_art3_round")
-        esito_tabellone = sorteggia_lottery(ordine_classifica, random.Random(2026))
+        esito_tabellone = _sorteggia(ordine_classifica, 2026)
+        if esito_tabellone is None:
+            st.stop()
         righe = []
         for numero_round, giro in tabellone_draft(
             round_totali, esito_tabellone.ordine, ordine_classifica

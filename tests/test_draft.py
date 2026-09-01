@@ -246,3 +246,48 @@ class TestAssegnazioneContratti:
         arch = self.archivio_con_giocatori(tmp_path)
         svincola_giocatore(arch, 999)
         assert arch.contratti().empty
+
+
+class TestPrecondizioniDellaLottery:
+    """Quando la Lottery non si puo' fare, e perche'.
+
+    Il sorteggio rifiuta a ragione: l'articolo 3 divide la classifica in due
+    fasce uguali, e con un numero dispari la regola non esiste. Questi test
+    fissano *quali* sono i casi, perche' la pagina li deve spiegare invece di
+    morire con un errore oscurato.
+    """
+
+    def test_numero_dispari(self):
+        with pytest.raises(ValueError, match="due fasce uguali"):
+            sorteggia_lottery(["a", "b", "c"], random.Random(1))
+
+    def test_nomi_ripetuti(self):
+        with pytest.raises(ValueError, match="duplicate"):
+            sorteggia_lottery(["a", "b", "b", "c"], random.Random(1))
+
+    def test_classifica_vuota_non_alza(self):
+        # Zero e' pari: il sorteggio non alza, restituisce un ordine vuoto.
+        esito = sorteggia_lottery([], random.Random(1))
+        assert esito.ordine == ()
+
+    def test_fino_a_dieci_squadre_va(self):
+        for quante in (2, 4, 6, 8, 10):
+            squadre = [f"Squadra {i}" for i in range(quante)]
+            esito = sorteggia_lottery(squadre, random.Random(3))
+            assert sorted(esito.ordine) == sorted(squadre)
+
+    def test_oltre_dieci_il_regolamento_non_dice_i_pesi(self):
+        # I pesi dell'articolo 3 sono cinque: una fascia da sei non e'
+        # prevista. Prima usciva «The number of weights does not match the
+        # population», che non aiuta nessuno.
+        squadre = [f"Squadra {i}" for i in range(12)]
+        with pytest.raises(ValueError, match="pesi dell'articolo 3"):
+            sorteggia_lottery(squadre, random.Random(3))
+
+    def test_le_chiamate_invece_reggono_il_dispari(self):
+        # Il tabellone delle chiamate non ha il vincolo delle due fasce: con
+        # nove squadre si puo' comunque fare il draft mettendo l'ordine a mano.
+        squadre = [f"Squadra {i}" for i in range(9)]
+        chiamate = turni_di_chiamata(squadre, round_totali=2)
+        assert len(chiamate) == 18
+        assert chiamate[9].squadra == "Squadra 8"

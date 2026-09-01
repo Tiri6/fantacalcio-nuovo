@@ -70,8 +70,21 @@ def sorteggia_lottery(
     if len(set(squadre)) != len(squadre):
         raise ValueError("La classifica contiene squadre duplicate")
 
-    rng = rng or random.Random()
+    # I pesi dell'articolo 3 sono cinque, cioe' una lega da dieci. Con una
+    # fascia piu' numerosa il regolamento non dice quanto pesano le squadre in
+    # piu', e inventarlo sarebbe decidere al posto della lega. Meglio dirlo:
+    # senza questo controllo `random.choices` alzava «The number of weights
+    # does not match the population», che non spiega niente a nessuno.
     meta = len(squadre) // 2
+    if meta > len(PESI_FASCIA):
+        raise ValueError(
+            f"I pesi dell'articolo 3 sono {len(PESI_FASCIA)}, cioe' una lega "
+            f"da {len(PESI_FASCIA) * 2} squadre: con {len(squadre)} ogni "
+            f"fascia ne avrebbe {meta} e il regolamento non dice quanto "
+            f"pesano quelle in piu'."
+        )
+
+    rng = rng or random.Random()
 
     # Dalla peggio classificata verso l'alto: e' l'ordine dei pesi.
     fascia_bassa = list(reversed(squadre[meta:]))  # 10a -> 6a
