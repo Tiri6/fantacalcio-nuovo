@@ -64,6 +64,7 @@ from .leghe import (
     Lega,
     LegaNonValida,
     Modalita,
+    ModalitaSostituzioni,
     OpzioniLega,
     StatoInvito,
     TipoAsta,
@@ -483,6 +484,26 @@ def _modulo_opzioni() -> OpzioniLega | None:
     sostituzioni = riga[1].toggle("Sostituzioni automatiche", value=True)
     capitano = riga[2].toggle("Capitano", value=True)
 
+    riga = st.columns([2, 1])
+    modalita_sostituzioni = riga[0].selectbox(
+        "Modalita' delle sostituzioni",
+        list(ModalitaSostituzioni),
+        index=list(ModalitaSostituzioni).index(ModalitaSostituzioni.BASIC),
+        format_func=lambda m: m.etichetta,
+        disabled=not sostituzioni,
+        help="Sono le tre modalita' del Mantra. Cambiano chi entra al posto "
+        "di chi resta senza voto, non quante sostituzioni si possono fare.",
+    )
+    sostituzioni_massime = riga[1].number_input(
+        "Sostituzioni per giornata",
+        min_value=0,
+        max_value=11,
+        value=3,
+        disabled=not sostituzioni,
+        help="Il portiere di riserva che subentra ne consuma una.",
+    )
+    st.caption(modalita_sostituzioni.spiegazione)
+
     st.markdown("#### Punteggio e fasce di gol")
     riga = st.columns(3)
     soglia = riga[0].number_input(
@@ -561,6 +582,8 @@ def _modulo_opzioni() -> OpzioniLega | None:
             moduli_ammessi=tuple(moduli),
             panchinari=int(panchinari),
             sostituzioni_automatiche=bool(sostituzioni),
+            modalita_sostituzioni=modalita_sostituzioni,
+            sostituzioni_massime=int(sostituzioni_massime),
             capitano=bool(capitano),
             punti_vittoria=int(punti_vittoria),
             punti_pareggio=int(punti_pareggio),

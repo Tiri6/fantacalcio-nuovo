@@ -238,3 +238,39 @@ E' scritto anche nel modulo `fantacalcio/formazioni.py`, per non far credere a
 chi legge il codice che sia la stessa cosa. Se la lega vuole la regola esatta,
 serve la tabella delle caselle modulo per modulo: e' un lavoro di dati, non di
 logica.
+
+### Cosa questo comporta per Easy, Basic e Master
+
+Le tre modalita' di sostituzione del Mantra ci sono (`ModalitaSostituzioni`),
+si scelgono creando la lega e cambiano davvero il risultato. Ma vale la pena
+sapere dove il sito e' fedele e dove approssima.
+
+**Fedele al regolamento:**
+
+- il malus di **1 punto** a chi gioca fuori posizione, titolare o subentrato;
+- **Easy** non adatta nessuno: se manca il ruolo giusto, il posto vale zero;
+- **Basic** cerca prima chi occupa il posto senza adattarsi, anche se sta piu'
+  in fondo in panchina, e adatta solo quando non ha scelta;
+- **Master** segue l'ordine della panchina e adatta chi entra, se serve;
+- il **portiere non si adatta mai**, in nessuna delle tre: in porta entra un
+  portiere o non entra nessuno, e un portiere non gioca in movimento. E' la
+  regola assoluta del Mantra, ed e' anche la prima sostituzione che il sistema
+  prova a fare, perche' la porta e' il primo posto del modulo.
+
+**Approssimato, e conviene saperlo:**
+
+- il vero **Master cambia modulo** per far entrare chi vuoi senza malus: con
+  un buco a centrocampo e un difensore primo in panchina, la piattaforma
+  passa a un modulo con un difensore in piu'. Il sito non lo fa — il modulo
+  resta quello scelto — e quindi adatta col malus dove la piattaforma a volte
+  eviterebbe di pagarlo. Il nostro Master e' quindi un po' piu' severo del
+  suo. Per farlo davvero serve la tabella delle caselle, la stessa che manca
+  qui sopra;
+- **Basic**, per la stessa ragione, non tenta la ricostruzione dello schema
+  «adattato» su un modulo diverso: prova il ruolo giusto, poi adatta sul
+  modulo che c'e'.
+
+**Da decidere**, se la differenza dara' fastidio: mettere a mano la tabella
+degli slot dei sedici moduli ammessi (undici caselle l'una, con i ruoli
+ammessi in ciascuna). Da li' in poi le tre modalita' diventano quelle esatte,
+perche' la logica per usarla e' gia' scritta.

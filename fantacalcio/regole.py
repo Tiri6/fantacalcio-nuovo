@@ -96,6 +96,11 @@ class ParametriLega:
     passo_gol: float = 6.0
     modificatore_difesa: bool = True
 
+    # Mantra: chi gioca in un posto che non e' suo prende un malus. E' la
+    # regola della piattaforma (un punto pieno), e vale sia per chi parte
+    # titolare fuori posizione sia per chi entra adattato dalla panchina.
+    malus_adattamento: float = 1.0
+
     def rosa_massimo(self, slot_u21: int = 0) -> int:
         """Limite massimo di rosa, ampliato di un posto per ogni U21 tesserato."""
         slot = max(0, min(slot_u21, self.slot_u21_massimi))

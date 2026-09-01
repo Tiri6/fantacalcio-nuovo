@@ -14,12 +14,16 @@ from fantacalcio.data import archivio, salva_formazione
 from fantacalcio.formazioni import (
     TITOLARI,
     Formazione,
+    Reparto,
+    adattamenti,
     formazione_suggerita,
     leggi_modulo,
+    puo_occupare,
     schieramento,
     stato_blocco,
     valida,
 )
+from fantacalcio.leghe import ModalitaSostituzioni
 
 ui.barra_laterale()
 schermate.mostra_messaggio()
@@ -145,10 +149,26 @@ else:
     )
 
     schema = leggi_modulo(modulo)
+    adattamento_ammesso = opzioni.modalita_sostituzioni is not ModalitaSostituzioni.EASY
+    malus = ui.parametri_punteggio().malus_adattamento
+
+    def etichetta_giocatore(giocatore: int, reparto: Reparto) -> str:
+        """Nome, ruoli, e il prezzo se quel posto non e' il suo."""
+        voce = f"{nomi.get(giocatore, giocatore)} ({'/'.join(ruoli.get(giocatore, ()))})"
+        if not reparto.accetta(ruoli.get(giocatore, ())):
+            voce += f" — adattato −{malus:g}"
+        return voce
+
     st.caption(
         f"{schema.difensori} difensori · {schema.centrocampisti} centrocampisti "
-        f"· {schema.attaccanti} attaccanti. Un giocatore puo' occupare un "
-        f"posto se ha un ruolo di quel reparto."
+        f"· {schema.attaccanti} attaccanti. "
+        + (
+            f"Chi occupa un posto che non e' del suo reparto gioca lo stesso, "
+            f"con {malus:g} punto in meno "
+            f"(modalita' {opzioni.modalita_sostituzioni.etichetta})."
+            if adattamento_ammesso
+            else "In modalita' Easy nessuno puo' giocare fuori posizione."
+        )
     )
 
     # Le caselle si disegnano una dopo l'altra, e ognuna sa solo di quelle
@@ -173,9 +193,12 @@ else:
                 continue
             # Lo scambio vale solo se l'altra casella accetta chi esce: un
             # attaccante in difesa sarebbe peggio del doppione.
-            if altra < len(reparto_di_posizione) and reparto_di_posizione[altra].accetta(
-                ruoli.get(uscito, ())
-            ):
+            ci_sta = altra < len(reparto_di_posizione) and (
+                puo_occupare(reparto_di_posizione[altra], ruoli.get(uscito, ()))
+                if adattamento_ammesso
+                else reparto_di_posizione[altra].accetta(ruoli.get(uscito, ()))
+            )
+            if ci_sta:
                 st.session_state[chiave] = uscito
             break
 
@@ -190,6 +213,18 @@ else:
                 for g in in_rosa
                 if reparto.accetta(ruoli.get(g, ())) and (g not in scelti)
             ]
+            # Fuori dalla modalita' Easy si puo' schierare chiunque, pagando
+            # il malus — tranne che fra porta e movimento, dove il Mantra non
+            # ammette adattamenti. Gli adattati stanno in fondo all'elenco e
+            # lo dicono: la scelta resta possibile ma non capita per sbaglio.
+            if adattamento_ammesso:
+                candidati += [
+                    g
+                    for g in in_rosa
+                    if g not in candidati
+                    and g not in scelti
+                    and puo_occupare(reparto, ruoli.get(g, ()))
+                ]
             precedente = (
                 base.titolari[posizione] if posizione < len(base.titolari) else None
             )
@@ -214,7 +249,7 @@ else:
                 f"{reparto.etichetta} {indice + 1}",
                 candidati,
                 index=candidati.index(precedente) if precedente in candidati else 0,
-                format_func=lambda g: f"{nomi.get(g, g)} ({'/'.join(ruoli.get(g, ()))})",
+                format_func=lambda g, r=reparto: etichetta_giocatore(g, r),
                 key=chiavi[posizione],
                 label_visibility="collapsed",
                 on_change=scambia_doppioni,
@@ -249,9 +284,23 @@ else:
         panchina=tuple(panchina),
         competizione=competizione,
     )
-    problemi = valida(proposta, ruoli, set(in_rosa))
+    problemi = valida(proposta, ruoli, set(in_rosa), opzioni.modalita_sostituzioni)
     for problema in problemi:
         st.error(problema, icon="⛔")
+
+    # Gli adattamenti non sono errori: si salvano eccome. Ma il conto lo deve
+    # sapere chi schiera, prima di premere il pulsante, non a giornata finita.
+    fuori_posizione = adattamenti(proposta, ruoli)
+    if fuori_posizione:
+        costo = malus * len(fuori_posizione)
+        st.warning(
+            "Fuori posizione: "
+            + ", ".join(
+                f"{nomi.get(g, g)} in {r.etichetta.lower()}" for g, r in fuori_posizione
+            )
+            + f". Sono {len(fuori_posizione)} adattamenti: {costo:g} punti in meno.",
+            icon="🔁",
+        )
 
     if st.button(
         "💾 Salva la formazione",

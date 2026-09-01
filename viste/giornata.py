@@ -96,6 +96,11 @@ formazioni = ui.formazioni(int(giornata), competizione)
 voti = ui.voti(int(giornata))
 parametri = ui.parametri_punteggio()
 fasce = opzioni.fasce_difesa if opzioni.modificatore_difesa else ()
+# Senza sostituzioni automatiche non entra nessuno: chi resta senza voto vale
+# zero, ed e' una scelta della lega, non un caso limite.
+sostituzioni_massime = (
+    opzioni.sostituzioni_massime if opzioni.sostituzioni_automatiche else 0
+)
 
 with riga[2]:
     schierate = sum(
@@ -144,16 +149,20 @@ def campo_di(formazione: Formazione, tabellino: TabellinoSquadra | None) -> str:
 
     entrati = {s.entrato for s in tabellino.sostituzioni}
     a_zero = set(tabellino.senza_voto)
+    adattati = set(tabellino.adattati)
     scorrimento = iter(tabellino.schierati)
     reparti = []
     for _, giocatori in schieramento(formazione):
         riga_maglie = []
         for _ in giocatori:
             _, giocatore, punti = next(scorrimento)
+            ruolo = "/".join(ruoli.get(giocatore, ()))
+            if giocatore in adattati:
+                ruolo = f"{ruolo} · adattato" if ruolo else "adattato"
             riga_maglie.append(
                 tema.maglia_in_campo(
                     nomi.get(giocatore, str(giocatore)),
-                    "/".join(ruoli.get(giocatore, ())),
+                    ruolo,
                     punti=punti,
                     entrato=giocatore in entrati,
                     senza_voto=giocatore in a_zero and giocatore not in entrati,
@@ -180,6 +189,8 @@ def mostra_partita(partita) -> None:
             parametri,
             opzioni.bonus,
             fasce,
+            sostituzioni_massime,
+            opzioni.modalita_sostituzioni,
         )
 
     if scritto:
@@ -222,10 +233,18 @@ def mostra_partita(partita) -> None:
                     st.caption(
                         f"Modificatore difesa: {tabellino.modificatore_difesa:+.1f}"
                     )
+                if tabellino.malus_adattamento:
+                    quanti = len(tabellino.adattati)
+                    st.caption(
+                        f"Fuori posizione: {quanti} "
+                        + ("giocatore" if quanti == 1 else "giocatori")
+                        + f" ({tabellino.malus_adattamento:+.1f})"
+                    )
                 for sostituzione in tabellino.sostituzioni:
                     st.caption(
                         f"↔ {nomi.get(sostituzione.entrato, '?')} per "
                         f"{nomi.get(sostituzione.uscito, '?')}"
+                        + (" · adattato" if sostituzione.adattato else "")
                     )
                 rimasti = [
                     nomi.get(g, str(g))
@@ -363,6 +382,8 @@ with calcola:
             parametri,
             opzioni.bonus,
             fasce,
+            sostituzioni_massime,
+            opzioni.modalita_sostituzioni,
         )
         scritte = 0
         guasti: list[str] = []

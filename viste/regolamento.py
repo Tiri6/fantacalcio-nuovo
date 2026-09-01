@@ -191,6 +191,10 @@ st.dataframe(
                 "Modificatore di difesa",
                 "Attivo" if p.modificatore_difesa else "Disattivo",
             ),
+            (
+                "Malus per chi gioca fuori posizione",
+                f"−{p.malus_adattamento:g}",
+            ),
         ],
         columns=["Voce", "Valore"],
     ),

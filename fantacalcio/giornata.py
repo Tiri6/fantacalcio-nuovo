@@ -16,12 +16,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .formazioni import (
+    SOSTITUZIONI_MASSIME,
     EsitoPartita,
     Formazione,
     Voto,
     calcola_partita,
 )
-from .leghe import Bonus, FasciaModificatore
+from .leghe import Bonus, FasciaModificatore, ModalitaSostituzioni
 from .regole import ParametriLega
 
 
@@ -247,6 +248,8 @@ def calcola_giornata(
     parametri: ParametriLega,
     bonus: Bonus | None = None,
     fasce_difesa: tuple[FasciaModificatore, ...] = (),
+    sostituzioni_massime: int = SOSTITUZIONI_MASSIME,
+    modalita: ModalitaSostituzioni = ModalitaSostituzioni.BASIC,
 ) -> EsitoGiornata:
     """Calcola tutte le partite di una giornata, saltando quelle che non si puo'.
 
@@ -295,6 +298,8 @@ def calcola_giornata(
                     parametri,
                     bonus,
                     fasce_difesa,
+                    sostituzioni_massime,
+                    modalita,
                 ),
             )
         )

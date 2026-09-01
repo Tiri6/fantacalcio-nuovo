@@ -119,6 +119,50 @@ class FormatoCampionato(Enum):
         return self.value
 
 
+class ModalitaSostituzioni(Enum):
+    """Come il sistema rimpiazza chi resta senza voto (regole Mantra).
+
+    Le tre modalita' sono quelle della piattaforma. Cambiano *l'ordine delle
+    priorita'*, non il numero di sostituzioni:
+
+    - **Easy** — non si tocca niente: entra solo chi puo' occupare quel posto
+      per ruolo, e nessuno gioca mai fuori posizione. Il modulo resta quello.
+    - **Basic** — prima si prova a tenere in piedi lo schema senza adattare
+      nessuno; se non si puo', entra chi c'e' e paga il malus. E' il default
+      della piattaforma.
+    - **Master** — comanda l'ordine della panchina: entra il primo che hai
+      messo, adattandolo se serve. E' per chi la panchina la ordina con cura.
+    """
+
+    EASY = "Easy"
+    BASIC = "Basic"
+    MASTER = "Master"
+
+    @property
+    def etichetta(self) -> str:
+        return self.value
+
+    @property
+    def spiegazione(self) -> str:
+        return {
+            "EASY": (
+                "Entra solo chi puo' occupare quel posto per ruolo. Nessuno "
+                "gioca fuori posizione, nemmeno pagando il malus: se non c'e' "
+                "il ricambio giusto, il posto vale zero."
+            ),
+            "BASIC": (
+                "Prima si cerca chi occupa il posto senza adattamenti, anche "
+                "se sta piu' in fondo in panchina. Solo se non c'e' nessuno "
+                "entra il primo disponibile, adattato e con il malus."
+            ),
+            "MASTER": (
+                "Comanda l'ordine della panchina: entra il primo che hai "
+                "messo, adattato col malus se il ruolo non torna. Premia chi "
+                "la panchina la ordina pensandoci."
+            ),
+        }[self.name]
+
+
 # Moduli ammessi dalla piattaforma. In Classic contano i reparti; in Mantra
 # contano i ruoli, quindi le combinazioni sono molte di piu'.
 MODULI_CLASSIC = (
@@ -264,6 +308,10 @@ class OpzioniLega:
     moduli_ammessi: tuple[str, ...] = MODULI_MANTRA
     panchinari: int = 12
     sostituzioni_automatiche: bool = True
+    # Mantra: la gerarchia con cui entra chi sta in panchina. Basic e' il
+    # default della piattaforma.
+    modalita_sostituzioni: ModalitaSostituzioni = ModalitaSostituzioni.BASIC
+    sostituzioni_massime: int = 3
     capitano: bool = True
     vice_capitano: bool = False
 
@@ -315,6 +363,7 @@ class OpzioniLega:
             ("minimo di giocatori italiani", self.minimo_italiani),
             ("minimo di Under 21 italiani", self.minimo_u21_italiani),
             ("numero di scambi per stagione", self.scambi_per_stagione),
+            ("numero massimo di sostituzioni", self.sostituzioni_massime),
         ):
             if valore < 0:
                 raise LegaNonValida(f"Il {etichetta} non puo' essere negativo")
@@ -435,6 +484,7 @@ def _serializza(opzioni: OpzioniLega) -> dict:
     dati["modalita"] = opzioni.modalita.name
     dati["formato"] = opzioni.formato.name
     dati["tipo_asta"] = opzioni.tipo_asta.name
+    dati["modalita_sostituzioni"] = opzioni.modalita_sostituzioni.name
     dati["moduli_ammessi"] = list(opzioni.moduli_ammessi)
     dati["ordine_draft"] = list(opzioni.ordine_draft)
     dati["regole_coppa"] = {
@@ -480,6 +530,7 @@ def _deserializza(grezzo: dict) -> dict:
         ("modalita", Modalita),
         ("formato", FormatoCampionato),
         ("tipo_asta", TipoAsta),
+        ("modalita_sostituzioni", ModalitaSostituzioni),
     ):
         if chiave in valori:
             try:

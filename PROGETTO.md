@@ -201,6 +201,13 @@ da 30, 11 fino a 33, 12 fino a 36.
 
 **Under 21**: italiano che al **31 agosto** della stagione non ha ancora 21 anni.
 
+### Mantra (regole della piattaforma)
+Ruoli Mantra, moduli ammessi scelti dalla lega, modalita' di sostituzione
+**Easy / Basic / Master**, malus di 1 punto a chi gioca fuori posizione, e il
+portiere che non si adatta mai. La differenza fra quel che il sito fa e la
+tabella esatta delle caselle di Leghe Fantacalcio e' scritta in
+PUNTI_APERTI.md, non nascosta.
+
 ### Economia (art. 4 e 7)
 Salary Cap 100M, Salary Floor 80M. Fonte degli stipendi: **Capology**.
 **Dead Money** (Lodo Origi): svincolando, il 50% del valore residuo si addebita
@@ -296,10 +303,29 @@ l'id del listone quando c'e', e **dichiara chi non e' riuscito ad abbinare**
 invece di perderlo in silenzio. Un voto lasciato in bianco vuol dire *senza
 voto*, che non e' uno zero: e' quel che fa scattare la sostituzione.
 
+**Sostituzioni: Easy, Basic o Master.** Sono le tre modalita' del Mantra, e
+si scelgono creando la lega. Cambiano *chi entra*, non quanti cambi si fanno:
+
+- **Easy** — entra solo chi occupa quel posto per ruolo. Nessuno gioca fuori
+  posizione: se il ricambio giusto non c'e', il posto vale zero.
+- **Basic** (il default, come sulla piattaforma) — prima si cerca chi occupa
+  il posto senza adattarsi, anche se sta piu' in fondo in panchina; solo se
+  non c'e' nessuno entra il primo disponibile, adattato e col malus.
+- **Master** — comanda l'ordine della panchina: entra il primo che hai messo,
+  adattato se il ruolo non torna. Premia chi la panchina la ordina pensandoci.
+
+**Fuori posizione e malus.** Fuori dalla modalita' Easy si puo' schierare un
+giocatore in un reparto che non e' il suo: gioca, e perde **1 punto**
+(`ParametriLega.malus_adattamento`). L'elenco a tendina lo dice prima di
+sceglierlo («— adattato −1»), la pagina avvisa quanto costa in totale, e in
+campo la maglia lo segna. Il **portiere e' l'eccezione assoluta**: non si
+adatta mai, in nessuna delle tre modalita' e in nessuna delle due direzioni.
+
 **Calcolo.** «Calcola giornata» applica le regole: fino a **3 sostituzioni**
-per chi e' rimasto senza voto, il **modificatore di difesa** sulla media di
-portiere e tre migliori difensori — calcolato sul *voto puro*, senza bonus —
-e le fasce di gol (primo gol a 66, poi uno ogni 6). Gol e fantapunti finiscono
+per chi e' rimasto senza voto (il portiere per primo, perche' e' il primo
+posto del modulo), il **modificatore di difesa** sulla media di portiere e tre
+migliori difensori — calcolato sul *voto puro*, senza bonus — e le fasce di
+gol (primo gol a 66, poi uno ogni 6). Gol e fantapunti finiscono
 in calendario, e la classifica si muove. Una squadra senza formazione non fa
 saltare l'intera giornata: si salta quella partita e lo si dice. Il calcolo si
 puo' rifare quando arrivano voti corretti.
@@ -336,7 +362,7 @@ app.py            i quattro cancelli e la navigazione
 fantacalcio/      la logica: non importa Streamlit (tranne ui e schermate)
 viste/            una pagina per file, eseguite da st.navigation
 db/schema.sql     lo schema Postgres, rieseguibile
-tests/            869 test, una quarantina di secondi
+tests/            890 test, una quarantina di secondi
 ```
 
 ### Le regole che tengono in piedi il progetto

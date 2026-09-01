@@ -205,6 +205,15 @@ with formazione:
                 "valore": f"{len(opzioni.moduli_ammessi)}",
                 "nota": f"su {len(moduli_disponibili(opzioni.modalita))} possibili",
             },
+            {
+                "etichetta": "Sostituzioni",
+                "valore": opzioni.modalita_sostituzioni.etichetta,
+                "nota": (
+                    f"massimo {opzioni.sostituzioni_massime} a giornata"
+                    if opzioni.sostituzioni_automatiche
+                    else "non automatiche"
+                ),
+            },
         ]
     )
 
@@ -249,6 +258,11 @@ with formazione:
     st.caption(
         ("Sostituzioni automatiche attive. " if opzioni.sostituzioni_automatiche else "")
         + ("Capitano attivo." if opzioni.capitano else "Nessun capitano.")
+    )
+    st.info(
+        f"**Sostituzioni {opzioni.modalita_sostituzioni.etichetta}** — "
+        + opzioni.modalita_sostituzioni.spiegazione,
+        icon="🔁",
     )
 
 with punteggio:
