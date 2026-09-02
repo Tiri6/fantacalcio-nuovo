@@ -314,14 +314,21 @@ si scelgono creando la lega. Cambiano *chi entra*, non quanti cambi si fanno:
 - **Master** — comanda l'ordine della panchina: entra il primo che hai messo,
   adattato se il ruolo non torna. Premia chi la panchina la ordina pensandoci.
 
-**Chi puo' entrare per chi.** Non lo decide il reparto ma la **tabella
-ufficiale delle sostituzioni** del Mantra (`fantacalcio/mantra.py`): dodici
-ruoli per dodici, con OK, malus o divieto in ogni casella. E' asimmetrica, e
-la direzione conta: un posto si copre con la stessa linea o con una piu'
-arretrata, **mai con una piu' avanzata**. Un difensore puo' giocare punta
-pagando il malus; una punta in difesa non ci va, nemmeno pagando. Il
-**portiere e' fuori da tutto**: in porta entra un portiere, e un portiere non
-gioca altrove.
+**Le caselle del modulo.** Un 3-4-3 non chiede «tre difensori»: chiede
+`Dc, Dc, Dc/B`. Ogni modulo dello schema ufficiale ha le sue undici caselle,
+ognuna con i ruoli che ci stanno di diritto, e la pagina Formazione le mostra
+per nome. Chi la casella lo ammette gioca gratis; gli altri si vedono sotto,
+col prezzo scritto accanto.
+
+**Chi puo' occupare cosa.** Lo dice la **tabella ufficiale delle
+sostituzioni** (`fantacalcio/mantra.py`): dodici ruoli per dodici, con OK,
+malus o divieto in ogni casella, piu' i quindici asterischi che la legenda
+scioglie guardando se la casella ammette quel ruolo in alternativa. E'
+asimmetrica, e la direzione conta: una casella si copre con la stessa linea o
+con una piu' arretrata, **mai con una piu' avanzata**. Un difensore puo'
+giocare punta pagando il malus; una punta in difesa non ci va, nemmeno
+pagando. Il **portiere e' fuori da tutto**: in porta entra un portiere, e un
+portiere non gioca altrove.
 
 **Fuori posizione e malus.** Fuori dalla modalita' Easy si puo' schierare un
 giocatore dove la tabella lo consente: gioca, e perde **1 punto**
@@ -370,7 +377,7 @@ app.py            i quattro cancelli e la navigazione
 fantacalcio/      la logica: non importa Streamlit (tranne ui e schermate)
 viste/            una pagina per file, eseguite da st.navigation
 db/schema.sql     lo schema Postgres, rieseguibile
-tests/            908 test, una quarantina di secondi
+tests/            915 test, una quarantina di secondi
 ```
 
 ### Le regole che tengono in piedi il progetto

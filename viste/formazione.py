@@ -13,10 +13,10 @@ from fantacalcio import schermate, tema, ui
 from fantacalcio.data import archivio, salva_formazione
 from fantacalcio.formazioni import (
     TITOLARI,
+    Casella,
     Formazione,
-    Reparto,
     adattamenti,
-    esito_reparto,
+    esito_casella,
     formazione_suggerita,
     leggi_modulo,
     puo_occupare,
@@ -170,23 +170,28 @@ else:
     adattamento_ammesso = opzioni.modalita_sostituzioni is not ModalitaSostituzioni.EASY
     malus = ui.parametri_punteggio().malus_adattamento
 
-    def etichetta_giocatore(giocatore: int, reparto: Reparto) -> str:
-        """Nome, ruoli, e il prezzo se quel posto non e' il suo.
+    def etichetta_giocatore(giocatore: int, casella: Casella) -> str:
+        """Nome, ruoli, e il prezzo se quella casella non e' la sua.
 
         Chi paga e chi no lo dice la tabella Mantra, la stessa che poi fa il
         conto: l'etichetta e il punteggio non possono raccontare due storie.
         """
         voce = f"{nomi.get(giocatore, giocatore)} ({'/'.join(ruoli.get(giocatore, ()))})"
-        if esito_reparto(reparto, ruoli.get(giocatore, ())) is Esito.MALUS:
+        if esito_casella(casella, ruoli.get(giocatore, ()), modulo) is Esito.MALUS:
             voce += f" — adattato −{malus:g}"
         return voce
 
     st.caption(
-        f"{schema.difensori} difensori · {schema.centrocampisti} centrocampisti "
-        f"· {schema.attaccanti} attaccanti. "
+        (
+            "Ogni casella dice quali ruoli ci stanno di diritto, come nello "
+            "schema ufficiale Mantra. "
+            if schema.ufficiale
+            else f"{schema.difensori} difensori · {schema.centrocampisti} "
+            f"centrocampisti · {schema.attaccanti} attaccanti. "
+        )
         + (
-            f"Chi occupa un posto che non e' del suo reparto gioca lo stesso, "
-            f"con {malus:g} punto in meno "
+            f"Chi non e' del ruolo che la casella chiede gioca lo stesso, con "
+            f"{malus:g} punto in meno "
             f"(modalita' {opzioni.modalita_sostituzioni.etichetta})."
             if adattamento_ammesso
             else "In modalita' Easy nessuno puo' giocare fuori posizione."
@@ -198,10 +203,13 @@ else:
     # un doppione. Invece di lasciarlo da correggere a mano, le due caselle si
     # scambiano — che e' poi il gesto che si aveva in mente.
     chiavi = [f"_titolare_{giornata}_{competizione}_{i}" for i in range(TITOLARI)]
-    reparto_di_posizione = [
-        reparto for reparto, quanti in schema.reparti for _ in range(quanti)
-    ]
+    caselle = list(schema.caselle)
     chiave_precedenti = f"_titolari_prima_{giornata}_{competizione}_{modulo}"
+
+    def ci_puo_stare(posizione: int, giocatore: int) -> bool:
+        """Se quella casella lo ammette, gratis o pagando secondo la modalita'."""
+        esito = esito_casella(caselle[posizione], ruoli.get(giocatore, ()), modulo)
+        return esito.possibile if adattamento_ammesso else esito is Esito.LIBERA
 
     def scambia_doppioni(posizione: int) -> None:
         """Chi entra qui lascia all'altra casella il giocatore che usciva."""
@@ -213,14 +221,9 @@ else:
         for altra, chiave in enumerate(chiavi):
             if altra == posizione or st.session_state.get(chiave) != entrato:
                 continue
-            # Lo scambio vale solo se l'altra casella accetta chi esce: un
-            # attaccante in difesa sarebbe peggio del doppione.
-            ci_sta = altra < len(reparto_di_posizione) and (
-                puo_occupare(reparto_di_posizione[altra], ruoli.get(uscito, ()))
-                if adattamento_ammesso
-                else reparto_di_posizione[altra].accetta(ruoli.get(uscito, ()))
-            )
-            if ci_sta:
+            # Lo scambio vale solo se l'altra casella accetta chi esce: una
+            # punta in difesa sarebbe peggio del doppione.
+            if altra < len(caselle) and ci_puo_stare(altra, uscito):
                 st.session_state[chiave] = uscito
             break
 
@@ -230,22 +233,22 @@ else:
         st.markdown(f"**{reparto.etichetta}**")
         colonne = st.columns(min(quanti, 5))
         for indice in range(quanti):
+            casella = caselle[posizione]
+            # Prima chi la casella ammette di suo, poi gli adattati: cosi' la
+            # scelta che costa resta possibile ma non capita per sbaglio.
             candidati = [
                 g
                 for g in in_rosa
-                if reparto.accetta(ruoli.get(g, ())) and (g not in scelti)
+                if g not in scelti
+                and esito_casella(casella, ruoli.get(g, ()), modulo) is Esito.LIBERA
             ]
-            # Fuori dalla modalita' Easy si puo' schierare chiunque, pagando
-            # il malus — tranne che fra porta e movimento, dove il Mantra non
-            # ammette adattamenti. Gli adattati stanno in fondo all'elenco e
-            # lo dicono: la scelta resta possibile ma non capita per sbaglio.
             if adattamento_ammesso:
                 candidati += [
                     g
                     for g in in_rosa
                     if g not in candidati
                     and g not in scelti
-                    and puo_occupare(reparto, ruoli.get(g, ()))
+                    and puo_occupare(casella, ruoli.get(g, ()), modulo)
                 ]
             precedente = (
                 base.titolari[posizione] if posizione < len(base.titolari) else None
@@ -259,21 +262,30 @@ else:
                 precedente is not None
                 and precedente not in candidati
                 and precedente not in scelti
-                and reparto.accetta(ruoli.get(precedente, ()))
+                and ci_puo_stare(posizione, precedente)
             )
             if gia_li:
                 candidati.insert(0, precedente)
             if not candidati:
-                colonne[indice % len(colonne)].warning("Nessuno disponibile", icon="⚠️")
+                colonne[indice % len(colonne)].warning(
+                    f"«{casella.etichetta}»: nessuno disponibile"
+                    if schema.ufficiale
+                    else "Nessuno disponibile",
+                    icon="⚠️",
+                )
                 posizione += 1
                 continue
+            # L'etichetta e' la casella solo quando e' una casella vera: nei
+            # moduli che non abbiamo trascritto sarebbe l'elenco di tutti i
+            # ruoli del reparto, che non dice niente a nessuno.
             scelta = colonne[indice % len(colonne)].selectbox(
-                f"{reparto.etichetta} {indice + 1}",
+                casella.etichetta
+                if schema.ufficiale
+                else f"{reparto.etichetta} {indice + 1}",
                 candidati,
                 index=candidati.index(precedente) if precedente in candidati else 0,
-                format_func=lambda g, r=reparto: etichetta_giocatore(g, r),
+                format_func=lambda g, c=casella: etichetta_giocatore(g, c),
                 key=chiavi[posizione],
-                label_visibility="collapsed",
                 on_change=scambia_doppioni,
                 args=(posizione,),
             )
@@ -318,9 +330,19 @@ else:
         st.warning(
             "Fuori posizione: "
             + ", ".join(
-                f"{nomi.get(g, g)} in {r.etichetta.lower()}" for g, r in fuori_posizione
+                (
+                    f"{nomi.get(g, g)} nella casella «{c.etichetta}»"
+                    if schema.ufficiale
+                    else f"{nomi.get(g, g)} in {c.reparto.etichetta.lower()}"
+                )
+                for g, c in fuori_posizione
             )
-            + f". Sono {len(fuori_posizione)} adattamenti: {costo:g} punti in meno.",
+            + (
+                f". Un adattamento: {costo:g} punti in meno."
+                if len(fuori_posizione) == 1
+                else f". Sono {len(fuori_posizione)} adattamenti: "
+                f"{costo:g} punti in meno."
+            ),
             icon="🔁",
         )
 

@@ -10,13 +10,15 @@ che l'asimmetria — si arretra, non si avanza — valga riga per riga.
 import pytest
 
 from fantacalcio.mantra import (
-    INTERPRETAZIONE_ASTERISCHI,
+    ASTERISCHI_NON_IN_ALTERNATIVA,
+    CASELLE_PER_MODULO,
     RUOLI_TABELLA,
     TABELLA_SOSTITUZIONI,
     Esito,
-    costo_sostituzione,
-    esito_effettivo,
+    caselle_di,
+    costo_in_casella,
     esito_grezzo,
+    esito_in_casella,
     esito_sostituzione,
 )
 
@@ -92,36 +94,77 @@ class TestDueRuoliPerGiocatore:
 
 
 class TestAsterischi:
-    """Le caselle di cui non abbiamo ancora la legenda."""
+    """La legenda: «OK negli schemi con i ruoli in alternativa»."""
 
-    def test_esistono_e_sono_quindici(self):
+    def test_sono_quindici(self):
         speciali = [
             (uscito, entrato)
             for uscito, riga in TABELLA_SOSTITUZIONI.items()
             for entrato, esito in riga.items()
-            if esito in INTERPRETAZIONE_ASTERISCHI
+            if esito in ASTERISCHI_NON_IN_ALTERNATIVA
         ]
         assert len(speciali) == 15
 
-    def test_non_sono_divieti(self):
-        # Qualunque cosa voglia dire l'asterisco, quelle caselle non sono NO:
-        # il conto puo' sbagliare di un punto, mai il verso.
-        for uscito, riga in TABELLA_SOSTITUZIONI.items():
-            for entrato, esito in riga.items():
-                if esito in INTERPRETAZIONE_ASTERISCHI:
-                    assert esito_effettivo((uscito,), (entrato,)).possibile
-
-    def test_oggi_si_pagano_come_un_adattamento(self):
+    def test_in_alternativa_e_sempre_gratis(self):
+        # Una punta in una casella «A/Pc» non paga: il ruolo e' fra quelli che
+        # la casella ammette, e li' l'asterisco vale OK.
         assert esito_grezzo("A", "Pc") is Esito.SPECIALE_1
-        assert esito_effettivo(("A",), ("Pc",)) is Esito.MALUS
+        assert esito_in_casella(("A", "Pc"), ("Pc",)) is Esito.LIBERA
+
+    def test_un_asterisco_solo_e_altrimenti_un_divieto(self):
+        # Se la casella e' una «A» pura, lo stesso Pc non ci va proprio.
+        assert esito_in_casella(("A",), ("Pc",)) is Esito.VIETATA
+
+    def test_due_asterischi_altrimenti_costano(self):
+        # Dc <- B e' «**»: nella casella «Dc/B» gratis, in una «Dc» pura si paga.
+        assert esito_grezzo("Dc", "B") is Esito.SPECIALE_2
+        assert esito_in_casella(("Dc", "B"), ("B",)) is Esito.LIBERA
+        assert esito_in_casella(("Dc",), ("B",)) is Esito.MALUS
+
+    def test_tre_asterischi_sono_vietati_solo_nel_4_1_4_1(self):
+        # T <- W e' «***»: in una casella «W/T» e' gratis, altrove si paga, e
+        # nel 4-1-4-1 — dove le due caselle sono separate — non si puo'.
+        assert esito_grezzo("T", "W") is Esito.SPECIALE_3
+        assert esito_in_casella(("W", "T"), ("W",), "4-2-3-1") is Esito.LIBERA
+        assert esito_in_casella(("T",), ("W",), "3-4-1-2") is Esito.MALUS
+        assert esito_in_casella(("T",), ("W",), "4-1-4-1") is Esito.VIETATA
+
+
+class TestCaselleDeiModuli:
+    """Gli schemi ufficiali: undici caselle, e i conti che tornano."""
+
+    def test_ogni_modulo_ha_undici_caselle(self):
+        for nome, caselle in CASELLE_PER_MODULO.items():
+            assert len(caselle) == 11, nome
+
+    def test_ogni_modulo_comincia_col_portiere(self):
+        for nome, caselle in CASELLE_PER_MODULO.items():
+            assert caselle[0] == ("Por",), nome
+
+    def test_il_portiere_non_compare_altrove(self):
+        for nome, caselle in CASELLE_PER_MODULO.items():
+            for casella in caselle[1:]:
+                assert "Por" not in casella, nome
+
+    def test_i_numeri_del_nome_tornano(self):
+        # Il controllo vero lo fa il modulo quando si carica: qui si verifica
+        # che ci sia, perche' e' l'unica rete contro una trascrizione storta.
+        import re
+
+        for nome, caselle in CASELLE_PER_MODULO.items():
+            assert sum(int(n) for n in re.findall(r"\d+", nome)) == len(caselle) - 1
+
+    def test_un_modulo_che_non_conosciamo_non_esplode(self):
+        assert caselle_di("5-3-2") == ()
+        assert caselle_di("") == ()
 
 
 class TestCosto:
     def test_gratis_paga_zero(self):
-        assert costo_sostituzione(("Dc",), ("Dc",), malus=1.0) == 0.0
+        assert costo_in_casella(("Dc",), ("Dc",), malus=1.0) == 0.0
 
     def test_adattato_paga_il_malus(self):
-        assert costo_sostituzione(("Dc",), ("Dd",), malus=1.0) == pytest.approx(1.0)
+        assert costo_in_casella(("Dc",), ("Dd",), malus=1.0) == pytest.approx(1.0)
 
     def test_vietato_non_ha_prezzo(self):
-        assert costo_sostituzione(("Dc",), ("Pc",), malus=1.0) is None
+        assert costo_in_casella(("Dc",), ("Pc",), malus=1.0) is None

@@ -49,12 +49,17 @@ PER_NOME = {normalizza_nome_giocatore(n): i for n, i in NOMI.items()}
 
 
 def formazione(squadra_id: int) -> Formazione:
+    """Un 3-4-3 con ognuno nella sua casella dello schema ufficiale.
+
+    Le caselle sono `Por | Dc Dc Dc/B | E M/C C E | W/A W/A A/Pc`: se i ruoli
+    non tornano il punteggio cala, e questi test parlerebbero d'altro.
+    """
     return Formazione(
         squadra_id=squadra_id,
         giornata=1,
         modulo="3-4-3",
-        titolari=(1, 10, 11, 12, 20, 21, 23, 24, 30, 31, 32),
-        panchina=(2, 13),
+        titolari=(1, 10, 11, 12, 23, 20, 21, 13, 30, 32, 31),
+        panchina=(2, 24),
     )
 
 

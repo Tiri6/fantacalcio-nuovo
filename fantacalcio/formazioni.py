@@ -33,7 +33,7 @@ from .leghe import (
     ModalitaSostituzioni,
     bonus_modificatore,
 )
-from .mantra import Esito, esito_effettivo
+from .mantra import Esito, caselle_di, esito_in_casella
 from .regole import ParametriLega, fasce_gol
 
 
@@ -66,6 +66,22 @@ TITOLARI = 11
 
 
 @dataclass(frozen=True)
+class Casella:
+    """Un posto del modulo: quali ruoli ci stanno di diritto, e in che riga.
+
+    E' l'unita' vera del Mantra. «Tre difensori» non vuol dire niente: il
+    3-4-3 chiede *Dc, Dc, Dc/B*, e un terzino li' dentro si adatta e paga.
+    """
+
+    ruoli: tuple[str, ...]
+    reparto: Reparto
+
+    @property
+    def etichetta(self) -> str:
+        return "/".join(self.ruoli)
+
+
+@dataclass(frozen=True)
 class Modulo:
     """Un modulo e i posti che apre in ogni reparto."""
 
@@ -73,6 +89,12 @@ class Modulo:
     difensori: int
     centrocampisti: int
     attaccanti: int
+    caselle: tuple[Casella, ...] = ()
+
+    @property
+    def ufficiale(self) -> bool:
+        """Se le sue caselle vengono dallo schema ufficiale o sono dedotte."""
+        return bool(caselle_di(self.nome))
 
     @property
     def reparti(self) -> tuple[tuple[Reparto, int], ...]:
@@ -103,13 +125,53 @@ def leggi_modulo(nome: str) -> Modulo:
     difensori = numeri[0]
     attaccanti = numeri[-1]
     centrocampisti = sum(numeri[1:-1])
-    modulo = Modulo(str(nome), difensori, centrocampisti, attaccanti)
+    modulo = Modulo(
+        str(nome),
+        difensori,
+        centrocampisti,
+        attaccanti,
+        caselle=_caselle_del_modulo(str(nome), difensori, centrocampisti, attaccanti),
+    )
     if modulo.totale != TITOLARI:
         raise FormazioneNonValida(
             f"Il modulo «{nome}» mette in campo {modulo.totale} giocatori "
             f"contando il portiere, e devono essere {TITOLARI}."
         )
     return modulo
+
+
+def _caselle_del_modulo(
+    nome: str, difensori: int, centrocampisti: int, attaccanti: int
+) -> tuple[Casella, ...]:
+    """Le caselle dello schema ufficiale, o quelle dedotte dai reparti.
+
+    Quando il modulo sta nello schema ufficiale si usano i suoi ruoli esatti.
+    Per gli altri — i moduli Classic, e i Mantra che non abbiamo ancora
+    trascritto — la casella ammette tutti i ruoli del reparto: e' la vecchia
+    approssimazione, che resta buona per non rifiutare formazioni lecite.
+    """
+    ufficiali = caselle_di(nome)
+    if ufficiali:
+        reparti = [
+            Reparto.PORTA,
+            *[Reparto.DIFESA] * difensori,
+            *[Reparto.CENTROCAMPO] * centrocampisti,
+            *[Reparto.ATTACCO] * attaccanti,
+        ]
+        return tuple(
+            Casella(ruoli, reparto)
+            for ruoli, reparto in zip(ufficiali, reparti, strict=True)
+        )
+    return tuple(
+        Casella(reparto.ruoli, reparto)
+        for reparto, quanti in (
+            (Reparto.PORTA, 1),
+            (Reparto.DIFESA, difensori),
+            (Reparto.CENTROCAMPO, centrocampisti),
+            (Reparto.ATTACCO, attaccanti),
+        )
+        for _ in range(quanti)
+    )
 
 
 @dataclass(frozen=True)
@@ -129,26 +191,21 @@ class Formazione:
     aggiornata_il: str = ""
 
 
-def esito_reparto(reparto: Reparto, ruoli_giocatore) -> Esito:
-    """Cosa succede se quel giocatore occupa un posto in quel reparto.
+def esito_casella(casella: Casella, ruoli_giocatore, modulo: str = "") -> Esito:
+    """Cosa succede se quel giocatore occupa quella casella: gratis, col malus,
+    o per niente.
 
-    Si chiede alla tabella delle sostituzioni del Mantra, prendendo il miglior
-    esito fra i ruoli del reparto e quelli del giocatore. Da li' escono da
-    sole due regole che altrimenti andrebbero scritte a mano: il portiere non
-    si adatta mai, e verso l'attacco non si sale — un difensore puo' giocare
-    piu' avanti pagando, una punta non puo' arretrare in difesa.
-
-    Nota onesta: il reparto e' un'approssimazione della casella esatta del
-    modulo, che non abbiamo (vedi PUNTI_APERTI.md). Fra i ruoli del reparto si
-    prende il migliore, quindi il sito e' un filo piu' permissivo della
-    piattaforma, mai piu' severo.
+    Lo decide la tabella Mantra. Ne escono da sole regole che altrimenti
+    andrebbero scritte a mano: il portiere non si adatta mai, e verso l'attacco
+    non si sale — un difensore puo' giocare piu' avanti pagando, una punta non
+    puo' arretrare in difesa.
     """
-    return esito_effettivo(reparto.ruoli, ruoli_giocatore)
+    return esito_in_casella(casella.ruoli, ruoli_giocatore, modulo)
 
 
-def puo_occupare(reparto: Reparto, ruoli_giocatore) -> bool:
+def puo_occupare(casella: Casella, ruoli_giocatore, modulo: str = "") -> bool:
     """Se quel giocatore puo' stare li', anche adattandosi e pagando il malus."""
-    return esito_reparto(reparto, ruoli_giocatore).possibile
+    return esito_casella(casella, ruoli_giocatore, modulo).possibile
 
 
 def valida(
@@ -201,22 +258,35 @@ def valida(
     return problemi
 
 
+def caselle_e_titolari(
+    formazione: Formazione,
+) -> list[tuple[Casella, int]]:
+    """Le caselle del modulo accoppiate a chi le occupa, in ordine.
+
+    Se la formazione e' piu' corta del modulo si torna quel che c'e': serve
+    anche mentre la si sta ancora componendo.
+    """
+    modulo = leggi_modulo(formazione.modulo)
+    return list(zip(modulo.caselle, formazione.titolari, strict=False))
+
+
 def adattamenti(
     formazione: Formazione,
     ruoli_per_giocatore: dict[int, tuple[str, ...]],
-) -> list[tuple[int, Reparto]]:
-    """Chi, fra i titolari, sta giocando in un posto che non e' il suo.
+) -> list[tuple[int, Casella]]:
+    """Chi, fra i titolari, sta giocando in una casella che non e' la sua.
 
     Non e' un errore: e' un'informazione che chi schiera deve avere prima di
     salvare, perche' ognuno di questi costa il malus di adattamento.
     """
-    fuori: list[tuple[int, Reparto]] = []
-    for reparto, giocatori in schieramento(formazione):
-        for giocatore in giocatori:
-            ruoli = ruoli_per_giocatore.get(giocatore, ())
-            if esito_reparto(reparto, ruoli) is Esito.MALUS:
-                fuori.append((giocatore, reparto))
-    return fuori
+    return [
+        (giocatore, casella)
+        for casella, giocatore in caselle_e_titolari(formazione)
+        if esito_casella(
+            casella, ruoli_per_giocatore.get(giocatore, ()), formazione.modulo
+        )
+        is Esito.MALUS
+    ]
 
 
 def _problemi_di_reparto(
@@ -225,44 +295,43 @@ def _problemi_di_reparto(
     ruoli_per_giocatore: dict[int, tuple[str, ...]],
     modalita: ModalitaSostituzioni = ModalitaSostituzioni.BASIC,
 ) -> list[str]:
-    """I titolari, nell'ordine, devono riempire i posti del modulo.
+    """I titolari, nell'ordine, devono stare nelle caselle del modulo.
 
-    Due divieti diversi: la porta non si adatta mai, e in modalita' Easy non
-    si adatta nemmeno il resto.
+    Due divieti diversi: quel che la tabella Mantra chiude non si apre in
+    nessun modo, e in piu', in modalita' Easy, non si adatta nemmeno chi
+    potrebbe pagando.
     """
     problemi = []
-    posizione = 0
-    for reparto, quanti in modulo.reparti:
-        for _ in range(quanti):
-            giocatore = formazione.titolari[posizione]
-            ruoli = ruoli_per_giocatore.get(giocatore, ())
-            if reparto.accetta(ruoli):
-                posizione += 1
-                continue
-            if not puo_occupare(reparto, ruoli):
-                tocca_la_porta = reparto is Reparto.PORTA or any(
-                    r in Reparto.PORTA.ruoli for r in ruoli
-                )
-                perche = (
-                    "nel Mantra il portiere non si adatta mai"
-                    if tocca_la_porta
-                    else "la tabella Mantra non lo consente, perche' un posto "
-                    "si copre con la stessa linea o con una piu' arretrata, "
-                    "mai con una piu' avanzata"
-                )
-                problemi.append(
-                    f"Il giocatore in posizione {posizione + 1} ha ruolo "
-                    f"{'/'.join(ruoli) or '?'} e non puo' occupare un posto in "
-                    f"{reparto.etichetta.lower()}: {perche}."
-                )
-            elif modalita is ModalitaSostituzioni.EASY:
-                problemi.append(
-                    f"Il giocatore in posizione {posizione + 1} ha ruolo "
-                    f"{'/'.join(ruoli) or '?'} e non puo' occupare un posto "
-                    f"in {reparto.etichetta.lower()}: in modalita' Easy "
-                    f"nessuno gioca fuori posizione."
-                )
-            posizione += 1
+    for posizione, (casella, giocatore) in enumerate(
+        zip(modulo.caselle, formazione.titolari, strict=False), start=1
+    ):
+        ruoli = ruoli_per_giocatore.get(giocatore, ())
+        esito = esito_casella(casella, ruoli, modulo.nome)
+        if esito is Esito.LIBERA:
+            continue
+        scritti = "/".join(ruoli) or "?"
+        dove = f"la casella «{casella.etichetta}» in {casella.reparto.etichetta.lower()}"
+        if esito is Esito.VIETATA:
+            tocca_la_porta = casella.reparto is Reparto.PORTA or any(
+                r in Reparto.PORTA.ruoli for r in ruoli
+            )
+            perche = (
+                "nel Mantra il portiere non si adatta mai"
+                if tocca_la_porta
+                else "la tabella Mantra non lo consente, perche' un posto si "
+                "copre con la stessa linea o con una piu' arretrata, mai con "
+                "una piu' avanzata"
+            )
+            problemi.append(
+                f"Il giocatore in posizione {posizione} ha ruolo {scritti} e "
+                f"non puo' occupare {dove}: {perche}."
+            )
+        elif modalita is ModalitaSostituzioni.EASY:
+            problemi.append(
+                f"Il giocatore in posizione {posizione} ha ruolo {scritti} e "
+                f"in {dove} andrebbe adattato: in modalita' Easy nessuno gioca "
+                f"fuori posizione."
+            )
     return problemi
 
 
@@ -440,78 +509,56 @@ def calcola_squadra(
     bonus = bonus or Bonus()
     tabellino = TabellinoSquadra(formazione.squadra_id, formazione.giornata)
     malus = abs(parametri.malus_adattamento)
+    schema = formazione.modulo
 
     disponibili = [g for g in formazione.panchina if g in voti and voti[g].ha_giocato]
     usati: set[int] = set()
 
-    def punti_di(giocatore: int, reparto: Reparto) -> tuple[float, bool]:
-        """Quanto vale, e se ha dovuto adattarsi per stare li'."""
-        adattato = (
-            esito_reparto(reparto, ruoli_per_giocatore.get(giocatore, ())) is Esito.MALUS
-        )
-        punti = punteggio_giocatore(voti[giocatore], bonus)
-        return (round(punti - malus, 2) if adattato else punti), adattato
+    def registra(casella: Casella, giocatore: int) -> bool:
+        """Mette in campo chi puo' starci, e segna se ha dovuto adattarsi.
 
-    def ammesso(giocatore: int, reparto: Reparto) -> bool:
-        """Puo' stare in quel posto, foss'anche adattandosi?
-
-        In Easy si sta solo nel proprio reparto; ovunque, il portiere non si
-        adatta mai. Chi non e' ammesso vale zero: non e' un dettaglio da
-        arrotondare, e' una formazione che non si sarebbe potuta schierare.
+        Torna False quando quella casella non lo ammette proprio: allora vale
+        zero. Non e' un dettaglio da arrotondare — e' una formazione che non
+        si sarebbe potuta schierare.
         """
-        esito = esito_reparto(reparto, ruoli_per_giocatore.get(giocatore, ()))
-        if modalita is ModalitaSostituzioni.EASY:
-            return esito is Esito.LIBERA
-        return esito.possibile
+        esito = esito_casella(casella, ruoli_per_giocatore.get(giocatore, ()), schema)
+        vietato = esito is Esito.VIETATA or (
+            modalita is ModalitaSostituzioni.EASY and esito is not Esito.LIBERA
+        )
+        if vietato:
+            tabellino.schierati.append((casella.reparto, giocatore, 0.0))
+            return False
 
-    def registra(reparto: Reparto, giocatore: int) -> None:
-        punti, adattato = punti_di(giocatore, reparto)
-        if adattato:
+        punti = punteggio_giocatore(voti[giocatore], bonus)
+        if esito is Esito.MALUS:
+            punti = round(punti - malus, 2)
             tabellino.adattati.append(giocatore)
             tabellino.malus_adattamento = round(tabellino.malus_adattamento - malus, 2)
-        tabellino.schierati.append((reparto, giocatore, punti))
+        tabellino.schierati.append((casella.reparto, giocatore, punti))
+        return esito is Esito.MALUS
 
-    for reparto, giocatori in schieramento(formazione):
-        for giocatore in giocatori:
-            voto = voti.get(giocatore)
-            if voto is not None and voto.ha_giocato:
-                if not ammesso(giocatore, reparto):
-                    tabellino.schierati.append((reparto, giocatore, 0.0))
-                    continue
-                registra(reparto, giocatore)
-                continue
+    for casella, giocatore in caselle_e_titolari(formazione):
+        voto = voti.get(giocatore)
+        if voto is not None and voto.ha_giocato:
+            registra(casella, giocatore)
+            continue
 
-            tabellino.senza_voto.append(giocatore)
-            sostituto = (
-                _chi_entra(disponibili, usati, giocatore, ruoli_per_giocatore, modalita)
-                if len(tabellino.sostituzioni) < sostituzioni_massime
-                else None
-            )
+        tabellino.senza_voto.append(giocatore)
+        sostituto = (
+            _chi_entra(disponibili, usati, casella, ruoli_per_giocatore, modalita, schema)
+            if len(tabellino.sostituzioni) < sostituzioni_massime
+            else None
+        )
 
-            if sostituto is None:
-                tabellino.schierati.append((reparto, giocatore, 0.0))
-                continue
+        if sostituto is None:
+            tabellino.schierati.append((casella.reparto, giocatore, 0.0))
+            continue
 
-            usati.add(sostituto)
-            # Il cambio si valuta fra i due giocatori, non contro il reparto:
-            # e' la tabella delle sostituzioni a dire se chi entra si sta
-            # adattando, e quindi se paga.
-            esito = esito_effettivo(
-                ruoli_per_giocatore.get(giocatore, ()),
-                ruoli_per_giocatore.get(sostituto, ()),
-            )
-            adattato = esito is Esito.MALUS
-            tabellino.sostituzioni.append(
-                Sostituzione(giocatore, sostituto, reparto, adattato=adattato)
-            )
-            punti = punteggio_giocatore(voti[sostituto], bonus)
-            if adattato:
-                punti = round(punti - malus, 2)
-                tabellino.adattati.append(sostituto)
-                tabellino.malus_adattamento = round(
-                    tabellino.malus_adattamento - malus, 2
-                )
-            tabellino.schierati.append((reparto, sostituto, punti))
+        usati.add(sostituto)
+        adattato = registra(casella, sostituto)
+        tabellino.sostituzioni.append(
+            Sostituzione(giocatore, sostituto, casella.reparto, adattato=adattato)
+        )
 
     tabellino.modificatore_difesa = (
         _modificatore_difesa(tabellino, voti, fasce_difesa)
@@ -528,17 +575,17 @@ def calcola_squadra(
 def _chi_entra(
     disponibili: list[int],
     usati: set[int],
-    uscito: int,
+    casella: Casella,
     ruoli_per_giocatore: dict[int, tuple[str, ...]],
     modalita: ModalitaSostituzioni,
+    modulo: str = "",
 ) -> int | None:
-    """Chi entra al posto di chi e' uscito, secondo la modalita' della lega.
+    """Chi entra in quella casella, secondo la modalita' della lega.
 
-    Chi puo' entrare lo dice la **tabella delle sostituzioni** del Mantra, che
-    guarda i due ruoli e non il reparto: per coprire una punta si puo' usare
-    un difensore pagando, per coprire un difensore non si puo' usare una
-    punta, e in porta va solo un portiere. Le modalita' scelgono *fra* i
-    possibili:
+    Chi puo' entrarci lo dice la **tabella delle sostituzioni** del Mantra,
+    letta sulla casella da coprire e non sul reparto: in una casella «Dc/B»
+    un braccetto entra gratis, in una «Dc» pura lo stesso braccetto paga, e in
+    porta va solo un portiere. Le modalita' scelgono *fra* i possibili:
 
     - **Easy**: solo chi entra senza malus.
     - **Basic**: prima chi entra senza malus, anche se sta piu' in fondo;
@@ -549,13 +596,12 @@ def _chi_entra(
     A parita' di condizioni vince sempre l'ordine della panchina: e' la
     volonta' del fantallenatore, non un dettaglio.
     """
-    ruoli_uscito = ruoli_per_giocatore.get(uscito, ())
     esiti = [
-        (g, esito_effettivo(ruoli_uscito, ruoli_per_giocatore.get(g, ())))
+        (g, esito_casella(casella, ruoli_per_giocatore.get(g, ()), modulo))
         for g in disponibili
         if g not in usati
     ]
-    possibili = [(g, e) for g, e in esiti if e is not Esito.VIETATA]
+    possibili = [(g, e) for g, e in esiti if e.possibile]
     senza_malus = [g for g, e in possibili if e is Esito.LIBERA]
 
     if modalita is ModalitaSostituzioni.EASY:
@@ -655,20 +701,31 @@ def formazione_suggerita(
     schema = leggi_modulo(modulo)
     liberi = list(rosa)
     titolari: list[int] = []
-    for reparto, quanti in schema.reparti:
-        for _ in range(quanti):
+    for casella in schema.caselle:
+        for cerca_gratis in (True, False):
+            # Prima chi la casella ammette di suo, poi — se proprio non c'e'
+            # nessuno — chi ci starebbe adattandosi. Una proposta con un
+            # adattamento e' meglio di una casella vuota, ma resta l'ultima
+            # scelta: chi apre la pagina non deve trovarsi un malus regalato.
             scelto = next(
                 (
                     g
                     for g in liberi
-                    if reparto.accetta(ruoli_per_giocatore.get(g, ()))
-                    and g not in titolari
+                    if g not in titolari
+                    and (
+                        esito_casella(casella, ruoli_per_giocatore.get(g, ()), modulo)
+                        is Esito.LIBERA
+                        if cerca_gratis
+                        else puo_occupare(casella, ruoli_per_giocatore.get(g, ()), modulo)
+                    )
                 ),
                 None,
             )
             if scelto is not None:
-                titolari.append(scelto)
-                liberi.remove(scelto)
+                break
+        if scelto is not None:
+            titolari.append(scelto)
+            liberi.remove(scelto)
     panchina = tuple(g for g in rosa if g not in titolari)
     if panchinari is not None:
         panchina = panchina[: max(0, panchinari)]

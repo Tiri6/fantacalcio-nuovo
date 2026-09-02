@@ -62,14 +62,22 @@ ROSA = set(RUOLI)
 
 
 def formazione_343(**extra) -> Formazione:
-    return Formazione(
-        squadra_id=1,
-        giornata=1,
-        modulo="3-4-3",
-        titolari=(1, 10, 11, 12, 20, 21, 23, 24, 30, 31, 32),
-        panchina=(2, 13, 22, 33),
-        **extra,
-    )
+    """Un 3-4-3 legittimo secondo lo schema ufficiale.
+
+    Le caselle sono `Por | Dc Dc Dc/B | E M/C C E | W/A W/A A/Pc`, e ogni
+    titolare sta nella sua: i test sul punteggio partono da una formazione che
+    non paga niente, cosi' quando un malus compare e' perche' lo si e' voluto.
+
+    In panchina, in ordine: il secondo portiere, un C/T, un Dd e un W/T.
+    """
+    valori = {
+        "squadra_id": 1,
+        "giornata": 1,
+        "modulo": "3-4-3",
+        "titolari": (1, 10, 11, 12, 23, 20, 21, 13, 30, 33, 31),
+        "panchina": (2, 22, 41, 25),
+    }
+    return Formazione(**{**valori, **extra})
 
 
 class TestModuli:
@@ -144,27 +152,27 @@ class TestValidazione:
         assert any("non sono in rosa" in p for p in problemi)
 
     def test_un_difensore_in_attacco_e_lecito_ma_si_dichiara(self):
-        # Il difensore 10 gioca da attaccante: si arretra il reparto, non si
-        # avanza il giocatore, quindi la tabella lo ammette — pagando.
+        # Il difensore 40 occupa la casella «A/Pc»: si copre una linea avanzata
+        # con una piu' arretrata, quindi la tabella lo ammette — pagando.
         formazione = Formazione(
-            1, 1, "3-4-3", titolari=(1, 40, 11, 12, 20, 21, 23, 24, 10, 31, 32)
+            1, 1, "3-4-3", titolari=(1, 10, 11, 12, 23, 20, 21, 13, 30, 33, 40)
         )
         assert valida(formazione, RUOLI, ROSA) == []
-        assert adattamenti(formazione, RUOLI) == [(10, Reparto.ATTACCO)]
+        assert [g for g, _ in adattamenti(formazione, RUOLI)] == [40]
 
     def test_un_attaccante_in_difesa_non_si_puo_proprio(self):
-        # L'altro verso e' chiuso: una punta in difesa la tabella non la
-        # ammette, nemmeno pagando, in nessuna modalita'.
+        # L'altro verso e' chiuso: una punta in una casella «Dc» la tabella non
+        # la ammette, nemmeno pagando, in nessuna modalita'.
         formazione = Formazione(
-            1, 1, "3-4-3", titolari=(1, 30, 11, 12, 20, 21, 23, 24, 10, 31, 32)
+            1, 1, "3-4-3", titolari=(1, 31, 11, 12, 23, 20, 21, 13, 30, 33, 10)
         )
         for modalita in ModalitaSostituzioni:
             problemi = valida(formazione, RUOLI, ROSA, modalita)
-            assert any("difesa" in p for p in problemi), modalita
+            assert any("posizione 2" in p for p in problemi), modalita
 
     def test_in_easy_anche_un_adattamento_lecito_e_un_errore(self):
         formazione = Formazione(
-            1, 1, "3-4-3", titolari=(1, 40, 11, 12, 20, 21, 23, 24, 10, 31, 32)
+            1, 1, "3-4-3", titolari=(1, 10, 11, 12, 23, 20, 21, 13, 30, 33, 40)
         )
         problemi = valida(formazione, RUOLI, ROSA, ModalitaSostituzioni.EASY)
         assert any("Easy" in p for p in problemi)
@@ -267,45 +275,40 @@ class TestCalcoloSquadra:
         assert tabellino.somma_voti == pytest.approx(66.0)
 
     def test_chi_non_puo_fare_quel_ruolo_si_salta(self):
-        # Un buco in difesa (10 e' un Dc): il portiere 2 non entra mai, il 22
-        # (C/T) e il 33 (W/A) sono troppo avanti — per coprire un difensore
-        # non si usa un centrocampista. Resta il 13 (Dd/E), che entra
-        # adattandosi: un terzino per un centrale costa il malus.
+        # Buco in una casella «Dc»: il portiere 2 non entra mai, il 22 (C/T) e
+        # il 25 (W/T) sono troppo avanti — un difensore non si copre con un
+        # centrocampista. Resta il 41 (Dd), che entra adattandosi: un terzino
+        # in una casella da centrale costa il malus.
         voti = voti_pieni(6.0, {10: Voto(10, 1, voto=None)})
         tabellino = calcola_squadra(formazione_343(), voti, RUOLI, ParametriLega())
-        assert [s.entrato for s in tabellino.sostituzioni] == [13]
+        assert [s.entrato for s in tabellino.sostituzioni] == [41]
         assert tabellino.sostituzioni[0].reparto is Reparto.DIFESA
         assert tabellino.sostituzioni[0].adattato
 
     def test_chi_entra_deve_aver_giocato(self):
-        # Buco in difesa: il 13 sarebbe l'unico che puo' coprirlo, ma e' senza
+        # Buco in difesa: il 41 sarebbe l'unico che puo' coprirlo, ma e' senza
         # voto anche lui. Nessun altro in panchina puo' fare il difensore, e
         # il posto resta a zero.
-        voti = voti_pieni(6.0, {10: Voto(10, 1, voto=None), 13: Voto(13, 1, voto=None)})
+        voti = voti_pieni(6.0, {10: Voto(10, 1, voto=None), 41: Voto(41, 1, voto=None)})
         tabellino = calcola_squadra(formazione_343(), voti, RUOLI, ParametriLega())
         assert tabellino.sostituzioni == []
         assert (Reparto.DIFESA, 10, 0.0) in tabellino.schierati
 
     def test_finite_le_sostituzioni_chi_resta_vale_zero(self):
-        # Quattro buchi a centrocampo e quattro panchinari che potrebbero
-        # riempirli: ne entrano tre, il quarto posto resta a zero.
-        formazione = Formazione(
-            1,
-            1,
-            "3-4-3",
-            titolari=(1, 10, 11, 12, 20, 21, 23, 24, 30, 31, 32),
-            panchina=(22, 13, 25, 33),
-        )
-        senza = {g: Voto(g, 1, voto=None) for g in (20, 21, 23, 24)}
+        # Tutto il centrocampo senza voto e quattro panchinari: ne entrano
+        # tre, il quarto posto resta a zero.
+        formazione = formazione_343(panchina=(22, 41, 40, 25))
+        senza = {g: Voto(g, 1, voto=None) for g in (23, 20, 21, 13)}
         tabellino = calcola_squadra(
             formazione, voti_pieni(6.0, senza), RUOLI, ParametriLega()
         )
         assert len(tabellino.sostituzioni) == SOSTITUZIONI_MASSIME
         assert len(tabellino.senza_voto) == 4
-        # Sette titolari a 6 fanno 42. Poi: 22 entra gratis per il 20 (C per
-        # un M/C), 13 e 25 entrano adattati e portano 5 a testa, il quarto
-        # buco resta a zero perche' i cambi sono finiti.
-        assert [s.adattato for s in tabellino.sostituzioni] == [False, True, True]
+        # Sette titolari a 6 fanno 42. Nella casella «E» nessuno entra gratis
+        # e tocca al 41 adattato (5); nella «M/C» il 22 entra gratis (6);
+        # nella «C» il 40 si adatta (5); la seconda «E» resta a zero perche' i
+        # cambi sono finiti.
+        assert [s.adattato for s in tabellino.sostituzioni] == [True, False, True]
         assert tabellino.somma_voti == pytest.approx(58.0)
 
     def test_un_giocatore_senza_riga_di_voto_e_un_senza_voto(self):
@@ -379,13 +382,7 @@ class TestGol:
 class TestPartita:
     def test_due_tabellini_e_un_risultato(self):
         casa = formazione_343()
-        fuori = Formazione(
-            squadra_id=2,
-            giornata=1,
-            modulo="3-4-3",
-            titolari=(1, 10, 11, 12, 20, 21, 23, 24, 30, 31, 32),
-            panchina=(2, 13),
-        )
+        fuori = formazione_343(squadra_id=2)
         voti = voti_pieni(6.0)
         esito = calcola_partita(casa, fuori, voti, RUOLI, ParametriLega())
         assert esito.punteggio == "1-1"
@@ -425,30 +422,20 @@ class TestFormazioneSuggerita:
 class TestModalitaDiSostituzione:
     """Le tre gerarchie del Mantra: Easy, Basic, Master.
 
-    Il banco di prova e' un buco **in difesa** (il 11 e' un Dc) con in
-    panchina, in quest'ordine, il 41 (Dd, che copre pagando) e il 40 (Dc, che
-    copre gratis). Mettendo per primo quello che costa si vede subito la
-    differenza fra chi rispetta l'ordine della panchina e chi cerca prima la
-    soluzione che non paga.
+    Il banco di prova e' la casella «M/C» del 3-4-3, con in panchina — in
+    quest'ordine — il 41 (Dd, che la copre pagando) e il 22 (C/T, che la copre
+    gratis). Mettendo per primo quello che costa si vede subito la differenza
+    fra chi rispetta l'ordine della panchina e chi cerca la soluzione gratis.
     """
 
-    def buco_in_difesa(self):
-        """Il difensore centrale 11 resta senza voto."""
-        return voti_pieni(6.0, {11: Voto(11, 1, voto=None)})
+    def buco_in_mezzo(self):
+        """Il 20, che occupa la casella «M/C», resta senza voto."""
+        return voti_pieni(6.0, {20: Voto(20, 1, voto=None)})
 
-    def formazione(self, panchina=(41, 40)):
-        return Formazione(
-            squadra_id=1,
-            giornata=1,
-            modulo="3-4-3",
-            titolari=(1, 10, 11, 12, 20, 21, 23, 24, 30, 31, 32),
-            panchina=panchina,
-        )
-
-    def calcola(self, modalita, panchina=(41, 40), parametri=None):
+    def calcola(self, modalita, panchina=(41, 22), parametri=None):
         return calcola_squadra(
-            self.formazione(panchina),
-            self.buco_in_difesa(),
+            formazione_343(panchina=panchina),
+            self.buco_in_mezzo(),
             RUOLI,
             parametri or ParametriLega(),
             modalita=modalita,
@@ -456,22 +443,22 @@ class TestModalitaDiSostituzione:
 
     def test_easy_prende_solo_chi_entra_senza_malus(self):
         tabellino = self.calcola(ModalitaSostituzioni.EASY)
-        assert [s.entrato for s in tabellino.sostituzioni] == [40]
+        assert [s.entrato for s in tabellino.sostituzioni] == [22]
         assert tabellino.adattati == []
         assert tabellino.malus_adattamento == 0.0
 
     def test_easy_lascia_il_posto_vuoto_se_si_dovrebbe_pagare(self):
-        # In panchina solo il Dd, che per coprire un Dc paga: in Easy non si
-        # paga mai, e il posto vale zero.
+        # In panchina solo il Dd, che per una casella «M/C» paga: in Easy non
+        # si paga mai, e il posto vale zero.
         tabellino = self.calcola(ModalitaSostituzioni.EASY, panchina=(41,))
         assert tabellino.sostituzioni == []
-        assert (Reparto.DIFESA, 11, 0.0) in tabellino.schierati
+        assert (Reparto.CENTROCAMPO, 20, 0.0) in tabellino.schierati
 
     def test_basic_preferisce_il_gratis_all_ordine(self):
         # Il primo in panchina e' il 41, che costa: Basic lo scavalca e
-        # prende il 40, che entra senza malus.
+        # prende il 22, che entra senza malus.
         tabellino = self.calcola(ModalitaSostituzioni.BASIC)
-        assert [s.entrato for s in tabellino.sostituzioni] == [40]
+        assert [s.entrato for s in tabellino.sostituzioni] == [22]
         assert tabellino.adattati == []
 
     def test_basic_paga_solo_quando_non_ha_scelta(self):
@@ -501,19 +488,26 @@ class TestModalitaDiSostituzione:
         assert tabellino.malus_adattamento == pytest.approx(-2.5)
 
     def test_nessuna_modalita_manda_una_punta_a_fare_il_difensore(self):
-        # La tabella e' asimmetrica e questo e' il lato chiuso: per coprire un
-        # difensore non si usa un attaccante, nemmeno pagando, nemmeno in
+        # La tabella e' asimmetrica e questo e' il lato chiuso: una casella
+        # «Dc» non si copre con un attaccante, nemmeno pagando, nemmeno in
         # Master, che di solito prende il primo che trova.
+        voti = voti_pieni(6.0, {10: Voto(10, 1, voto=None)})
         for modalita in ModalitaSostituzioni:
-            tabellino = self.calcola(modalita, panchina=(42,))
+            tabellino = calcola_squadra(
+                formazione_343(panchina=(42,)),
+                voti,
+                RUOLI,
+                ParametriLega(),
+                modalita=modalita,
+            )
             assert tabellino.sostituzioni == [], modalita
-            assert (Reparto.DIFESA, 11, 0.0) in tabellino.schierati
+            assert (Reparto.DIFESA, 10, 0.0) in tabellino.schierati
 
     def test_ma_un_difensore_puo_coprire_una_punta(self):
         # L'altro lato della stessa asimmetria: si arretra, non si avanza.
-        voti = voti_pieni(6.0, {30: Voto(30, 1, voto=None)})
+        voti = voti_pieni(6.0, {31: Voto(31, 1, voto=None)})
         tabellino = calcola_squadra(
-            self.formazione(panchina=(40,)),
+            formazione_343(panchina=(40,)),
             voti,
             RUOLI,
             ParametriLega(),
@@ -523,26 +517,14 @@ class TestModalitaDiSostituzione:
         assert tabellino.sostituzioni[0].adattato
 
     def test_un_titolare_fuori_posizione_paga_il_malus(self):
-        # 30 (A/Pc) schierato a centrocampo: gioca, ma con un punto in meno.
-        formazione = Formazione(
-            squadra_id=1,
-            giornata=1,
-            modulo="3-4-3",
-            titolari=(1, 10, 11, 12, 20, 21, 23, 30, 31, 32, 33),
-            panchina=(),
-        )
+        # Il difensore 40 nella casella «A/Pc»: gioca, con un punto in meno.
+        formazione = formazione_343(titolari=(1, 10, 11, 12, 23, 20, 21, 13, 30, 33, 40))
         tabellino = calcola_squadra(formazione, voti_pieni(6.0), RUOLI, ParametriLega())
-        assert tabellino.adattati == [30]
+        assert tabellino.adattati == [40]
         assert tabellino.malus_adattamento == pytest.approx(-1.0)
 
     def test_in_easy_il_titolare_fuori_posizione_non_vale_niente(self):
-        formazione = Formazione(
-            squadra_id=1,
-            giornata=1,
-            modulo="3-4-3",
-            titolari=(1, 10, 11, 12, 20, 21, 23, 30, 31, 32, 33),
-            panchina=(),
-        )
+        formazione = formazione_343(titolari=(1, 10, 11, 12, 23, 20, 21, 13, 30, 33, 40))
         tabellino = calcola_squadra(
             formazione,
             voti_pieni(6.0),
@@ -550,7 +532,7 @@ class TestModalitaDiSostituzione:
             ParametriLega(),
             modalita=ModalitaSostituzioni.EASY,
         )
-        assert (Reparto.CENTROCAMPO, 30, 0.0) in tabellino.schierati
+        assert (Reparto.ATTACCO, 40, 0.0) in tabellino.schierati
         assert tabellino.adattati == []
 
 
@@ -615,7 +597,9 @@ class TestIlPortiereNonSiAdattaMai:
         assert any("non si adatta mai" in p for p in problemi)
 
     def test_e_non_conta_come_adattamento_pagabile(self):
+        # Il secondo portiere messo in difesa non e' un adattamento caro: e'
+        # una casella che non si puo' riempire cosi'.
         formazione = Formazione(
-            1, 1, "3-4-3", titolari=(1, 2, 11, 12, 20, 21, 23, 24, 30, 31, 32)
+            1, 1, "3-4-3", titolari=(1, 2, 11, 12, 23, 20, 21, 13, 30, 33, 31)
         )
         assert adattamenti(formazione, RUOLI) == []

@@ -224,84 +224,62 @@ funzione che scarica quel testo — il calcolo non cambia.
 pagamento a una fonte voti, oppure tenere il copia-incolla, che per 27
 giornate all'anno costa pochi minuti a giornata.
 
-## Slot Mantra: il sito valida per reparto, non casella per casella
+## Mantra: le due tabelle, quel che c'e' e quel che manca
 
-Leghe Fantacalcio, in Mantra, ha una tabella di caselle esatte per ogni
-modulo: un 3-4-1-2 vuole *quel* tipo di difensori e *quel* tipo di esterni.
+Il Mantra sta in due tabelle. Una dice **chi puo' coprire cosa**, l'altra
+**cosa c'e' da coprire** — cioe' i ruoli che ogni modulo chiede, casella per
+casella. Senza la seconda, la prima non basta: e' la casella a sciogliere gli
+asterischi.
 
-**Oggi il sito** valida in modo piu' largo: controlla che ogni giocatore possa
-occupare il **reparto** (porta, difesa, centrocampo, attacco), con i ruoli di
-confine — E, W, T — che valgono in due reparti. Le formazioni ammesse sono
-quindi un po' piu' d'una lega ufficiale, mai di meno.
 
-E' scritto anche nel modulo `fantacalcio/formazioni.py`, per non far credere a
-chi legge il codice che sia la stessa cosa. Se la lega vuole la regola esatta,
-serve la tabella delle caselle modulo per modulo: e' un lavoro di dati, non di
-logica.
+Il sito ha **la tabella ufficiale delle sostituzioni** (`fantacalcio/mantra.py`):
+dodici ruoli per dodici, con OK, malus o divieto in ogni casella. Le righe
+sono la casella da coprire, le colonne chi la copre, e la direzione non e' un
+dettaglio — la tabella e' asimmetrica: per coprire una punta si puo' usare un
+difensore pagando, per coprire un difensore non si puo' usare una punta. E' il
+principio del regolamento («l'adattabilita' si concretizza solo con calciatori
+della stessa linea o di linee piu' arretrate») declinato caso per caso.
 
-### La tabella delle sostituzioni c'e', quella delle caselle no
+I **quindici asterischi** sono sciolti dalla loro legenda: valgono OK se la
+casella ammette quel ruolo in alternativa, e altrimenti divieto (`*`), malus
+(`**`), oppure malus tranne che nel 4-1-4-1 (`***`).
 
-Da settembre 2026 il sito ha **la tabella ufficiale delle sostituzioni**
-(`fantacalcio/mantra.py`): dodici ruoli per dodici, con OK, malus o divieto in
-ogni casella. Le righe sono chi esce, le colonne chi entra, e la direzione non
-e' un dettaglio — la tabella e' asimmetrica: per coprire una punta si puo'
-usare un difensore pagando, per coprire un difensore non si puo' usare una
-punta. E' il principio del regolamento («l'adattabilita' si concretizza solo
-con calciatori della stessa linea o di linee piu' arretrate») declinato caso
-per caso.
+Ha anche **le caselle di cinque moduli** su undici, prese dallo schema
+ufficiale 2026/27:
 
-Questo copre **le sostituzioni in modo esatto**, perche' li' i due termini
-sono due giocatori: chi esce e chi entra, e i loro ruoli si conoscono. Per i
-**titolari schierati fuori posizione**, invece, il termine di paragone
-sarebbe la casella del modulo, che non abbiamo: il sito confronta col
-*reparto* e prende il ruolo piu' favorevole fra quelli che il reparto ammette.
-Il risultato e' un filo piu' permissivo della piattaforma, mai piu' severo.
+    3-4-3     Por | Dc Dc Dc/B  | E M/C C E     | W/A W/A A/Pc
+    3-4-1-2   Por | Dc Dc Dc/B  | E M/C C E     | T | A/Pc A/Pc
+    4-3-1-2   Por | Dd Dc Dc Ds | M/C M C       | T | T/A A/Pc
+    4-1-4-1   Por | Dd Dc Dc Ds | M | E/W C/T T W | A/Pc
+    4-2-3-1   Por | Dd Dc Dc Ds | M/C M/C       | W/T T W/A | A/Pc
 
-**Quindici caselle portano un asterisco** (`*`, `**`, `***`) e la legenda non
-era nell'immagine che abbiamo. Oggi si pagano come un adattamento normale:
-non sono divieti — altrimenti sarebbero `NO` — quindi il conto puo' sbagliare
-di un punto, mai il verso. Quando la legenda arriva, si cambia
-`INTERPRETAZIONE_ASTERISCHI`, che e' tre righe, e i test dicono subito cosa si
-muove.
+**Mancano gli altri sei** — 3-4-2-1, 3-5-2, 3-5-1-1, 4-3-3, 4-4-2, 4-4-1-1 —
+perche' nell'immagine che abbiamo le etichette di quelle caselle non si
+leggono con certezza, e indovinarle vorrebbe dire cambiare i punteggi in
+silenzio. Finche' non ci sono, quei moduli si comportano come prima: la
+casella ammette tutti i ruoli del reparto, quindi il sito e' un po' piu'
+permissivo della piattaforma, mai piu' severo.
 
-### Cosa questo comporta per Easy, Basic e Master
+**Da fare**: trascrivere quei sei. Sono sei righe nel blocco `_CASELLE`, e il
+controllo che i conti tornino col nome del modulo e' gia' scritto.
 
-Le tre modalita' di sostituzione del Mantra ci sono (`ModalitaSostituzioni`),
-si scelgono creando la lega e cambiano davvero il risultato. Ma vale la pena
-sapere dove il sito e' fedele e dove approssima.
+**Da chiarire anche**: lo schema ufficiale 2026/27 mostra **undici** moduli,
+mentre `MODULI_MANTRA` ne elenca sedici — ci sono ancora 4-3-2-1, 5-3-2,
+5-4-1, 5-2-2-1 e 5-3-1-1. Se la piattaforma li ha tolti vanno tolti anche
+qui; per ora restano, perche' cancellare un modulo che qualcuno ha scelto e'
+peggio che tenerne uno di troppo.
 
-**Fedele al regolamento:**
+### Cosa resta approssimato
 
-- **chi puo' entrare per chi**, casella per casella, secondo la tabella
-  ufficiale;
-- il malus di **1 punto** a chi gioca fuori posizione, titolare o subentrato;
-- **Easy** non adatta nessuno: se manca il ruolo giusto, il posto vale zero;
-- **Basic** cerca prima chi occupa il posto senza adattarsi, anche se sta piu'
-  in fondo in panchina, e adatta solo quando non ha scelta;
-- **Master** segue l'ordine della panchina e adatta chi entra, se serve;
-- il **portiere non si adatta mai**, in nessuna delle tre: in porta entra un
-  portiere o non entra nessuno, e un portiere non gioca in movimento. E' la
-  regola assoluta del Mantra, ed e' anche la prima sostituzione che il sistema
-  prova a fare, perche' la porta e' il primo posto del modulo.
+Le tre modalita' Easy, Basic e Master sono fedeli su quel che conta — chi
+entra, se paga, e il portiere che non si adatta mai — ma due cose no.
 
-**Approssimato, e conviene saperlo:**
 
-- il vero **Master cambia modulo** per far entrare chi vuoi senza malus: con
+- **Il vero Master cambia modulo** per far entrare qualcuno senza malus: con
   un buco a centrocampo e un difensore primo in panchina, la piattaforma
-  passa a un modulo con un difensore in piu'. Il sito non lo fa — il modulo
-  resta quello scelto — e quindi adatta col malus dove la piattaforma a volte
-  eviterebbe di pagarlo. Il nostro Master e' quindi un po' piu' severo del
-  suo. Per farlo davvero serve la tabella delle caselle, la stessa che manca
-  qui sopra;
-- **Basic**, per la stessa ragione, non tenta la ricostruzione dello schema
-  «adattato» su un modulo diverso: prova il ruolo giusto, poi adatta sul
-  modulo che c'e'.
+  passa a un modulo con un difensore in piu'. Il sito tiene il modulo scelto
+  e adatta pagando, quindi il nostro Master e' un filo piu' severo del suo.
+- **Basic**, per la stessa ragione, non tenta la ricostruzione dello schema su
+  un modulo diverso: prova la casella giusta, poi adatta su quella che c'e'.
 
-**Da decidere**, se la differenza dara' fastidio: mettere a mano la tabella
-degli slot dei sedici moduli ammessi (undici caselle l'una, con i ruoli
-ammessi in ciascuna). Da li' in poi le tre modalita' diventano quelle esatte,
-perche' la logica per usarla — la tabella delle sostituzioni — e' gia'
-scritta e provata.
 
-**Serve anche la legenda degli asterischi**, che sta sotto la tabella nella
-pagina del regolamento.
