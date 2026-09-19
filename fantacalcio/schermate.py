@@ -31,11 +31,17 @@ from .autenticazione import (
     PasswordNonValida,
     PermessoNegato,
     Ruolo,
+    StatoRichiesta,
     Utente,
     UtenteNonValido,
+    apri_richiesta_password,
     assegna_squadra,
     cambia_password,
+    chiudi_richiesta,
+    con_codice_recupero,
     entra_in_lega,
+    normalizza_nome_utente,
+    recupera_con_codice,
     registra,
     reimposta_password,
 )
@@ -51,10 +57,12 @@ from .data import (
     carica_credenziali,
     carica_inviti,
     carica_leghe,
+    carica_richieste_password,
     prossimo_id,
     salva_credenziali,
     salva_invito,
     salva_lega,
+    salva_richiesta_password,
     salva_squadra,
 )
 from .identita import ColoreNonValido, IdentitaSquadra, StileMaglia
@@ -128,6 +136,125 @@ def _club_dal_listone() -> list[str]:
     if giocatori.empty or "club" not in giocatori.columns:
         return []
     return sorted({str(c).strip() for c in giocatori["club"] if str(c).strip()})
+
+
+def modulo_recupero(credenziali: dict[str, Credenziali]) -> None:
+    """Le due strade per rientrare quando la password non si ricorda piu'.
+
+    Non parte nessuna mail — il sito non ne manda, e dirlo e' piu' onesto che
+    far aspettare un messaggio che non arrivera'. Restano:
+
+    1. il **codice di recupero**, che chi se l'e' salvato usa da solo;
+    2. la **richiesta al presidente**, che resta scritta nel sito invece di
+       vivere in una chat.
+    """
+    col_codice, col_richiesta = st.tabs(
+        ["🔑 Ho un codice di recupero", "🙋 Chiedi al presidente"]
+    )
+
+    with col_codice:
+        _recupero_con_codice(credenziali)
+
+    with col_richiesta:
+        _richiesta_al_presidente(credenziali)
+
+
+def _recupero_con_codice(credenziali: dict[str, Credenziali]) -> None:
+    st.caption(
+        "E' il codice che hai salvato dal tuo profilo, tipo «H7KP-2MQX-9TBW». "
+        "Vale una volta sola: dopo averlo usato scegli la password nuova e, se "
+        "vuoi, te ne generi un altro."
+    )
+    with st.form("recupero_codice"):
+        nome_utente = st.text_input("Nome utente")
+        codice = st.text_input("Codice di recupero")
+        nuova = st.text_input(
+            "Password nuova",
+            type="password",
+            help=f"Almeno {LUNGHEZZA_MINIMA_PASSWORD} caratteri.",
+        )
+        conferma = st.text_input("Ripeti la password nuova", type="password")
+        inviato = st.form_submit_button("Rientra", type="primary")
+
+    if not inviato:
+        return
+
+    try:
+        trovato = credenziali.get(normalizza_nome_utente(nome_utente))
+    except UtenteNonValido:
+        trovato = None
+
+    try:
+        if trovato is None:
+            # Stesso messaggio che per un codice sbagliato: dire «quel nome non
+            # esiste» sarebbe un modo comodo per scoprire chi e' iscritto.
+            raise PasswordNonValida("Il codice di recupero non e' corretto")
+        aggiornate = recupera_con_codice(trovato, codice, nuova, conferma)
+    except PasswordNonValida as errore:
+        st.error(str(errore), icon="⛔")
+        return
+
+    try:
+        salva_credenziali(archivio(), aggiornate)
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        st.error(f"Non riesco a salvare la password: {errore}", icon="⛔")
+        return
+
+    _dati_cambiati()
+    st.session_state[CHIAVE_MESSAGGIO] = (
+        "success",
+        "Password cambiata: ora puoi entrare. Il codice che hai usato non vale "
+        "piu', se ne vuoi un altro lo generi dal tuo profilo.",
+    )
+    st.rerun()
+
+
+def _richiesta_al_presidente(credenziali: dict[str, Credenziali]) -> None:
+    st.caption(
+        "Il presidente vede la richiesta nel sito e ti manda una password "
+        "temporanea, che al primo accesso dovrai sostituire."
+    )
+    with st.form("richiesta_password"):
+        nome_utente = st.text_input("Nome utente")
+        inviato = st.form_submit_button("Avvisa il presidente", type="primary")
+
+    if not inviato:
+        return
+
+    if not nome_utente.strip():
+        st.error("Scrivi il tuo nome utente.", icon="⛔")
+        return
+
+    arch = archivio()
+    try:
+        aperte = carica_richieste_password(arch)
+        richiesta = apri_richiesta_password(
+            credenziali,
+            nome_utente,
+            aperte=aperte,
+            quando=_adesso(),
+            prossimo_id=prossimo_id(arch, "richieste_password"),
+        )
+        if richiesta is not None:
+            salva_richiesta_password(arch, richiesta)
+            _dati_cambiati()
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        st.error(f"Non riesco a registrare la richiesta: {errore}", icon="⛔")
+        return
+
+    # Stessa risposta in tutti i casi — nome inesistente, richiesta gia'
+    # aperta, richiesta nuova. Da fuori non si deve capire la differenza.
+    st.success(
+        "Fatto. Se quel nome utente esiste, il presidente vedra' la richiesta "
+        "e ti fara' avere una password temporanea.",
+        icon="📨",
+    )
+
+
+def _adesso() -> str:
+    from datetime import datetime
+
+    return datetime.now().isoformat(timespec="seconds")
 
 
 def modulo_registrazione(credenziali: dict[str, Credenziali], primo_utente: bool) -> None:
@@ -1044,6 +1171,110 @@ def modulo_reimposta_password(utente: Utente, lega: Lega) -> None:
     st.session_state["_password_generata"] = (
         aggiornate.utente.nome_completo,
         temporanea,
+    )
+    st.rerun()
+
+
+def modulo_codice_recupero(credenziali: Credenziali) -> None:
+    """Genera il codice con cui si rientra da soli, senza chiedere a nessuno.
+
+    Compare una volta sola, come una password temporanea: da li' in poi il
+    sito ne conserva solo l'impronta. Vale finche' non lo si usa o non se ne
+    genera un altro.
+    """
+    if nuovo := st.session_state.pop("_codice_recupero", None):
+        st.success("Ecco il tuo codice di recupero:", icon="🔑")
+        st.code(nuovo, language=None)
+        st.caption(
+            "**Salvalo adesso**: non ricomparira'. Tienilo dove terresti una "
+            "chiave di scorta — nelle note del telefono, in un gestore di "
+            "password, su un foglio. Vale una volta sola."
+        )
+        st.divider()
+
+    if credenziali.ha_codice_recupero:
+        st.info(
+            "Hai gia' un codice di recupero. Se ne generi un altro, quello di "
+            "prima smette di funzionare.",
+            icon="✅",
+        )
+        etichetta = "Genera un codice nuovo"
+    else:
+        st.warning(
+            "Non hai un codice di recupero: se dimentichi la password dovrai "
+            "passare dal presidente. Generarne uno costa un secondo.",
+            icon="⚠️",
+        )
+        etichetta = "Genera il codice di recupero"
+
+    if not st.button(etichetta, use_container_width=True):
+        return
+
+    try:
+        aggiornate, codice = con_codice_recupero(credenziali)
+        salva_credenziali(archivio(), aggiornate)
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        st.error(f"Non riesco a generare il codice: {errore}", icon="⛔")
+        return
+
+    _dati_cambiati()
+    st.session_state["_codice_recupero"] = codice
+    st.rerun()
+
+
+def modulo_richieste_password(utente: Utente, lega: Lega) -> None:
+    """Chi ha chiesto aiuto dalla schermata di accesso, e cosa farci.
+
+    Sta accanto al pulsante che reimposta le password perche' le due cose si
+    fanno insieme: si guarda chi ha chiesto, gli si genera la password, e si
+    segna la richiesta come evasa.
+    """
+    try:
+        richieste = [
+            r for r in carica_richieste_password(archivio(), lega.id) if r.aperta
+        ]
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        st.caption(f"Richieste non leggibili: {errore}")
+        return
+
+    if not richieste:
+        return
+
+    quante = len(richieste)
+    st.warning(
+        f"{quante} "
+        + ("richiesta" if quante == 1 else "richieste")
+        + " di aiuto sulla password: "
+        + ", ".join(f"**{r.nome_utente}**" for r in richieste[:5])
+        + ("…" if quante > 5 else "")
+        + ". Generagli una password temporanea qui sotto, poi segna la "
+        "richiesta come evasa.",
+        icon="🙋",
+    )
+
+    for richiesta in richieste:
+        riga = st.columns([3, 1, 1])
+        quando = richiesta.chiesta_il.replace("T", " ")[:16]
+        riga[0].markdown(f"**{richiesta.nome_utente}** · {quando or 'senza data'}")
+        if riga[1].button("Evasa", key=f"_evasa_{richiesta.id}"):
+            _chiudi_richiesta(richiesta, utente, StatoRichiesta.EVASA)
+        if riga[2].button("Annulla", key=f"_annulla_{richiesta.id}"):
+            _chiudi_richiesta(richiesta, utente, StatoRichiesta.ANNULLATA)
+    st.divider()
+
+
+def _chiudi_richiesta(richiesta, utente: Utente, stato) -> None:
+    try:
+        salva_richiesta_password(
+            archivio(), chiudi_richiesta(richiesta, utente, stato, quando=_adesso())
+        )
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        st.error(f"Non riesco a chiudere la richiesta: {errore}", icon="⛔")
+        return
+    _dati_cambiati()
+    st.session_state[CHIAVE_MESSAGGIO] = (
+        "success",
+        f"Richiesta di {richiesta.nome_utente} segnata come {stato.etichetta.lower()}.",
     )
     st.rerun()
 

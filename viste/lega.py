@@ -94,7 +94,14 @@ if amministra:
         )
         schermate.modulo_ruoli(utente, lega)
 
-    with st.expander("🔐 Reimposta la password di un partecipante"):
+    # Le richieste stanno **fuori** dal pannello richiudibile: dentro, chi non
+    # lo apre non le vedrebbe mai, e chi ha chiesto aiuto resta fuori dal sito.
+    in_attesa = ui.richieste_password_aperte()
+
+    with st.expander(
+        "🔐 Reimposta la password di un partecipante", expanded=bool(in_attesa)
+    ):
+        schermate.modulo_richieste_password(utente, lega)
         st.caption(
             "Non parte nessuna mail: il sito genera una password temporanea, "
             "te la mostra **una volta sola** e tu la consegni a voce o in "

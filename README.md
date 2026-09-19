@@ -34,7 +34,7 @@ le rose della demo sono conformi al regolamento, quindi sono un banco di prova
 valido per le regole.
 
 ```bash
-.venv/bin/pytest        # 915 test
+.venv/bin/pytest        # 942 test
 .venv/bin/ruff check .
 ```
 
@@ -44,7 +44,7 @@ valido per le regole.
 
 | Pagina | A cosa serve |
 |---|---|
-| **Il mio profilo** | Chi sei nella lega e dove si cambia la password. |
+| **Il mio profilo** | Chi sei nella lega, dove si cambia la password e dove si genera il codice di recupero. |
 | **Bacheca** | Notizie, comunicazioni e recap di giornata. Scrive chi amministra, leggono tutti. E' la pagina d'ingresso. |
 | **Formazione** | Si schiera e si salva la formazione, fino a un minuto prima del calcio d'inizio. Dopo il blocco si vedono quelle di tutti, disegnate sul campo. Regole Mantra: modalita' Easy/Basic/Master, malus a chi gioca fuori posizione, e il portiere che non si adatta mai. |
 | **Giornata** | Gli scontri diretti di campionato o coppa, le due formazioni una di fronte all'altra con i punti su ogni maglia, e il pulsante del presidente che carica i voti e calcola la giornata. |
@@ -87,7 +87,7 @@ fantacalcio/
   ui.py                   helper Streamlit (l'unico modulo che importa st)
   demo_data.py            genera la lega di demo
 db/schema.sql             schema Postgres da incollare in Supabase
-tests/                    915 test sulle regole, i dati e le viste
+tests/                    942 test sulle regole, i dati e le viste
 ```
 
 Due regole tengono insieme il progetto:
@@ -99,7 +99,7 @@ motivo per cui la pagina Regolamento puo' stampare i parametri veri invece di
 una copia scritta a mano che prima o poi diverge.
 
 **La logica non conosce Streamlit.** `regole`, `modelli`, `conformita`,
-`draft`, `mercato`, `formazioni`, `giornata` e `vista` sono Python puro. I 915
+`draft`, `mercato`, `formazioni`, `giornata` e `vista` sono Python puro. I 942
 test girano in una quarantina di secondi senza avviare nulla — ed e' il
 motivo per cui questa parte sopravvivrebbe intatta a un cambio di tecnologia
 del sito.
@@ -264,11 +264,14 @@ per altre strade. Nascondere un bottone non e' un controllo.
 >   login. Tenerla viva richiederebbe un token in un cookie, che aggiunge
 >   superficie d'attacco per un guadagno modesto: meglio ri-entrare.
 > - **Il recupero password non passa da un'email**, perche' l'app non ne
->   spedisce. Chi dimentica la password la fa reimpostare dal presidente, che
->   genera una temporanea e gliela consegna a voce; al primo accesso il sito
->   obbliga a sostituirla. La differenza rispetto a un link via email e' che
->   bisogna fidarsi di chi amministra — in una lega di dieci amici e' un
->   requisito gia' soddisfatto.
+>   spedisce. Al suo posto ci sono due strade, tutte e due nella scheda
+>   **Password dimenticata** della schermata d'accesso: il **codice di
+>   recupero**, che ognuno si genera dal proprio profilo e usa da solo (vale
+>   una volta sola), e la **richiesta al presidente**, che resta scritta nel
+>   sito invece di vivere in una chat. Il presidente genera una password
+>   temporanea e la consegna a voce; al primo accesso il sito obbliga a
+>   sostituirla. Il codice e' anche l'unica strada che copre il presidente
+>   stesso, che non ha nessuno sopra di se'.
 > - Su Streamlit Community Cloud l'indirizzo dell'app e' pubblico, quindi la
 >   pagina di accesso e' raggiungibile da chiunque abbia il link.
 >

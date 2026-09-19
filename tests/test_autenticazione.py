@@ -10,19 +10,26 @@ from fantacalcio.autenticazione import (
     PasswordNonValida,
     PermessoNegato,
     Ruolo,
+    StatoRichiesta,
     Utente,
     UtenteNonValido,
+    apri_richiesta_password,
     assegna_squadra,
     autentica,
     cambia_password,
+    chiudi_richiesta,
     cifra_password,
+    con_codice_recupero,
     con_nuova_password,
     controlla_password,
     crea_credenziali,
     entra_in_lega,
+    genera_codice_recupero,
     genera_password_temporanea,
+    normalizza_codice_recupero,
     normalizza_nome_utente,
     puo_reimpostare,
+    recupera_con_codice,
     registra,
     reimposta_password,
     verifica_password,
@@ -502,3 +509,146 @@ class TestSbloccoDaSql:
         assert verifica_password("sbloccami99", hash_password.group(1), sale.group(1))
         assert not verifica_password("altra", hash_password.group(1), sale.group(1))
         assert "deve_cambiare_password = true" in esito.stdout
+
+
+class TestCodiceDiRecupero:
+    """La chiave di scorta: si genera prima, serve dopo.
+
+    E' l'unica strada per rientrare senza dipendere da un'altra persona, e in
+    particolare e' l'unica che copre il presidente, che non ha nessuno sopra
+    di se' a reimpostargli la password.
+    """
+
+    def utente(self):
+        return registra({}, 1, "marco", "Marco", "password1", email="m@esempio.it")
+
+    def test_chi_non_l_ha_generato_non_ne_ha(self):
+        credenziali = self.utente()
+        assert not credenziali.ha_codice_recupero
+        assert not credenziali.codice_corrisponde("H7KP-2MQX-9TBW")
+
+    def test_generarlo_lo_restituisce_una_volta_sola(self):
+        aggiornate, codice = con_codice_recupero(self.utente())
+        assert aggiornate.ha_codice_recupero
+        assert aggiornate.codice_corrisponde(codice)
+        # In archivio resta solo l'impronta: il codice in chiaro non c'e'.
+        assert codice not in aggiornate.hash_recupero
+
+    def test_si_scrive_come_capita(self):
+        # Chi lo ricopia sbaglia trattini e maiuscole, non il codice.
+        aggiornate, codice = con_codice_recupero(self.utente())
+        assert aggiornate.codice_corrisponde(codice.lower())
+        assert aggiornate.codice_corrisponde(codice.replace("-", " "))
+        assert aggiornate.codice_corrisponde(f"  {codice.replace('-', '')}  ")
+
+    def test_un_codice_sbagliato_non_apre_niente(self):
+        aggiornate, _ = con_codice_recupero(self.utente())
+        assert not aggiornate.codice_corrisponde("AAAA-BBBB-CCCC")
+        assert not aggiornate.codice_corrisponde("")
+
+    def test_non_contiene_caratteri_confondibili(self):
+        """Si detta al telefono: O/0 e I/1 sono il modo classico di sbagliarlo."""
+        insieme = "".join(genera_codice_recupero() for _ in range(100))
+        assert not set(insieme) & set("OIl01")
+
+    def test_normalizza_via_tutto_il_resto(self):
+        assert normalizza_codice_recupero(" h7kp-2mqx 9tbw ") == "H7KP2MQX9TBW"
+        assert normalizza_codice_recupero(None) == ""
+
+    def test_con_il_codice_si_entra_e_si_cambia_password(self):
+        aggiornate, codice = con_codice_recupero(self.utente())
+        dopo = recupera_con_codice(aggiornate, codice, "nuova12345", "nuova12345")
+        assert dopo.corrisponde("nuova12345")
+        assert not dopo.corrisponde("password1")
+
+    def test_il_codice_si_consuma(self):
+        # Un codice che resta valido per sempre e' una seconda password che
+        # nessuno cambia mai.
+        aggiornate, codice = con_codice_recupero(self.utente())
+        dopo = recupera_con_codice(aggiornate, codice, "nuova12345", "nuova12345")
+        assert not dopo.ha_codice_recupero
+        assert not dopo.codice_corrisponde(codice)
+
+    def test_rientrando_non_si_e_obbligati_a_ricambiarla(self):
+        # La password l'ha scelta lui adesso: fargliela rifare al primo
+        # accesso sarebbe solo una seccatura.
+        aggiornate, codice = con_codice_recupero(self.utente())
+        in_scadenza = replace(
+            aggiornate,
+            utente=replace(aggiornate.utente, deve_cambiare_password=True),
+        )
+        dopo = recupera_con_codice(in_scadenza, codice, "nuova12345", "nuova12345")
+        assert not dopo.utente.deve_cambiare_password
+
+    def test_il_codice_sbagliato_non_cambia_niente(self):
+        aggiornate, _ = con_codice_recupero(self.utente())
+        with pytest.raises(PasswordNonValida, match="codice"):
+            recupera_con_codice(aggiornate, "AAAA-BBBB-CCCC", "nuova12345")
+
+    def test_la_password_nuova_deve_reggere_le_regole(self):
+        aggiornate, codice = con_codice_recupero(self.utente())
+        with pytest.raises(PasswordNonValida):
+            recupera_con_codice(aggiornate, codice, "corta")
+        with pytest.raises(PasswordNonValida, match="coincidono"):
+            recupera_con_codice(aggiornate, codice, "nuova12345", "nuova54321")
+
+    def test_generarne_un_altro_invalida_il_primo(self):
+        primo_giro, primo = con_codice_recupero(self.utente())
+        secondo_giro, secondo = con_codice_recupero(primo_giro)
+        assert secondo_giro.codice_corrisponde(secondo)
+        assert not secondo_giro.codice_corrisponde(primo)
+
+    def test_un_codice_troppo_corto_si_rifiuta(self):
+        with pytest.raises(PasswordNonValida):
+            con_codice_recupero(self.utente(), "ABC")
+
+
+class TestRichiestaDiAiuto:
+    """Chi non ha il codice chiede al presidente, e la richiesta resta scritta."""
+
+    def tutti(self):
+        marco = registra({}, 1, "marco", "Marco", "password1", email="m@esempio.it")
+        marco = replace(marco, utente=replace(marco.utente, lega_id=1))
+        return {"marco": marco}
+
+    def test_registra_chi_ha_chiesto(self):
+        richiesta = apri_richiesta_password(self.tutti(), "Marco", quando="2026-09-19")
+        assert richiesta is not None
+        assert richiesta.nome_utente == "marco"
+        assert richiesta.lega_id == 1
+        assert richiesta.aperta
+
+    def test_un_nome_che_non_esiste_non_crea_niente(self):
+        # Chi chiama risponde comunque «fatto»: da fuori non si deve capire
+        # quali nomi utente esistono.
+        assert apri_richiesta_password(self.tutti(), "sconosciuto") is None
+
+    def test_un_utente_disattivato_non_crea_niente(self):
+        tutti = self.tutti()
+        tutti["marco"] = replace(
+            tutti["marco"], utente=replace(tutti["marco"].utente, attivo=False)
+        )
+        assert apri_richiesta_password(tutti, "marco") is None
+
+    def test_non_si_accumulano_richieste_della_stessa_persona(self):
+        prima = apri_richiesta_password(self.tutti(), "marco")
+        assert apri_richiesta_password(self.tutti(), "marco", aperte=[prima]) is None
+
+    def test_dopo_che_e_stata_chiusa_se_ne_puo_fare_un_altra(self):
+        prima = apri_richiesta_password(self.tutti(), "marco")
+        chiusa = chiudi_richiesta(prima, PRESIDENTE_DI_LEGA)
+        assert not chiusa.aperta
+        assert apri_richiesta_password(self.tutti(), "marco", aperte=[chiusa])
+
+    def test_chiuderla_dice_chi_e_stato_e_quando(self):
+        richiesta = apri_richiesta_password(self.tutti(), "marco")
+        chiusa = chiudi_richiesta(
+            richiesta, PRESIDENTE_DI_LEGA, StatoRichiesta.ANNULLATA, quando="2026-09-19"
+        )
+        assert chiusa.stato is StatoRichiesta.ANNULLATA
+        assert chiusa.chiusa_da == PRESIDENTE_DI_LEGA.id
+        assert chiusa.chiusa_il == "2026-09-19"
+
+    def test_il_nome_si_normalizza_come_al_login(self):
+        richiesta = apri_richiesta_password(self.tutti(), "  MARCO  ")
+        assert richiesta is not None and richiesta.nome_utente == "marco"

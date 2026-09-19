@@ -44,7 +44,7 @@ Non si riaprono senza un motivo nuovo.
 | Gli **inviti per email non spediscono niente** | Non c'e' un server di posta, e montarne uno per dieci persone non si giustifica |
 | Le **opzioni di lega** stanno in JSON, non in colonne | Cambiano ogni stagione: una migrazione per casella sarebbe un costo continuo |
 | **Under 21 al 31 agosto**, data fissa tutti gli anni | L'articolo 2 dice «alla data del draft»; la lega preferisce una data che non si muove se l'asta slitta. Divergenza voluta, annotata in PUNTI_APERTI.md |
-| **Niente recupero password via email** | Lo reimposta il presidente e lo consegna a voce. Serve fidarsi di una persona invece che di un link |
+| **Niente recupero password via email** | Non c'e' un server di posta. Al suo posto: un **codice di recupero** che ognuno si salva e usa da solo, e la **richiesta al presidente**, che resta scritta nel sito |
 | La **squadra si puo' rimandare** | Chi amministra e basta non deve restare chiuso fuori |
 | **Si resta su Streamlit** per la stagione di prova | La migrazione a un'autenticazione vera si valuta dopo aver giocato |
 
@@ -70,6 +70,16 @@ non ci sarebbe nessuno a creare la lega.
 ### 2. Password (solo dopo una reimpostazione)
 
 Chi ha ricevuto una password temporanea deve sostituirla prima di entrare.
+
+**Chi la password l'ha dimenticata** non resta fuori: la scheda *Password
+dimenticata* offre due strade. Con il **codice di recupero** — quello che si
+genera dal proprio profilo, tipo `H7KP-2MQX-9TBW` — si rientra da soli e si
+sceglie subito la password nuova; il codice si consuma, quindi se ne genera un
+altro. Chi non ce l'ha **avvisa il presidente**, e la richiesta gli compare in
+bacheca e nelle impostazioni di lega, dov'e' gia' il pulsante che genera la
+temporanea. La risposta a chi chiede e' sempre la stessa, esista quel nome
+utente o no: altrimenti la pagina diventerebbe un modo comodo per scoprire chi
+e' iscritto.
 
 ### 3. Crea una lega o unisciti
 
@@ -182,6 +192,8 @@ Impostazioni profilo · *Importa dati* · Impostazioni lega
 | Schierare la propria formazione | si | si | si |
 | **Caricare i voti e calcolare** la giornata | si | no | no |
 | Reimpostare le password | si | no | no |
+| Vedere chi ha chiesto aiuto sulla password | si | no | no |
+| Generare il proprio codice di recupero | si | si | si |
 
 L'**editor** e' una delega stretta: scrive in bacheca e basta.
 
@@ -377,7 +389,7 @@ app.py            i quattro cancelli e la navigazione
 fantacalcio/      la logica: non importa Streamlit (tranne ui e schermate)
 viste/            una pagina per file, eseguite da st.navigation
 db/schema.sql     lo schema Postgres, rieseguibile
-tests/            915 test, una quarantina di secondi
+tests/            942 test, una quarantina di secondi
 ```
 
 ### Le regole che tengono in piedi il progetto
@@ -447,6 +459,7 @@ In ordine di utilita'.
 piccole ci sono i file dedicati, da incollare nel SQL Editor di Supabase:
 `db/aggiornamento_listone.sql` (ruolo Classic),
 `db/aggiornamento_giornata.sql` (formazioni, voti e orario d'inizio),
+`db/aggiornamento_recupero_password.sql` (codice di recupero e richieste),
 `db/aggiornamento_bacheca.sql`, `db/aggiornamento_leghe.sql`,
 `db/permessi.sql`.
 

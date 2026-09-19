@@ -38,6 +38,15 @@ ui.intestazione(
     f"Cosa succede in {lega.nome}: notizie, comunicazioni e recap di giornata.",
 )
 
+# Chi ha perso la password aspetta il presidente, e il presidente entra da qui:
+# l'avviso sta dove passa, non solo nella pagina dove si risolve.
+if utente.puo_importare and ui.richieste_password_aperte():
+    st.warning(
+        "Qualcuno non riesce a entrare e ha chiesto aiuto: vai in "
+        "**Impostazioni lega → Reimposta la password di un partecipante**.",
+        icon="🙋",
+    )
+
 annunci = visibili_per(ui.annunci(), utente, lega)
 
 

@@ -35,7 +35,7 @@ from .leghe import (
 from .modelli import Contratto, Giocatore, Rosa, Squadra, VoceDeadMoney
 
 if TYPE_CHECKING:  # pragma: no cover - solo per i type checker
-    from .autenticazione import Credenziali
+    from .autenticazione import Credenziali, RichiestaPassword
 
 TABELLE = (
     "leghe",
@@ -52,6 +52,7 @@ TABELLE = (
     "scambi_movimenti",
     "formazioni",
     "voti",
+    "richieste_password",
 )
 
 
@@ -201,6 +202,19 @@ COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
         "deve_cambiare_password",
         "attivo",
         "creato_il",
+        "hash_recupero",
+        "sale_recupero",
+    ),
+    "richieste_password": (
+        "id",
+        "lega_id",
+        "utente_id",
+        "nome_utente",
+        "chiesta_il",
+        "stato",
+        "chiusa_il",
+        "chiusa_da",
+        "nota",
     ),
     "scambi": (
         "id",
@@ -609,6 +623,8 @@ def carica_credenziali(arch: Archivio) -> dict[str, Credenziali]:
             utente=utente,
             hash_password=str(r["hash_password"]),
             sale=str(r["sale"]),
+            hash_recupero=_testo(r.get("hash_recupero")),
+            sale_recupero=_testo(r.get("sale_recupero")),
         )
     return credenziali
 
@@ -637,6 +653,82 @@ def salva_credenziali(arch: Archivio, credenziali: Credenziali) -> None:
                 "lega_id": utente.lega_id,
                 "deve_cambiare_password": int(utente.deve_cambiare_password),
                 "attivo": int(utente.attivo),
+                "hash_recupero": credenziali.hash_recupero,
+                "sale_recupero": credenziali.sale_recupero,
+            }
+        ],
+        chiave="id",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Richieste di reimpostazione della password
+# ---------------------------------------------------------------------------
+
+
+def carica_richieste_password(
+    arch: Archivio, lega_id: int | None = None
+) -> list[RichiestaPassword]:
+    """Le richieste, dalla piu' recente. Le righe illeggibili si saltano."""
+    # Import qui dentro e non in cima: `autenticazione` importa `data`, e in
+    # cima si girerebbero in tondo. Sotto `TYPE_CHECKING` non basta — quello
+    # non esiste a runtime, e la funzione fallirebbe proprio quando serve.
+    from .autenticazione import RichiestaPassword, StatoRichiesta
+
+    righe = arch.tabella("richieste_password")
+    if righe.empty:
+        return []
+
+    richieste: list[RichiestaPassword] = []
+    for _, r in righe.iterrows():
+        try:
+            identificativo = int(r["id"])
+        except (TypeError, ValueError, KeyError):
+            continue
+        della_lega = r.get("lega_id")
+        della_lega = (
+            None if della_lega is None or pd.isna(della_lega) else int(della_lega)
+        )
+        if lega_id is not None and della_lega is not None and della_lega != lega_id:
+            continue
+        try:
+            stato = StatoRichiesta(str(r.get("stato", "aperta")))
+        except ValueError:
+            stato = StatoRichiesta.APERTA
+        di_chi = r.get("utente_id")
+        chiusa_da = r.get("chiusa_da")
+        richieste.append(
+            RichiestaPassword(
+                id=identificativo,
+                lega_id=della_lega,
+                utente_id=None if di_chi is None or pd.isna(di_chi) else int(di_chi),
+                nome_utente=_testo(r.get("nome_utente")),
+                chiesta_il=_testo(r.get("chiesta_il")),
+                stato=stato,
+                chiusa_il=_testo(r.get("chiusa_il")),
+                chiusa_da=(
+                    None if chiusa_da is None or pd.isna(chiusa_da) else int(chiusa_da)
+                ),
+                nota=_testo(r.get("nota")),
+            )
+        )
+    return sorted(richieste, key=lambda r: (r.chiesta_il, r.id), reverse=True)
+
+
+def salva_richiesta_password(arch: Archivio, richiesta: RichiestaPassword) -> None:
+    arch.scrivi(
+        "richieste_password",
+        [
+            {
+                "id": richiesta.id,
+                "lega_id": richiesta.lega_id,
+                "utente_id": richiesta.utente_id,
+                "nome_utente": richiesta.nome_utente,
+                "chiesta_il": richiesta.chiesta_il,
+                "stato": richiesta.stato.value,
+                "chiusa_il": richiesta.chiusa_il,
+                "chiusa_da": richiesta.chiusa_da,
+                "nota": richiesta.nota,
             }
         ],
         chiave="id",

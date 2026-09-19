@@ -179,6 +179,10 @@ create table if not exists utenti (
     -- Alzato da una reimpostazione: al primo accesso il sito obbliga a
     -- sostituire la password scelta da qualcun altro.
     deve_cambiare_password boolean not null default false,
+    -- Codice di recupero: una seconda password, monouso, che serve solo a
+    -- rientrare quando la prima si e' dimenticata. Cifrata come l'altra.
+    hash_recupero  text not null default '',
+    sale_recupero  text not null default '',
     attivo         boolean not null default true,
     creato_il      timestamptz not null default now()
 );
@@ -302,6 +306,24 @@ create table if not exists voti (
     unique (giocatore_id, giornata)
 );
 
+-- Chi ha dimenticato la password e non ha un codice di recupero lascia detto
+-- qui che non riesce a entrare: il presidente lo vede nel sito invece che in
+-- una chat. Non contiene segreti, solo il nome utente.
+create table if not exists richieste_password (
+    id          bigserial primary key,
+    lega_id     bigint references leghe(id) on delete cascade,
+    utente_id   bigint references utenti(id) on delete cascade,
+    nome_utente text not null,
+    chiesta_il  text,
+    stato       text not null default 'aperta',
+    chiusa_il   text,
+    chiusa_da   bigint references utenti(id) on delete set null,
+    nota        text not null default ''
+);
+
+create index if not exists idx_richieste_password_stato
+    on richieste_password (lega_id, stato);
+
 create index if not exists idx_scambi_stato on scambi (stato);
 create index if not exists idx_scambi_movimenti on scambi_movimenti (scambio_id);
 
@@ -350,6 +372,8 @@ alter table scambi      enable row level security;
 alter table scambi_movimenti enable row level security;
 -- `utenti` NON ha lettura pubblica: contiene gli hash delle password.
 alter table utenti      enable row level security;
+-- `richieste_password` NON ha lettura pubblica: dice chi non riesce a entrare.
+alter table richieste_password enable row level security;
 
 do $$
 declare

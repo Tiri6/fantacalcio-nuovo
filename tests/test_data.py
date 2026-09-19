@@ -497,3 +497,100 @@ class TestCancellazioni:
         arch.svuota("contratti")
         arch.svuota("giocatori")
         assert chiamate == [("contratti", "giocatore_id"), ("giocatori", "id")]
+
+
+class TestRecuperoPassword:
+    """Andata e ritorno su database: il codice di recupero e le richieste.
+
+    Sono test noiosi e servono proprio per quello. La prima versione di
+    `carica_richieste_password` importava la sua dataclass solo per i type
+    checker: i test del dominio passavano tutti, e il presidente non vedeva
+    nessuna richiesta perche' la lettura falliva a runtime.
+    """
+
+    def test_il_codice_di_recupero_sopravvive_al_salvataggio(self, archivio):
+        from fantacalcio.autenticazione import con_codice_recupero, registra
+        from fantacalcio.data import salva_credenziali
+
+        credenziali = registra(
+            {}, 900, "tizio", "Tizio", "password1", email="tizio@esempio.it"
+        )
+        con_codice, codice = con_codice_recupero(credenziali)
+        salva_credenziali(archivio, con_codice)
+
+        rilette = carica_credenziali(archivio)["tizio"]
+        assert rilette.ha_codice_recupero
+        assert rilette.codice_corrisponde(codice)
+        assert rilette.corrisponde("password1")
+
+    def test_chi_non_ha_il_codice_si_rilegge_senza(self, archivio):
+        from fantacalcio.autenticazione import registra
+        from fantacalcio.data import salva_credenziali
+
+        salva_credenziali(
+            archivio,
+            registra({}, 901, "caio", "Caio", "password1", email="caio@esempio.it"),
+        )
+        assert not carica_credenziali(archivio)["caio"].ha_codice_recupero
+
+    def test_una_richiesta_si_salva_e_si_rilegge(self, archivio):
+        from fantacalcio.autenticazione import RichiestaPassword, StatoRichiesta
+        from fantacalcio.data import (
+            carica_richieste_password,
+            salva_richiesta_password,
+        )
+
+        salva_richiesta_password(
+            archivio,
+            RichiestaPassword(
+                id=1,
+                lega_id=1,
+                utente_id=7,
+                nome_utente="sempronio",
+                chiesta_il="2026-09-19T10:00:00",
+            ),
+        )
+        riletta = carica_richieste_password(archivio, 1)
+        assert [r.nome_utente for r in riletta] == ["sempronio"]
+        assert riletta[0].aperta
+        assert riletta[0].stato is StatoRichiesta.APERTA
+
+    def test_chiuderla_si_vede_alla_rilettura(self, archivio):
+        from fantacalcio.autenticazione import (
+            RichiestaPassword,
+            Ruolo,
+            StatoRichiesta,
+            Utente,
+            chiudi_richiesta,
+        )
+        from fantacalcio.data import (
+            carica_richieste_password,
+            salva_richiesta_password,
+        )
+
+        richiesta = RichiestaPassword(id=2, lega_id=1, utente_id=7, nome_utente="tizio")
+        salva_richiesta_password(archivio, richiesta)
+        presidente = Utente(
+            id=1, nome_utente="marco", nome="Marco", ruolo=Ruolo.PRESIDENTE
+        )
+        salva_richiesta_password(
+            archivio,
+            chiudi_richiesta(richiesta, presidente, StatoRichiesta.EVASA, "2026-09-19"),
+        )
+
+        riletta = [r for r in carica_richieste_password(archivio, 1) if r.id == 2]
+        assert len(riletta) == 1, "chiudere una richiesta non deve duplicarla"
+        assert not riletta[0].aperta
+        assert riletta[0].chiusa_da == 1
+
+    def test_le_richieste_di_un_altra_lega_non_si_vedono(self, archivio):
+        from fantacalcio.autenticazione import RichiestaPassword
+        from fantacalcio.data import (
+            carica_richieste_password,
+            salva_richiesta_password,
+        )
+
+        salva_richiesta_password(
+            archivio, RichiestaPassword(id=3, lega_id=99, utente_id=8, nome_utente="x")
+        )
+        assert all(r.lega_id != 99 for r in carica_richieste_password(archivio, 1))

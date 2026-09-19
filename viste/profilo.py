@@ -54,20 +54,28 @@ st.caption(
 st.divider()
 st.subheader("Cambia la password")
 st.caption(
-    "Serve conoscere quella attuale. Se l'hai dimenticata, chiedi al "
-    "presidente di lega di reimpostarla: ti dara' una password temporanea da "
-    "sostituire al primo accesso."
+    "Serve conoscere quella attuale. Se l'hai dimenticata, dalla schermata di "
+    "accesso c'e' la scheda **Password dimenticata**."
 )
 schermate.modulo_cambio_password(credenziali)
+
+st.divider()
+st.subheader("Codice di recupero")
+st.caption(
+    "E' la chiave di scorta: se un giorno non ricordi la password, con questo "
+    "codice rientri da solo e ne scegli una nuova, senza chiedere niente a "
+    "nessuno. Generalo adesso, mentre non serve."
+)
+schermate.modulo_codice_recupero(credenziali)
 
 st.divider()
 st.markdown(
     tema.scheda(
         "Perche' non c'e' il recupero via email",
         "Il sito non ha un server di posta, e montarne uno per una lega di "
-        "amici non si giustifica. Al suo posto la password la reimposta chi "
-        "amministra e te la consegna a voce: e' l'unico punto in cui serve "
-        "fidarsi di una persona invece che di un link.",
+        "amici non si giustifica. Al suo posto ci sono due strade: il codice "
+        "di recupero qui sopra, che usi da solo, e la richiesta al presidente "
+        "dalla schermata di accesso, che gli arriva dentro il sito.",
         icona="✉️",
     ),
     unsafe_allow_html=True,

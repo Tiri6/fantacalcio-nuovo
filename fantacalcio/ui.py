@@ -226,13 +226,18 @@ def richiedi_login() -> Utente:
         schermate.modulo_registrazione(credenziali, primo_utente=True)
         st.stop()
 
-    accedi, registrati = st.tabs(["🔓 Accedi", "✍️ Registrati"])
+    accedi, registrati, recupera = st.tabs(
+        ["🔓 Accedi", "✍️ Registrati", "🔑 Password dimenticata"]
+    )
 
     with registrati:
         schermate.modulo_registrazione(credenziali, primo_utente=False)
 
     with accedi:
         _modulo_accesso(credenziali)
+
+    with recupera:
+        schermate.modulo_recupero(credenziali)
 
     if not impostazioni.usa_supabase:
         from .demo_data import PASSWORD_DEMO
@@ -251,7 +256,8 @@ def _modulo_accesso(credenziali: dict[str, Credenziali]) -> None:
     tentativi = st.session_state.get(CHIAVE_TENTATIVI, 0)
     if tentativi >= MASSIMI_TENTATIVI:
         st.error(
-            "Troppi tentativi falliti. Ricarica la pagina per riprovare.",
+            "Troppi tentativi falliti. Ricarica la pagina per riprovare, "
+            "oppure usa la scheda **Password dimenticata**.",
             icon="🚫",
         )
         return
@@ -269,7 +275,11 @@ def _modulo_accesso(credenziali: dict[str, Credenziali]) -> None:
         # Messaggio volutamente generico: non deve rivelare quali nomi
         # utente esistono.
         st.session_state[CHIAVE_TENTATIVI] = tentativi + 1
-        st.error("Nome utente o password non corretti.", icon="⛔")
+        st.error(
+            "Nome utente o password non corretti. Se non te la ricordi, la "
+            "scheda **Password dimenticata** qui sopra ti fa rientrare.",
+            icon="⛔",
+        )
         return
 
     st.session_state[CHIAVE_UTENTE] = trovato.nome_utente
@@ -593,6 +603,25 @@ def annunci() -> list:
 
     lega = lega_corrente()
     return carica_annunci(dati(), lega.id if lega else None)
+
+
+def richieste_password_aperte() -> list:
+    """Chi ha chiesto aiuto sulla password e aspetta ancora.
+
+    Non passa dalla cache: sono poche righe, e una richiesta che compare con
+    un minuto di ritardo e' una persona che resta fuori dal sito.
+    """
+    from .data import archivio, carica_richieste_password
+
+    lega = lega_corrente()
+    if lega is None:
+        return []
+    try:
+        return [r for r in carica_richieste_password(archivio(), lega.id) if r.aperta]
+    except Exception:  # noqa: BLE001 - i backend alzano tipi diversi
+        # Se la tabella non c'e' ancora (migrazione non lanciata) la pagina
+        # non deve morire: lo dice gia' la diagnostica dello schema.
+        return []
 
 
 def problemi_schema() -> list:

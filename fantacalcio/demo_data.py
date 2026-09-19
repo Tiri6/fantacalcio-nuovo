@@ -625,8 +625,21 @@ create table if not exists utenti (
     squadra_id integer,
     lega_id integer,
     deve_cambiare_password integer not null default 0,
+    hash_recupero text not null default '',
+    sale_recupero text not null default '',
     attivo integer not null default 1,
     creato_il text
+);
+create table if not exists richieste_password (
+    id integer primary key,
+    lega_id integer,
+    utente_id integer,
+    nome_utente text not null,
+    chiesta_il text,
+    stato text not null default 'aperta',
+    chiusa_il text,
+    chiusa_da integer,
+    nota text not null default ''
 );
 create table if not exists scambi (
     id integer primary key,
@@ -713,7 +726,10 @@ def _schema_aggiornato(percorso: Path) -> bool:
             "sesso",
             "citta",
             "squadra_preferita",
+            "hash_recupero",
+            "sale_recupero",
         },
+        "richieste_password": {"id", "nome_utente", "stato", "chiesta_il"},
     }
     try:
         with sqlite3.connect(percorso) as conn:

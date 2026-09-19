@@ -10,6 +10,7 @@ mai reversibili. Vedi la nota sui limiti in fondo al modulo.
 from __future__ import annotations
 
 import hmac
+import re
 import secrets
 from dataclasses import dataclass, replace
 from datetime import date
@@ -175,9 +176,26 @@ class Credenziali:
     utente: Utente
     hash_password: str
     sale: str
+    # Il codice di recupero e' una seconda password, monouso, che serve solo a
+    # rientrare quando la prima si e' dimenticata. Si conserva cifrato come
+    # l'altra: chi leggesse il database non se ne fa niente. Vuoto = non ne ha.
+    hash_recupero: str = ""
+    sale_recupero: str = ""
 
     def corrisponde(self, password: str) -> bool:
         return verifica_password(password, self.hash_password, self.sale)
+
+    @property
+    def ha_codice_recupero(self) -> bool:
+        return bool(self.hash_recupero and self.sale_recupero)
+
+    def codice_corrisponde(self, codice: str) -> bool:
+        """Se quel codice e' il suo. Chi non ne ha non ne indovina nessuno."""
+        if not self.ha_codice_recupero:
+            return False
+        return verifica_password(
+            normalizza_codice_recupero(codice), self.hash_recupero, self.sale_recupero
+        )
 
 
 def crea_credenziali(
@@ -364,6 +382,80 @@ def genera_password_temporanea() -> str:
     )
 
 
+# Il codice di recupero si legge ad alta voce e si ricopia da uno screenshot:
+# niente caratteri che si confondono, e si scrive a gruppi di quattro.
+ALFABETO_RECUPERO = "ABCDEFGHJKMNPQRSTWXYZ23456789"
+GRUPPI_RECUPERO = 3
+LETTERE_PER_GRUPPO = 4
+
+
+def genera_codice_recupero() -> str:
+    """Un codice tipo «H7KP-2MQX-9TBW», da conservare adesso per dopo."""
+    gruppi = [
+        "".join(secrets.choice(ALFABETO_RECUPERO) for _ in range(LETTERE_PER_GRUPPO))
+        for _ in range(GRUPPI_RECUPERO)
+    ]
+    return "-".join(gruppi)
+
+
+def normalizza_codice_recupero(valore: str) -> str:
+    """Accetta «h7kp 2mqx9tbw» e ne fa «H7KP2MQX9TBW».
+
+    Chi lo ricopia a mano sbaglia i trattini e le maiuscole, non il codice:
+    farlo fallire per quello sarebbe solo un dispetto.
+    """
+    return re.sub(r"[^A-Z0-9]", "", str(valore or "").upper())
+
+
+def con_codice_recupero(
+    credenziali: Credenziali, codice: str | None = None
+) -> tuple[Credenziali, str]:
+    """Genera un codice di recupero e lo lega all'utente.
+
+    Restituisce anche il codice in chiaro, che e' l'unico momento in cui
+    esiste leggibile: da qui in poi resta solo il suo hash, esattamente come
+    per la password. Se se ne genera un altro, il precedente smette di valere.
+    """
+    codice = codice or genera_codice_recupero()
+    pulito = normalizza_codice_recupero(codice)
+    if len(pulito) < GRUPPI_RECUPERO * LETTERE_PER_GRUPPO:
+        raise PasswordNonValida(
+            f"Un codice di recupero ha almeno "
+            f"{GRUPPI_RECUPERO * LETTERE_PER_GRUPPO} caratteri."
+        )
+    hash_recupero, sale_recupero = cifra_password(pulito)
+    return (
+        replace(credenziali, hash_recupero=hash_recupero, sale_recupero=sale_recupero),
+        codice,
+    )
+
+
+def recupera_con_codice(
+    credenziali: Credenziali,
+    codice: str,
+    nuova: str,
+    conferma: str | None = None,
+) -> Credenziali:
+    """Rientra con il codice di recupero e sceglie subito una password nuova.
+
+    Il codice **si consuma**: chi rientra ne genera un altro se lo vuole. Un
+    codice che resta valido per sempre e' una seconda password che nessuno
+    cambia mai.
+    """
+    if not credenziali.codice_corrisponde(codice):
+        raise PasswordNonValida("Il codice di recupero non e' corretto")
+    if conferma is not None and nuova != conferma:
+        raise PasswordNonValida("Le due password non coincidono")
+    controlla_password(nuova)
+    aggiornate = con_nuova_password(credenziali, nuova)
+    return replace(
+        aggiornate,
+        hash_recupero="",
+        sale_recupero="",
+        utente=replace(aggiornate.utente, deve_cambiare_password=False),
+    )
+
+
 def cambia_password(
     credenziali: Credenziali,
     password_attuale: str,
@@ -387,6 +479,83 @@ def cambia_password(
         aggiornate,
         utente=replace(aggiornate.utente, deve_cambiare_password=False),
     )
+
+
+# --- la richiesta di aiuto --------------------------------------------------
+#
+# Chi ha dimenticato la password e non ha un codice di recupero ha bisogno del
+# presidente. Prima doveva scrivergli su WhatsApp e sperare che se lo
+# ricordasse; adesso la richiesta resta scritta nel sito, e il presidente la
+# vede dov'e' gia' il pulsante per reimpostare.
+
+
+class StatoRichiesta(Enum):
+    APERTA = "aperta"
+    EVASA = "evasa"
+    ANNULLATA = "annullata"
+
+    @property
+    def etichetta(self) -> str:
+        return self.value.capitalize()
+
+
+@dataclass(frozen=True)
+class RichiestaPassword:
+    """Qualcuno dice «non riesco a entrare» e lascia detto chi e'."""
+
+    id: int
+    lega_id: int | None
+    utente_id: int | None
+    nome_utente: str
+    chiesta_il: str = ""
+    stato: StatoRichiesta = StatoRichiesta.APERTA
+    chiusa_il: str = ""
+    chiusa_da: int | None = None
+    nota: str = ""
+
+    @property
+    def aperta(self) -> bool:
+        return self.stato is StatoRichiesta.APERTA
+
+
+def apri_richiesta_password(
+    credenziali: dict[str, Credenziali],
+    nome_utente: str,
+    aperte: list[RichiestaPassword] | None = None,
+    quando: str = "",
+    prossimo_id: int = 1,
+) -> RichiestaPassword | None:
+    """Registra la richiesta, se c'e' qualcosa da registrare.
+
+    Torna `None` quando il nome non esiste o ha gia' una richiesta aperta —
+    e chi chiama **non deve dirlo**: la pagina risponde sempre allo stesso
+    modo, altrimenti si trasforma in un modo comodo per scoprire chi e'
+    iscritto.
+    """
+    nome = normalizza_nome_utente(nome_utente)
+    trovato = credenziali.get(nome)
+    if trovato is None or not trovato.utente.attivo:
+        return None
+    if any(r.aperta and r.nome_utente == nome for r in (aperte or [])):
+        return None
+    return RichiestaPassword(
+        id=prossimo_id,
+        lega_id=trovato.utente.lega_id,
+        utente_id=trovato.utente.id,
+        nome_utente=nome,
+        chiesta_il=quando,
+    )
+
+
+def chiudi_richiesta(
+    richiesta: RichiestaPassword,
+    chi: Utente,
+    stato: StatoRichiesta = StatoRichiesta.EVASA,
+    quando: str = "",
+    nota: str = "",
+) -> RichiestaPassword:
+    """Segna la richiesta come evasa o annullata."""
+    return replace(richiesta, stato=stato, chiusa_il=quando, chiusa_da=chi.id, nota=nota)
 
 
 def puo_reimpostare(chi: Utente | None, bersaglio: Utente | None) -> bool:
@@ -431,8 +600,14 @@ def reimposta_password(
 # pubblico. In particolare:
 #   - la sessione vive nel session_state di Streamlit: chi ha accesso al server
 #     ha accesso alle sessioni;
-#   - non c'e' recupero password via email: la reimposta il presidente;
+#   - non c'e' recupero password via email: si rientra con il codice di
+#     recupero, oppure chiedendo al presidente, che vede la richiesta nel sito;
 #   - su Streamlit Community Cloud l'indirizzo dell'app e' pubblico, quindi la
 #     pagina di login e' raggiungibile da chiunque abbia il link.
 # Le password restano comunque protette da scrypt con sale: anche chi ottenesse
 # il database non le ricava.
+#
+# Il codice di recupero non ha un contatore di tentativi come il login, e va
+# bene cosi': dodici caratteri su un alfabeto di ventinove fanno circa 3*10^17
+# combinazioni, e ogni prova costa una verifica scrypt. Indovinarlo a forza
+# bruta richiederebbe piu' tempo di quanto duri la lega.
