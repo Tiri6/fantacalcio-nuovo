@@ -627,6 +627,140 @@ def crea_lega(
     )
 
 
+# --- cambiare le regole a lega gia' avviata ---------------------------------
+#
+# Le regole si scelgono creando la lega, ma una lega vive: un lodo cambia il
+# Salary Cap, la coppa si aggiunge a stagione iniziata, i moduli si
+# restringono. Rifare la lega da capo vorrebbe dire perdere rose, calendario
+# e albo, quindi si modificano dove sono.
+
+
+class RegoleNonModificabili(PermissionError):
+    """Le regole le cambia chi amministra la lega, e nessun altro."""
+
+
+def puo_modificare_regole(chi, lega: Lega | None) -> bool:
+    """Solo l'amministratore **di quella** lega.
+
+    Si guarda `admin_id` e non il ruolo: il presidente di un'altra lega e' un
+    fantallenatore qualunque qui dentro, e il ruolo da solo non lo direbbe.
+    L'utente si riceve per struttura e non per tipo perche' `autenticazione`
+    importa questo modulo, e il contrario girerebbe in tondo.
+    """
+    if chi is None or lega is None:
+        return False
+    if not getattr(chi, "attivo", True):
+        return False
+    identificativo = getattr(chi, "id", None)
+    return identificativo is not None and identificativo == lega.admin_id
+
+
+def aggiorna_opzioni(
+    lega: Lega,
+    opzioni: OpzioniLega,
+    chi,
+    squadre_iscritte: int = 0,
+    stagione: str | None = None,
+) -> Lega:
+    """Le regole nuove, con i controlli che dipendono da come sta la lega.
+
+    `OpzioniLega` sa gia' dire se una regola e' assurda in se' (un passo di gol
+    negativo, moduli che non esistono in quella modalita'). Qui si aggiunge
+    l'unica cosa che quella non puo' sapere: com'e' messa **questa** lega
+    adesso. Ridurre i partecipanti sotto il numero di squadre gia' iscritte
+    lascerebbe fuori qualcuno che sta giocando, e non e' un errore che si
+    scopre a giornata in corso.
+    """
+    if not puo_modificare_regole(chi, lega):
+        raise RegoleNonModificabili(
+            "Solo chi ha creato la lega puo' cambiarne le regole."
+        )
+    if squadre_iscritte > opzioni.partecipanti:
+        raise LegaNonValida(
+            f"La lega ha gia' {squadre_iscritte} squadre iscritte: non puoi "
+            f"portare i partecipanti a {opzioni.partecipanti}."
+        )
+    aggiornata = replace(lega, opzioni=opzioni)
+    if stagione is not None and stagione.strip():
+        aggiornata = replace(aggiornata, stagione=stagione.strip())
+    return aggiornata
+
+
+# Come si chiama, per un essere umano, ogni casella delle opzioni. Quelle che
+# non stanno qui si leggono lo stesso: il nome del campo con gli underscore
+# tolti e' quasi sempre comprensibile.
+ETICHETTE_OPZIONI: dict[str, str] = {
+    "modalita": "Modalita'",
+    "partecipanti": "Partecipanti",
+    "formato": "Formato del campionato",
+    "giornate_totali": "Giornate totali",
+    "tipo_asta": "Come si assegnano i giocatori",
+    "anni_contratto_massimi": "Anni di contratto massimi",
+    "budget_cap": "Budget cap",
+    "rosa_portieri": "Portieri in rosa",
+    "rosa_difensori": "Difensori in rosa",
+    "rosa_centrocampisti": "Centrocampisti in rosa",
+    "rosa_attaccanti": "Attaccanti in rosa",
+    "minimo_italiani": "Minimo italiani",
+    "minimo_u21_italiani": "Minimo Under 21 italiani",
+    "scambi_per_stagione": "Scambi a stagione",
+    "moduli_ammessi": "Moduli ammessi",
+    "panchinari": "Panchinari",
+    "sostituzioni_automatiche": "Sostituzioni automatiche",
+    "modalita_sostituzioni": "Modalita' delle sostituzioni",
+    "sostituzioni_massime": "Sostituzioni per giornata",
+    "capitano": "Capitano",
+    "punti_vittoria": "Punti per vittoria",
+    "punti_pareggio": "Punti per pareggio",
+    "soglia_primo_gol": "Punti per il primo gol",
+    "passo_gol": "Punti per ogni gol successivo",
+    "voto_minimo_senza_voto": "Voto d'ufficio a chi non gioca",
+    "coppa_italia": "Coppa Italia",
+    "supercoppa": "Supercoppa",
+    "modificatore_difesa": "Modificatore difesa",
+    "modificatore_centrocampo": "Modificatore centrocampo",
+    "modificatore_attacco": "Modificatore attacco",
+    "bonus": "Bonus e malus",
+    "regole_coppa": "Regole della Coppa Italia",
+    "regole_supercoppa": "Regole della Supercoppa",
+}
+
+
+def _leggibile(valore) -> str:
+    """Un valore come lo scriverebbe una persona, non come lo stampa Python."""
+    if isinstance(valore, bool):
+        return "si" if valore else "no"
+    if valore is None:
+        return "nessun limite"
+    if isinstance(valore, Enum):
+        return getattr(valore, "etichetta", valore.name)
+    if isinstance(valore, tuple | list):
+        return ", ".join(_leggibile(v) for v in valore) if valore else "nessuno"
+    if isinstance(valore, float) and valore.is_integer():
+        return str(int(valore))
+    return str(valore)
+
+
+def differenze(prima: OpzioniLega, dopo: OpzioniLega) -> list[str]:
+    """Cosa cambia fra due versioni delle regole, in italiano.
+
+    Serve a farlo leggere prima di salvare: una regola cambiata per sbaglio la
+    scoprirebbero dieci persone a giornata in corso, ed e' il tipo di errore
+    che costa piu' di quanto costi rileggere una riga.
+    """
+    cambiate: list[str] = []
+    for campo in OpzioniLega.__dataclass_fields__:
+        vecchio = getattr(prima, campo)
+        nuovo = getattr(dopo, campo)
+        if vecchio == nuovo:
+            continue
+        etichetta = ETICHETTE_OPZIONI.get(campo, campo.replace("_", " ").capitalize())
+        if campo == "budget_cap":
+            vecchio, nuovo = f"{vecchio / 1e6:g}M", f"{nuovo / 1e6:g}M"
+        cambiate.append(f"{etichetta}: {_leggibile(vecchio)} → {_leggibile(nuovo)}")
+    return cambiate
+
+
 def trova_per_codice(leghe: dict[int, Lega], codice: str) -> Lega | None:
     """Cerca la lega da un codice scritto a mano. None se non esiste."""
     try:

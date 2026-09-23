@@ -400,3 +400,275 @@ class TestOpzioniDraft:
     def test_un_ordine_scritto_male_non_fa_saltare_la_lega(self):
         tornate = OpzioniLega.da_json('{"ordine_draft": ["a", "b"]}')
         assert tornate.ordine_draft == ()
+
+
+class TestModificareLeRegole:
+    """Le regole si cambiano a lega avviata, ma solo da chi l'ha creata.
+
+    Rifare la lega per cambiare una soglia vorrebbe dire perdere rose,
+    calendario e albo: il motivo per cui questa funzione esiste.
+    """
+
+    def lega(self):
+        from fantacalcio.leghe import crea_lega
+
+        return crea_lega(1, "FantaCalcio NuoVo", admin_id=7)
+
+    def utente(self, id_=7, attivo=True):
+        from fantacalcio.autenticazione import Ruolo, Utente
+
+        return Utente(
+            id=id_,
+            nome_utente="marco",
+            nome="Marco",
+            ruolo=Ruolo.PRESIDENTE,
+            lega_id=1,
+            attivo=attivo,
+        )
+
+    def test_l_amministratore_puo(self):
+        from fantacalcio.leghe import puo_modificare_regole
+
+        assert puo_modificare_regole(self.utente(), self.lega())
+
+    def test_un_altro_partecipante_no(self):
+        from fantacalcio.leghe import puo_modificare_regole
+
+        assert not puo_modificare_regole(self.utente(id_=8), self.lega())
+
+    def test_nemmeno_il_presidente_di_un_altra_lega(self):
+        """Il ruolo non basta: conta essere l'amministratore **di questa**."""
+        from fantacalcio.autenticazione import Ruolo, Utente
+        from fantacalcio.leghe import puo_modificare_regole
+
+        altro = Utente(
+            id=99,
+            nome_utente="altro",
+            nome="Altro",
+            ruolo=Ruolo.PRESIDENTE,
+            lega_id=2,
+        )
+        assert not puo_modificare_regole(altro, self.lega())
+
+    def test_un_utente_disattivato_no(self):
+        from fantacalcio.leghe import puo_modificare_regole
+
+        assert not puo_modificare_regole(self.utente(attivo=False), self.lega())
+
+    def test_senza_utente_o_senza_lega_no(self):
+        from fantacalcio.leghe import puo_modificare_regole
+
+        assert not puo_modificare_regole(None, self.lega())
+        assert not puo_modificare_regole(self.utente(), None)
+
+    def test_le_regole_nuove_prendono_il_posto_delle_vecchie(self):
+        from dataclasses import replace
+
+        from fantacalcio.leghe import aggiorna_opzioni
+
+        lega = self.lega()
+        nuove = replace(lega.opzioni, budget_cap=120_000_000.0, coppa_italia=True)
+        dopo = aggiorna_opzioni(lega, nuove, self.utente())
+        assert dopo.opzioni.budget_cap == 120_000_000.0
+        assert dopo.opzioni.coppa_italia
+        # Tutto il resto della lega resta dov'era: id, codice, nome.
+        assert (dopo.id, dopo.codice_invito, dopo.nome) == (
+            lega.id,
+            lega.codice_invito,
+            lega.nome,
+        )
+
+    def test_a_chi_non_puo_si_dice_di_no(self):
+        from fantacalcio.leghe import RegoleNonModificabili, aggiorna_opzioni
+
+        lega = self.lega()
+        with pytest.raises(RegoleNonModificabili):
+            aggiorna_opzioni(lega, lega.opzioni, self.utente(id_=8))
+
+    def test_non_si_scende_sotto_le_squadre_gia_iscritte(self):
+        # Dieci squadre stanno giocando: portare i partecipanti a otto ne
+        # lascerebbe fuori due, e non e' un errore che si scopre in tempo.
+        from dataclasses import replace
+
+        from fantacalcio.leghe import LegaNonValida, aggiorna_opzioni
+
+        lega = self.lega()
+        strette = replace(lega.opzioni, partecipanti=8)
+        with pytest.raises(LegaNonValida, match="gia' 10 squadre"):
+            aggiorna_opzioni(lega, strette, self.utente(), squadre_iscritte=10)
+
+    def test_ridurre_i_partecipanti_si_puo_se_c_e_spazio(self):
+        from dataclasses import replace
+
+        from fantacalcio.leghe import aggiorna_opzioni
+
+        lega = self.lega()
+        strette = replace(lega.opzioni, partecipanti=8)
+        dopo = aggiorna_opzioni(lega, strette, self.utente(), squadre_iscritte=6)
+        assert dopo.opzioni.partecipanti == 8
+
+    def test_le_regole_assurde_le_rifiuta_gia_la_dataclass(self):
+        from dataclasses import replace
+
+        from fantacalcio.leghe import LegaNonValida
+
+        with pytest.raises(LegaNonValida):
+            replace(self.lega().opzioni, moduli_ammessi=())
+
+    def test_si_puo_cambiare_anche_la_stagione(self):
+        from fantacalcio.leghe import aggiorna_opzioni
+
+        lega = self.lega()
+        dopo = aggiorna_opzioni(lega, lega.opzioni, self.utente(), stagione="2027/28")
+        assert dopo.stagione == "2027/28"
+
+    def test_una_stagione_vuota_non_cancella_quella_buona(self):
+        from fantacalcio.leghe import aggiorna_opzioni
+
+        lega = self.lega()
+        dopo = aggiorna_opzioni(lega, lega.opzioni, self.utente(), stagione="   ")
+        assert dopo.stagione == lega.stagione
+
+
+class TestCosaCambia:
+    """Il riepilogo che si legge prima di salvare."""
+
+    def test_senza_modifiche_non_dice_niente(self):
+        from fantacalcio.leghe import OpzioniLega, differenze
+
+        assert differenze(OpzioniLega(), OpzioniLega()) == []
+
+    def test_dice_cosa_diventa_cosa(self):
+        from dataclasses import replace
+
+        from fantacalcio.leghe import OpzioniLega, differenze
+
+        prima = OpzioniLega()
+        dopo = replace(prima, minimo_italiani=4)
+        assert differenze(prima, dopo) == ["Minimo italiani: 0 → 4"]
+
+    def test_i_milioni_si_leggono_come_milioni(self):
+        from dataclasses import replace
+
+        from fantacalcio.leghe import OpzioniLega, differenze
+
+        prima = OpzioniLega()
+        dopo = replace(prima, budget_cap=110_000_000.0)
+        assert differenze(prima, dopo) == ["Budget cap: 100M → 110M"]
+
+    def test_i_si_e_i_no_non_sono_true_e_false(self):
+        from dataclasses import replace
+
+        from fantacalcio.leghe import OpzioniLega, differenze
+
+        prima = OpzioniLega()
+        assert differenze(prima, replace(prima, coppa_italia=True)) == [
+            "Coppa Italia: no → si"
+        ]
+
+    def test_gli_elenchi_si_leggono_per_esteso(self):
+        from dataclasses import replace
+
+        from fantacalcio.leghe import OpzioniLega, differenze
+
+        prima = OpzioniLega()
+        dopo = replace(prima, moduli_ammessi=("3-4-3", "4-4-2"))
+        assert differenze(prima, dopo) == [
+            f"Moduli ammessi: {', '.join(prima.moduli_ammessi)} → 3-4-3, 4-4-2"
+        ]
+
+    def test_il_nessun_limite_si_dice(self):
+        from dataclasses import replace
+
+        from fantacalcio.leghe import OpzioniLega, differenze
+
+        prima = OpzioniLega()
+        dopo = replace(prima, rosa_portieri=None)
+        assert differenze(prima, dopo) == ["Portieri in rosa: 3 → nessun limite"]
+
+    def test_le_enumerazioni_si_leggono_con_la_loro_etichetta(self):
+        from dataclasses import replace
+
+        from fantacalcio.leghe import ModalitaSostituzioni, OpzioniLega, differenze
+
+        prima = OpzioniLega()
+        dopo = replace(prima, modalita_sostituzioni=ModalitaSostituzioni.MASTER)
+        assert differenze(prima, dopo) == ["Modalita' delle sostituzioni: Basic → Master"]
+
+    def test_ogni_campo_delle_opzioni_ha_un_nome_leggibile(self):
+        """Se domani si aggiunge una casella, il riepilogo deve saperla dire."""
+        from dataclasses import replace
+
+        from fantacalcio.leghe import OpzioniLega, differenze
+
+        prima = OpzioniLega()
+        for campo in OpzioniLega.__dataclass_fields__:
+            if campo in ("modalita", "moduli_ammessi"):
+                continue  # vincolati fra loro: cambiarli a caso non e' valido
+            valore = getattr(prima, campo)
+            diverso = _qualcosa_di_diverso(valore)
+            if diverso is None:
+                continue
+            try:
+                dopo = replace(prima, **{campo: diverso})
+            except Exception:  # noqa: BLE001 - alcune combinazioni non sono valide
+                continue
+            righe = differenze(prima, dopo)
+            assert righe, campo
+            assert "_" not in righe[0].split(":")[0], (
+                f"«{campo}» compare col nome del codice: aggiungilo a ETICHETTE_OPZIONI"
+            )
+
+
+def _qualcosa_di_diverso(valore):
+    """Un valore valido ma diverso da quello dato, per far scattare il confronto."""
+    if isinstance(valore, bool):
+        return not valore
+    if isinstance(valore, int):
+        return valore + 1
+    if isinstance(valore, float):
+        return valore + 1.0
+    if isinstance(valore, str):
+        return f"{valore}x"
+    return None
+
+
+class TestAvvisiSulleRegole:
+    """Quel che il salvataggio accetta ma conviene sapere prima.
+
+    Non sono divieti: sono cambiamenti legittimi che pero' toccano cose gia'
+    salvate — formazioni schierate, giornate calcolate — e scoprirli dopo
+    costa piu' che leggerli prima.
+    """
+
+    def test_togliere_un_modulo_gia_usato_si_vede_nel_confronto(self):
+        from dataclasses import replace
+
+        from fantacalcio.leghe import OpzioniLega, differenze
+
+        prima = OpzioniLega(moduli_ammessi=("3-4-3", "4-3-3"))
+        dopo = replace(prima, moduli_ammessi=("3-4-3",))
+        assert differenze(prima, dopo) == ["Moduli ammessi: 3-4-3, 4-3-3 → 3-4-3"]
+
+    def test_cambiare_le_fasce_di_gol_si_vede(self):
+        from dataclasses import replace
+
+        from fantacalcio.leghe import OpzioniLega, differenze
+
+        prima = OpzioniLega()
+        dopo = replace(prima, soglia_primo_gol=60.0)
+        assert differenze(prima, dopo) == ["Punti per il primo gol: 66 → 60"]
+
+    def test_i_limiti_di_ruolo_sono_indipendenti(self):
+        # La lega di demo limita i portieri e lascia liberi gli altri: chi
+        # riapre le regole non deve ritrovarsi tre limiti che non ha scelto.
+        from fantacalcio.leghe import OpzioniLega, differenze
+
+        mista = OpzioniLega(
+            rosa_portieri=3,
+            rosa_difensori=None,
+            rosa_centrocampisti=None,
+            rosa_attaccanti=None,
+        )
+        assert differenze(mista, mista) == []
+        assert mista.rosa_portieri == 3 and mista.rosa_difensori is None

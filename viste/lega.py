@@ -67,6 +67,13 @@ with destra:
     )
 
 if amministra:
+    # Sta per prima fra i pannelli di chi amministra: e' la cosa che si torna a
+    # fare piu' spesso, perche' un lodo votato cambia una soglia e la lega va
+    # avanti con quella.
+    with st.expander("📐 Modifica le regole della lega"):
+        schermate.modulo_modifica_regole(utente, lega)
+
+if amministra:
     with st.expander("✉️ Invita qualcuno per email"):
         st.caption(
             "Riservare un posto non manda nessuna mail: l'app non ha un server "

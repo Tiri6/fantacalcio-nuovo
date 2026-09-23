@@ -42,7 +42,7 @@ Non si riaprono senza un motivo nuovo.
 | **Registrazione autonoma**, email obbligatoria e unica | L'email e' l'unico dato che lega un account a una persona |
 | Si entra con un **codice d'invito** di 8 caratteri | Alfabeto senza `O`/`0` e `I`/`1`: si ricopia da uno screenshot senza sbagliare |
 | Gli **inviti per email non spediscono niente** | Non c'e' un server di posta, e montarne uno per dieci persone non si giustifica |
-| Le **opzioni di lega** stanno in JSON, non in colonne | Cambiano ogni stagione: una migrazione per casella sarebbe un costo continuo |
+| Le **opzioni di lega** stanno in JSON, non in colonne | Cambiano ogni stagione: una migrazione per casella sarebbe un costo continuo. E si cambiano anche a lega avviata: un lodo votato non deve costare una lega nuova |
 | **Under 21 al 31 agosto**, data fissa tutti gli anni | L'articolo 2 dice «alla data del draft»; la lega preferisce una data che non si muove se l'asta slitta. Divergenza voluta, annotata in PUNTI_APERTI.md |
 | **Niente recupero password via email** | Non c'e' un server di posta. Al suo posto: un **codice di recupero** che ognuno si salva e usa da solo, e la **richiesta al presidente**, che resta scritta nel sito |
 | La **squadra si puo' rimandare** | Chi amministra e basta non deve restare chiuso fuori |
@@ -96,6 +96,25 @@ disegnata in anteprima. Rimandabile.
 ## 4. Le opzioni di lega
 
 Si scelgono creando la lega e si vedono in «Impostazioni lega» e «Regolamento».
+
+**Si cambiano anche dopo.** Chi ha creato la lega trova in «Impostazioni lega»
+il pannello *Modifica le regole*: le stesse caselle della creazione, riempite
+con quel che la lega ha adesso. E' lo **stesso modulo** — due moduli separati
+divergerebbero alla prima opzione aggiunta, e l'aggiunta finirebbe solo in uno
+dei due. Prima di salvare si legge **cosa cambia**, riga per riga
+(`leghe.differenze`), e gli avvisi su quel che tocca roba gia' salvata: moduli
+tolti che qualcuno usava, panchina accorciata, fasce di gol spostate. Ridurre i
+partecipanti sotto il numero di squadre iscritte il sito lo rifiuta.
+
+Il permesso e' `leghe.puo_modificare_regole`, e guarda `admin_id`, non il
+ruolo: il presidente di un'altra lega qui dentro e' un fantallenatore
+qualunque.
+
+**I limiti di rosa sono quattro, indipendenti, e 0 vuol dire «nessun limite».**
+Prima c'era un interruttore «con limiti / senza», che non sapeva rappresentare
+una lega che limita i portieri e lascia liberi gli altri — ed e' proprio il
+caso di questa: riaprendo le regole si sarebbe ritrovata tre limiti che nessuno
+aveva scelto.
 
 **Generali** — modalita' (Mantra o Classic), partecipanti, formato del
 campionato, giornate, punti per vittoria e pareggio.
@@ -192,6 +211,7 @@ Impostazioni profilo · *Importa dati* · Impostazioni lega
 | Schierare la propria formazione | si | si | si |
 | **Caricare i voti e calcolare** la giornata | si | no | no |
 | Reimpostare le password | si | no | no |
+| **Cambiare le regole della lega** | si | no | no |
 | Vedere chi ha chiesto aiuto sulla password | si | no | no |
 | Generare il proprio codice di recupero | si | si | si |
 
@@ -389,7 +409,7 @@ app.py            i quattro cancelli e la navigazione
 fantacalcio/      la logica: non importa Streamlit (tranne ui e schermate)
 viste/            una pagina per file, eseguite da st.navigation
 db/schema.sql     lo schema Postgres, rieseguibile
-tests/            942 test, una quarantina di secondi
+tests/            986 test, una quarantina di secondi
 ```
 
 ### Le regole che tengono in piedi il progetto

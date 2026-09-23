@@ -58,6 +58,7 @@ from .data import (
     carica_inviti,
     carica_leghe,
     carica_richieste_password,
+    carica_squadre,
     prossimo_id,
     salva_credenziali,
     salva_invito,
@@ -74,12 +75,16 @@ from .leghe import (
     Modalita,
     ModalitaSostituzioni,
     OpzioniLega,
+    RegoleNonModificabili,
     StatoInvito,
     TipoAsta,
+    aggiorna_opzioni,
     crea_invito,
     crea_lega,
+    differenze,
     invito_per_email,
     moduli_disponibili,
+    puo_modificare_regole,
     trova_per_codice,
 )
 from .modelli import Squadra
@@ -413,13 +418,33 @@ def _riassunto_opzioni(opzioni: OpzioniLega) -> str:
     )
 
 
-def _modulo_opzioni() -> OpzioniLega | None:
-    """Tutte le caselle della creazione lega. None se qualcosa non torna.
+def _limite_di_ruolo(colonna, etichetta: str, massimo: int, valore: int | None):
+    """Una casella «quanti ne puoi tesserare», dove 0 vuol dire «quanti vuoi».
+
+    Serve uno zero e non un interruttore separato perche' i quattro limiti
+    sono indipendenti davvero: un interruttore solo non saprebbe rappresentare
+    una lega che limita i portieri e lascia liberi gli altri, e riaprendo le
+    regole gliene inventerebbe tre che nessuno aveva chiesto.
+    """
+    scelto = colonna.number_input(etichetta, 0, massimo, valore or 0)
+    return int(scelto) if scelto else None
+
+
+def _modulo_opzioni(
+    iniziali: OpzioniLega | None = None, stagione_iniziale: str = ""
+) -> tuple[OpzioniLega | None, str]:
+    """Tutte le caselle delle regole di lega. `None` se qualcosa non torna.
+
+    Lo usano in due: la creazione, che parte dai valori predefiniti, e la
+    modifica, che parte da quelli della lega. E' lo stesso modulo apposta —
+    due moduli separati divergerebbero alla prima opzione aggiunta, e
+    l'aggiunta finirebbe solo in uno dei due.
 
     Le opzioni stanno fuori da `st.form` di proposito: cambiando modalita' i
     moduli ammessi cambiano, e dentro un form non si aggiornerebbero finche'
     non premi invio.
     """
+    base = iniziali or OpzioniLega()
     st.markdown("#### Impostazioni generali")
     riga = st.columns(3)
     modalita = riga[0].radio(
@@ -427,27 +452,42 @@ def _modulo_opzioni() -> OpzioniLega | None:
         list(Modalita),
         # Mantra e' il default: e' la modalita' in cui gioca questa lega, e
         # partire dall'altra vuol dire che chi non guarda crea la lega sbagliata.
-        index=list(Modalita).index(Modalita.MANTRA),
+        index=list(Modalita).index(base.modalita),
         format_func=lambda m: m.etichetta,
         horizontal=True,
         help="Mantra usa i ruoli specifici (Dc, E, W, T...). Classic usa P/D/C/A.",
     )
     partecipanti = riga[1].number_input(
-        "Partecipanti", min_value=2, max_value=20, value=10, step=1
+        "Partecipanti", min_value=2, max_value=20, value=base.partecipanti, step=1
     )
     formato = riga[2].selectbox(
-        "Formato", list(FormatoCampionato), format_func=lambda f: f.etichetta
+        "Formato",
+        list(FormatoCampionato),
+        index=list(FormatoCampionato).index(base.formato),
+        format_func=lambda f: f.etichetta,
     )
 
     riga = st.columns(3)
     giornate = riga[0].number_input(
-        "Giornate totali", min_value=1, max_value=76, value=27, step=1
+        "Giornate totali",
+        min_value=1,
+        max_value=76,
+        value=base.giornate_totali,
+        step=1,
     )
     punti_vittoria = riga[1].number_input(
-        "Punti per vittoria", min_value=1, max_value=5, value=3, step=1
+        "Punti per vittoria",
+        min_value=1,
+        max_value=5,
+        value=base.punti_vittoria,
+        step=1,
     )
     punti_pareggio = riga[2].number_input(
-        "Punti per pareggio", min_value=0, max_value=3, value=1, step=1
+        "Punti per pareggio",
+        min_value=0,
+        max_value=3,
+        value=base.punti_pareggio,
+        step=1,
     )
 
     st.markdown("#### Rosa e mercato")
@@ -455,7 +495,7 @@ def _modulo_opzioni() -> OpzioniLega | None:
     tipo_asta = riga[0].selectbox(
         "Come si assegnano i giocatori",
         list(TipoAsta),
-        index=list(TipoAsta).index(TipoAsta.DRAFT),
+        index=list(TipoAsta).index(base.tipo_asta),
         format_func=lambda t: t.etichetta,
         help="«Draft» significa che l'assegnazione avviene fuori dalla "
         "piattaforma e i risultati si caricano via CSV.",
@@ -464,7 +504,7 @@ def _modulo_opzioni() -> OpzioniLega | None:
         "Anni di contratto (massimo)",
         min_value=1,
         max_value=10,
-        value=5,
+        value=base.anni_contratto_massimi,
         step=1,
         help="Durata massima di un contratto. E' la leva del fantacalcio "
         "manageriale: quanto a lungo puoi legare a te un giocatore.",
@@ -473,35 +513,33 @@ def _modulo_opzioni() -> OpzioniLega | None:
         "Budget cap annuale (milioni)",
         min_value=0.0,
         max_value=1_000.0,
-        value=100.0,
+        value=base.budget_cap / 1_000_000,
         step=5.0,
         help="Tetto agli ingaggi di una squadra in una stagione. Fonte degli "
         "stipendi: Capology.",
     )
-    stagione = st.text_input("Stagione", value="2026/27")
+    stagione = st.text_input("Stagione", value=stagione_iniziale or "2026/27")
 
     st.markdown("**Limite di giocatori per ruolo**")
-    con_limiti = st.radio(
-        "Limite di giocatori per ruolo",
-        [True, False],
-        format_func=lambda x: "Imposta un limite per ruolo" if x else "Nessun limite",
-        horizontal=True,
-        label_visibility="collapsed",
-        help="Senza limiti conta solo il monte anni: puoi tesserare i ruoli "
-        "che vuoi, nelle proporzioni che vuoi.",
+    st.caption(
+        "**0 = nessun limite** per quel ruolo. Si mettono uno per uno perche' "
+        "una lega puo' benissimo limitare i portieri e lasciare liberi gli "
+        "altri — ed e' esattamente quello che fa questa."
     )
+    riga = st.columns(4)
+    portieri = _limite_di_ruolo(riga[0], "Portieri", 6, base.rosa_portieri)
+    difensori = _limite_di_ruolo(riga[1], "Difensori", 15, base.rosa_difensori)
+    centrocampisti = _limite_di_ruolo(
+        riga[2], "Centrocampisti", 15, base.rosa_centrocampisti
+    )
+    attaccanti = _limite_di_ruolo(riga[3], "Attaccanti", 12, base.rosa_attaccanti)
 
-    if con_limiti:
-        riga = st.columns(4)
-        portieri = riga[0].number_input("Portieri", 1, 6, 3)
-        difensori = riga[1].number_input("Difensori", 3, 15, 8)
-        centrocampisti = riga[2].number_input("Centrocampisti", 3, 15, 8)
-        attaccanti = riga[3].number_input("Attaccanti", 2, 12, 6)
-        totale_rosa = portieri + difensori + centrocampisti + attaccanti
-        st.caption(f"Rosa complessiva: **{totale_rosa}** giocatori")
+    messi = [v for v in (portieri, difensori, centrocampisti, attaccanti) if v]
+    if len(messi) == 4:
+        st.caption(f"Rosa complessiva: **{sum(messi)}** giocatori")
+    elif messi:
+        st.caption("Limite solo su alcuni ruoli: per gli altri conta il monte anni.")
     else:
-        portieri = difensori = centrocampisti = attaccanti = None
-        totale_rosa = None
         st.caption("Nessun tetto per ruolo: la rosa la limita il monte anni.")
 
     st.markdown("**Vincoli di rosa e di mercato**")
@@ -510,7 +548,7 @@ def _modulo_opzioni() -> OpzioniLega | None:
         "Minimo giocatori italiani",
         min_value=0,
         max_value=40,
-        value=0,
+        value=base.minimo_italiani,
         step=1,
         help="0 = nessun vincolo.",
     )
@@ -518,7 +556,7 @@ def _modulo_opzioni() -> OpzioniLega | None:
         "Minimo Under 21 italiani",
         min_value=0,
         max_value=20,
-        value=0,
+        value=base.minimo_u21_italiani,
         step=1,
         help="Sottoinsieme del vincolo qui accanto: un Under 21 italiano "
         "conta anche come italiano. 0 = nessun vincolo.",
@@ -527,7 +565,7 @@ def _modulo_opzioni() -> OpzioniLega | None:
         "Scambi permessi a stagione",
         min_value=0,
         max_value=50,
-        value=0,
+        value=base.scambi_per_stagione,
         step=1,
         help="Per squadra, nell'arco della stagione. 0 = illimitati.",
     )
@@ -537,30 +575,47 @@ def _modulo_opzioni() -> OpzioniLega | None:
         "Il campionato c'e' sempre. Le altre compaiono nel menu solo se le accendi qui."
     )
     riga = st.columns(2)
-    coppa = riga[0].toggle("Coppa Italia", value=False)
-    supercoppa = riga[1].toggle("Supercoppa", value=False)
+    coppa = riga[0].toggle("Coppa Italia", value=base.coppa_italia)
+    supercoppa = riga[1].toggle("Supercoppa", value=base.supercoppa)
 
-    regole_coppa = RegoleCoppa()
+    regole_coppa = base.regole_coppa
     if coppa:
         with st.expander("Regole della Coppa Italia", expanded=True):
             riga = st.columns(3)
             formato_coppa = riga[0].selectbox(
-                "Formato", list(FormatoCoppa), format_func=lambda f: f.etichetta
+                "Formato",
+                list(FormatoCoppa),
+                index=list(FormatoCoppa).index(base.regole_coppa.formato),
+                format_func=lambda f: f.etichetta,
             )
             ammesse = riga[1].selectbox(
                 "Squadre ammesse",
                 [2, 4, 8, 16],
-                index=2,
+                index=(
+                    [2, 4, 8, 16].index(base.regole_coppa.squadre_ammesse)
+                    if base.regole_coppa.squadre_ammesse in (2, 4, 8, 16)
+                    else 2
+                ),
                 help="Una potenza di due: altrimenti il tabellone non si chiude.",
             )
-            teste = riga[2].toggle("Teste di serie dalla classifica", value=True)
+            teste = riga[2].toggle(
+                "Teste di serie dalla classifica",
+                value=base.regole_coppa.teste_di_serie,
+            )
 
             riga = st.columns(3)
-            prima = riga[0].number_input("Primo turno alla giornata", 1, 40, 5)
-            passo = riga[1].number_input("Un turno ogni quante giornate", 1, 10, 4)
+            prima = riga[0].number_input(
+                "Primo turno alla giornata", 1, 40, base.regole_coppa.prima_giornata
+            )
+            passo = riga[1].number_input(
+                "Un turno ogni quante giornate",
+                1,
+                10,
+                base.regole_coppa.ogni_quante_giornate,
+            )
             spareggio = riga[2].toggle(
                 "Parita': passa chi ha piu' fantapunti",
-                value=True,
+                value=base.regole_coppa.spareggio_ai_fantapunti,
                 help="Senza, una coppa a gara secca non saprebbe chi far passare.",
             )
             try:
@@ -581,18 +636,20 @@ def _modulo_opzioni() -> OpzioniLega | None:
                 )
                 st.caption(f"Tabellone: {turni}")
 
-    regole_supercoppa = RegoleSupercoppa()
+    regole_supercoppa = base.regole_supercoppa
     if supercoppa:
         with st.expander("Regole della Supercoppa", expanded=True):
             criterio = st.selectbox(
                 "Chi si affronta",
                 list(CriterioSupercoppa),
+                index=list(CriterioSupercoppa).index(base.regole_supercoppa.criterio),
                 format_func=lambda c: c.etichetta,
                 help="Il primo anno l'albo d'oro e' vuoto: le due squadre le "
                 "scegli a mano. Dall'anno dopo si ricavano da sole.",
             )
             prima_stagione = st.toggle(
-                "Si gioca prima dell'inizio del campionato", value=True
+                "Si gioca prima dell'inizio del campionato",
+                value=base.regole_supercoppa.prima_della_stagione,
             )
             regole_supercoppa = RegoleSupercoppa(
                 criterio=criterio, prima_della_stagione=bool(prima_stagione)
@@ -603,19 +660,23 @@ def _modulo_opzioni() -> OpzioniLega | None:
     moduli = st.multiselect(
         "Moduli ammessi",
         disponibili,
-        default=list(disponibili),
+        # Cambiando modalita' i moduli della lega non esistono piu': si
+        # riparte da tutti quelli disponibili invece che da un elenco vuoto.
+        default=[m for m in base.moduli_ammessi if m in disponibili] or list(disponibili),
         help="Chi schiera la formazione potra' scegliere solo fra questi.",
     )
     riga = st.columns(3)
-    panchinari = riga[0].number_input("Panchinari", 0, 20, 12)
-    sostituzioni = riga[1].toggle("Sostituzioni automatiche", value=True)
-    capitano = riga[2].toggle("Capitano", value=True)
+    panchinari = riga[0].number_input("Panchinari", 0, 20, base.panchinari)
+    sostituzioni = riga[1].toggle(
+        "Sostituzioni automatiche", value=base.sostituzioni_automatiche
+    )
+    capitano = riga[2].toggle("Capitano", value=base.capitano)
 
     riga = st.columns([2, 1])
     modalita_sostituzioni = riga[0].selectbox(
         "Modalita' delle sostituzioni",
         list(ModalitaSostituzioni),
-        index=list(ModalitaSostituzioni).index(ModalitaSostituzioni.BASIC),
+        index=list(ModalitaSostituzioni).index(base.modalita_sostituzioni),
         format_func=lambda m: m.etichetta,
         disabled=not sostituzioni,
         help="Sono le tre modalita' del Mantra. Cambiano chi entra al posto "
@@ -625,7 +686,7 @@ def _modulo_opzioni() -> OpzioniLega | None:
         "Sostituzioni per giornata",
         min_value=0,
         max_value=11,
-        value=3,
+        value=base.sostituzioni_massime,
         disabled=not sostituzioni,
         help="Il portiere di riserva che subentra ne consuma una.",
     )
@@ -637,7 +698,7 @@ def _modulo_opzioni() -> OpzioniLega | None:
         "Punti per il primo gol",
         min_value=50.0,
         max_value=80.0,
-        value=66.0,
+        value=base.soglia_primo_gol,
         step=0.5,
         help="Sotto questa soglia il risultato e' 0 gol.",
     )
@@ -645,14 +706,14 @@ def _modulo_opzioni() -> OpzioniLega | None:
         "Punti per ogni gol successivo",
         min_value=1.0,
         max_value=12.0,
-        value=6.0,
+        value=base.passo_gol,
         step=0.5,
     )
     senza_voto = riga[2].number_input(
         "Voto d'ufficio a chi non gioca",
         min_value=0.0,
         max_value=6.0,
-        value=6.0,
+        value=base.voto_minimo_senza_voto,
         step=0.5,
     )
 
@@ -661,9 +722,11 @@ def _modulo_opzioni() -> OpzioniLega | None:
 
     st.markdown("#### Modificatori di reparto")
     riga = st.columns(3)
-    mod_difesa = riga[0].toggle("Modificatore difesa", value=True)
-    mod_centrocampo = riga[1].toggle("Modificatore centrocampo", value=False)
-    mod_attacco = riga[2].toggle("Modificatore attacco", value=False)
+    mod_difesa = riga[0].toggle("Modificatore difesa", value=base.modificatore_difesa)
+    mod_centrocampo = riga[1].toggle(
+        "Modificatore centrocampo", value=base.modificatore_centrocampo
+    )
+    mod_attacco = riga[2].toggle("Modificatore attacco", value=base.modificatore_attacco)
     st.caption(
         "Le soglie esatte di ogni modificatore sono parametri: si cambiano "
         "senza toccare il codice. Quelle di partenza sono in PUNTI_APERTI.md, "
@@ -672,17 +735,29 @@ def _modulo_opzioni() -> OpzioniLega | None:
 
     with st.expander("Bonus e malus"):
         riga = st.columns(3)
-        gol = riga[0].number_input("Gol segnato", 0.0, 10.0, 3.0, 0.5)
-        gol_subito = riga[1].number_input("Gol subito", -5.0, 0.0, -1.0, 0.5)
-        assist = riga[2].number_input("Assist", 0.0, 5.0, 1.0, 0.5)
+        gol = riga[0].number_input("Gol segnato", 0.0, 10.0, base.bonus.gol_segnato, 0.5)
+        gol_subito = riga[1].number_input(
+            "Gol subito", -5.0, 0.0, base.bonus.gol_subito, 0.5
+        )
+        assist = riga[2].number_input("Assist", 0.0, 5.0, base.bonus.assist, 0.5)
         riga = st.columns(3)
-        rigore_parato = riga[0].number_input("Rigore parato", 0.0, 6.0, 3.0, 0.5)
-        rigore_sbagliato = riga[1].number_input("Rigore sbagliato", -6.0, 0.0, -3.0, 0.5)
-        autogol = riga[2].number_input("Autogol", -6.0, 0.0, -2.0, 0.5)
+        rigore_parato = riga[0].number_input(
+            "Rigore parato", 0.0, 6.0, base.bonus.rigore_parato, 0.5
+        )
+        rigore_sbagliato = riga[1].number_input(
+            "Rigore sbagliato", -6.0, 0.0, base.bonus.rigore_sbagliato, 0.5
+        )
+        autogol = riga[2].number_input("Autogol", -6.0, 0.0, base.bonus.autogol, 0.5)
         riga = st.columns(3)
-        ammonizione = riga[0].number_input("Ammonizione", -3.0, 0.0, -0.5, 0.5)
-        espulsione = riga[1].number_input("Espulsione", -5.0, 0.0, -1.0, 0.5)
-        imbattuto = riga[2].number_input("Portiere imbattuto", 0.0, 3.0, 1.0, 0.5)
+        ammonizione = riga[0].number_input(
+            "Ammonizione", -3.0, 0.0, base.bonus.ammonizione, 0.5
+        )
+        espulsione = riga[1].number_input(
+            "Espulsione", -5.0, 0.0, base.bonus.espulsione, 0.5
+        )
+        imbattuto = riga[2].number_input(
+            "Portiere imbattuto", 0.0, 3.0, base.bonus.portiere_imbattuto, 0.5
+        )
 
     from .leghe import Bonus
 
@@ -699,10 +774,10 @@ def _modulo_opzioni() -> OpzioniLega | None:
             supercoppa=bool(supercoppa),
             regole_coppa=regole_coppa,
             regole_supercoppa=regole_supercoppa,
-            rosa_portieri=None if portieri is None else int(portieri),
-            rosa_difensori=None if difensori is None else int(difensori),
-            rosa_centrocampisti=(None if centrocampisti is None else int(centrocampisti)),
-            rosa_attaccanti=None if attaccanti is None else int(attaccanti),
+            rosa_portieri=portieri,
+            rosa_difensori=difensori,
+            rosa_centrocampisti=centrocampisti,
+            rosa_attaccanti=attaccanti,
             minimo_italiani=int(minimo_italiani),
             minimo_u21_italiani=int(minimo_u21),
             scambi_per_stagione=int(scambi_stagione),
@@ -731,7 +806,7 @@ def _modulo_opzioni() -> OpzioniLega | None:
                 espulsione=float(espulsione),
                 portiere_imbattuto=float(imbattuto),
             ),
-        ), st.session_state.get("_stagione_lega", stagione)
+        ), stagione
     except LegaNonValida as errore:
         st.error(str(errore), icon="⛔")
         return None, stagione
@@ -1277,6 +1352,128 @@ def _chiudi_richiesta(richiesta, utente: Utente, stato) -> None:
         f"Richiesta di {richiesta.nome_utente} segnata come {stato.etichetta.lower()}.",
     )
     st.rerun()
+
+
+def modulo_modifica_regole(utente: Utente, lega: Lega) -> None:
+    """Il presidente cambia le regole di una lega gia' avviata.
+
+    E' lo stesso modulo della creazione, riempito con quel che la lega ha
+    adesso: cosi' non si scrivono due volte le stesse caselle, e un'opzione
+    aggiunta domani compare in tutti e due i posti senza fare niente.
+
+    Prima di salvare si legge **cosa cambia**. Una regola toccata per sbaglio
+    la scoprirebbero dieci persone a giornata in corso, e rileggere tre righe
+    costa meno di rimediare.
+    """
+    if not puo_modificare_regole(utente, lega):
+        st.info("Le regole le cambia chi ha creato la lega.", icon="🔒")
+        return
+
+    squadre = carica_squadre(archivio())
+    iscritte = sum(1 for s in squadre.values() if s.lega_id == lega.id)
+
+    st.caption(
+        "Le caselle partono da come sta la lega adesso: cambia quel che serve "
+        "e salva. Rose, calendario e albo restano dove sono — e' il motivo per "
+        "cui questa pagina esiste invece di doverne creare una nuova."
+    )
+
+    esito = _modulo_opzioni(lega.opzioni, lega.stagione)
+    nuove, stagione = esito if esito else (None, lega.stagione)
+
+    st.divider()
+    if nuove is None:
+        return
+
+    cambiate = differenze(lega.opzioni, nuove)
+    cambia_stagione = stagione.strip() and stagione.strip() != lega.stagione
+    if cambia_stagione:
+        cambiate = [f"Stagione: {lega.stagione} → {stagione.strip()}", *cambiate]
+
+    if not cambiate:
+        st.caption("Per ora non hai cambiato niente.")
+        return
+
+    st.markdown("**Cosa cambia**")
+    for riga in cambiate:
+        st.markdown(f"- {riga}")
+    _avvisi_sulle_regole(lega, nuove, iscritte)
+
+    if not st.button(
+        "💾 Salva le regole nuove", type="primary", use_container_width=True
+    ):
+        return
+
+    try:
+        aggiornata = aggiorna_opzioni(
+            lega, nuove, utente, squadre_iscritte=iscritte, stagione=stagione
+        )
+    except (RegoleNonModificabili, LegaNonValida) as errore:
+        st.error(str(errore), icon="⛔")
+        return
+
+    try:
+        salva_lega(archivio(), aggiornata)
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        st.error(f"Non riesco a salvare le regole: {errore}", icon="⛔")
+        return
+
+    _dati_cambiati()
+    quante = len(cambiate)
+    _ricorda(
+        f"Regole aggiornate: {quante} "
+        + ("modifica salvata." if quante == 1 else "modifiche salvate.")
+    )
+    st.rerun()
+
+
+def _avvisi_sulle_regole(lega: Lega, nuove: OpzioniLega, iscritte: int) -> None:
+    """Le conseguenze che il salvataggio non rifiuta ma che conviene sapere.
+
+    Non sono errori: sono cambiamenti legittimi che pero' toccano roba gia'
+    salvata, e vale la pena dirli prima invece di lasciarli scoprire.
+    """
+    avvisi: list[str] = []
+
+    if iscritte > nuove.partecipanti:
+        avvisi.append(
+            f"La lega ha **{iscritte} squadre** iscritte e staresti mettendo "
+            f"il tetto a {nuove.partecipanti}: il salvataggio lo rifiutera'."
+        )
+
+    tolti = [m for m in lega.opzioni.moduli_ammessi if m not in nuove.moduli_ammessi]
+    if tolti:
+        avvisi.append(
+            "Moduli tolti: **"
+            + ", ".join(tolti)
+            + "**. Chi li aveva gia' usati trovera' la formazione da rifare."
+        )
+
+    if nuove.panchinari < lega.opzioni.panchinari:
+        avvisi.append(
+            f"La panchina passa da {lega.opzioni.panchinari} a "
+            f"**{nuove.panchinari}**: le formazioni salvate con piu' panchinari "
+            f"vanno risistemate."
+        )
+
+    if (
+        nuove.soglia_primo_gol != lega.opzioni.soglia_primo_gol
+        or nuove.passo_gol != lega.opzioni.passo_gol
+    ):
+        avvisi.append(
+            "Cambiano le fasce di gol: le giornate **gia' calcolate** restano "
+            "come sono, le prossime useranno le fasce nuove. Se vuoi "
+            "riallineare anche il passato, ricalcola quelle giornate."
+        )
+
+    if nuove.modalita is not lega.opzioni.modalita:
+        avvisi.append(
+            f"Stai passando a **{nuove.modalita.etichetta}**: cambiano i ruoli "
+            f"con cui si schiera, e i moduli con loro."
+        )
+
+    for avviso in avvisi:
+        st.warning(avviso, icon="⚠️")
 
 
 def modulo_ruoli(utente: Utente, lega: Lega) -> None:

@@ -34,7 +34,7 @@ le rose della demo sono conformi al regolamento, quindi sono un banco di prova
 valido per le regole.
 
 ```bash
-.venv/bin/pytest        # 942 test
+.venv/bin/pytest        # 986 test
 .venv/bin/ruff check .
 ```
 
@@ -53,7 +53,7 @@ valido per le regole.
 | **Rose e contratti** | La rosa di una squadra con anni residui, ingaggi, status U21 e quanto costerebbe tagliare ciascun giocatore. |
 | **Mercato** | Componi uno scambio, verifica contro i lodi e invialo alla controparte. Calcolo del Dead Money prima di svincolare. |
 | **Identita' squadre** | Presidente, motto, stadio, citta', curva, colori sociali, maglia e logo. La maglia si disegna dai colori: nessuno resta senza. |
-| **La lega** | Codice d'invito, chi c'e', inviti per email e tutte le regole di gioco scelte creando la lega. |
+| **La lega** | Codice d'invito, chi c'e', inviti per email e tutte le regole di gioco. Chi ha creato la lega puo' **cambiarle anche dopo**, senza rifarla da capo: prima di salvare legge l'elenco di cosa cambia. |
 | **Importa dati** | Il CSV del draft e i risultati di giornata, con anteprima ed errori riga per riga prima di scrivere. |
 | **Draft** | Draft Lottery riproducibile, ordine di chiamata round per round, probabilita' delle pick, draft list delle scadenze. |
 | **Campionato** | Classifica e risultati importati da Leghe: servono a determinare l'ordine del draft. |
@@ -87,7 +87,7 @@ fantacalcio/
   ui.py                   helper Streamlit (l'unico modulo che importa st)
   demo_data.py            genera la lega di demo
 db/schema.sql             schema Postgres da incollare in Supabase
-tests/                    942 test sulle regole, i dati e le viste
+tests/                    986 test sulle regole, i dati e le viste
 ```
 
 Due regole tengono insieme il progetto:
@@ -99,7 +99,7 @@ motivo per cui la pagina Regolamento puo' stampare i parametri veri invece di
 una copia scritta a mano che prima o poi diverge.
 
 **La logica non conosce Streamlit.** `regole`, `modelli`, `conformita`,
-`draft`, `mercato`, `formazioni`, `giornata` e `vista` sono Python puro. I 942
+`draft`, `mercato`, `formazioni`, `giornata` e `vista` sono Python puro. I 986
 test girano in una quarantina di secondi senza avviare nulla — ed e' il
 motivo per cui questa parte sopravvivrebbe intatta a un cambio di tecnologia
 del sito.
