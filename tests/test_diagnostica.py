@@ -132,3 +132,92 @@ def test_ogni_tabella_attesa_esiste_davvero(tabella, tmp_path):
 
     arch = ArchivioSQLite(tmp_path / "prova.db")
     arch.tabella(tabella)  # solleva se la tabella non c'e'
+
+
+class TestNienteRestaFuoriControllo:
+    """La diagnostica deve guardare **tutte** le tabelle che l'app usa.
+
+    E' il difetto che ha lasciato Marco davanti a una pagina rotta: mancava la
+    tabella `formazioni`, ma `ATTESO` non la elencava, quindi la pagina che
+    dice «il database non e' aggiornato» giurava che fosse tutto a posto.
+    """
+
+    def test_ogni_tabella_dell_app_e_controllata(self):
+        from fantacalcio.data import TABELLE
+        from fantacalcio.diagnostica import ATTESO
+
+        fuori = sorted(set(TABELLE) - set(ATTESO))
+        assert fuori == [], (
+            f"Queste tabelle non verrebbero mai controllate: {fuori}. "
+            f"Aggiungile ad ATTESO, altrimenti chi non lancia la migrazione "
+            f"vede una pagina rotta e una diagnostica che dice «tutto bene»."
+        )
+
+    def test_ogni_colonna_attesa_esiste_davvero(self):
+        """Difendersi anche dal contrario: controllare colonne inventate."""
+        from fantacalcio.data import COLONNE_ATTESE
+        from fantacalcio.diagnostica import ATTESO
+
+        for tabella, colonne in ATTESO.items():
+            note = set(COLONNE_ATTESE.get(tabella, ()))
+            if not note:
+                continue
+            inventate = sorted(set(colonne) - note)
+            assert inventate == [], f"{tabella}: colonne che non esistono {inventate}"
+
+
+class TestQualeFileEseguire:
+    def test_una_tabella_mancante_dice_il_suo_file(self):
+        from fantacalcio.diagnostica import Problema
+
+        problema = Problema("formazioni", tabella_mancante=True)
+        assert "aggiornamento_giornata.sql" in problema.messaggio
+
+    def test_la_query_di_riparazione_nomina_i_file(self):
+        from fantacalcio.diagnostica import Problema, sql_di_riparazione
+
+        sql = sql_di_riparazione(
+            [
+                Problema("formazioni", tabella_mancante=True),
+                Problema("voti", tabella_mancante=True),
+            ]
+        )
+        assert "db/aggiornamento_giornata.sql" in sql
+
+    def test_una_tabella_senza_file_noto_non_inventa_niente(self):
+        from fantacalcio.diagnostica import Problema, migrazione_per
+
+        assert migrazione_per("squadre") == ""
+        assert "db/" not in Problema("squadre", tabella_mancante=True).messaggio
+
+
+class TestTabellaAssenteSenzaErrore:
+    """La degradazione non deve rendere cieca la diagnostica.
+
+    Da quando una tabella mancante si legge vuota invece di alzare un errore,
+    `verifica` non poteva piu' distinguerla da una tabella senza righe: la
+    pagina «Impostazioni lega» diceva che andava tutto bene mentre Formazione
+    e Giornata erano inutilizzabili. E' successo, ed e' questo test.
+    """
+
+    def test_la_segnala_lo_stesso(self, tmp_path):
+        import sqlite3
+
+        from fantacalcio.data import ArchivioSQLite
+        from fantacalcio.diagnostica import verifica
+
+        percorso = tmp_path / "senza-formazioni.db"
+        arch = ArchivioSQLite(percorso)
+        with sqlite3.connect(percorso) as conn:
+            conn.execute("drop table formazioni")
+
+        problemi = verifica(arch)
+        assenti = [p.tabella for p in problemi if p.tabella_mancante]
+        assert "formazioni" in assenti
+
+    def test_una_tabella_vuota_ma_esistente_non_e_un_problema(self, tmp_path):
+        from fantacalcio.data import ArchivioSQLite
+        from fantacalcio.diagnostica import verifica
+
+        arch = ArchivioSQLite(tmp_path / "vuoto.db")
+        assert [p.tabella for p in verifica(arch) if p.tabella_mancante] == []

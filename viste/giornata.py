@@ -32,6 +32,7 @@ from fantacalcio.giornata import (
 
 ui.barra_laterale()
 schermate.mostra_messaggio()
+ui.richiedi_tabelle("formazioni", "voti")
 st.markdown(tema.CSS_CAMPO, unsafe_allow_html=True)
 
 utente = ui.utente_corrente()

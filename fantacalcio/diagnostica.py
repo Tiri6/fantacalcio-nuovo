@@ -64,8 +64,31 @@ ATTESO: dict[str, tuple[str, ...]] = {
     "richieste_password": ("id", "nome_utente", "stato", "chiesta_il"),
     "giocatori": ("id", "nome", "club", "ruoli", "ingaggio", "nazionalita"),
     "contratti": ("giocatore_id", "squadra_id", "anni_residui"),
-    "calendario": ("id", "giornata", "casa_id", "trasferta_id"),
+    "calendario": ("id", "giornata", "casa_id", "trasferta_id", "inizio_previsto"),
+    "formazioni": ("id", "squadra_id", "giornata", "competizione", "modulo"),
+    "voti": ("id", "giocatore_id", "giornata", "voto"),
+    "albo": ("id", "lega_id", "competizione", "stagione", "squadra_nome"),
+    "dead_money": ("id", "squadra_id", "importo"),
+    "scambi": ("id", "squadra_a_id", "squadra_b_id", "stato"),
+    "scambi_movimenti": ("id", "scambio_id", "giocatore_id"),
 }
+
+# Da quale file di migrazione nasce ogni tabella. Serve a dire «esegui
+# quello», invece di «manca una tabella, arrangiati».
+MIGRAZIONE: dict[str, str] = {
+    "formazioni": "db/aggiornamento_giornata.sql",
+    "voti": "db/aggiornamento_giornata.sql",
+    "richieste_password": "db/aggiornamento_recupero_password.sql",
+    "annunci": "db/aggiornamento_bacheca.sql",
+    "leghe": "db/aggiornamento_leghe.sql",
+    "inviti": "db/aggiornamento_leghe.sql",
+}
+
+
+def migrazione_per(tabella: str) -> str:
+    """Il file da eseguire per avere quella tabella. Vuoto se non si sa."""
+    return MIGRAZIONE.get(tabella, "")
+
 
 # Il tipo con cui ricreare una colonna mancante. Serve a scrivere l'ALTER
 # giusto invece di lasciare che se lo inventi chi legge.
@@ -102,7 +125,10 @@ class Problema:
     @property
     def messaggio(self) -> str:
         if self.tabella_mancante:
-            return f"La tabella `{self.tabella}` non esiste."
+            dove = migrazione_per(self.tabella)
+            return f"La tabella `{self.tabella}` non esiste." + (
+                f" La crea `{dove}`." if dove else ""
+            )
         elenco = ", ".join(f"`{c}`" for c in self.colonne_mancanti)
         quante = "la colonna" if len(self.colonne_mancanti) == 1 else "le colonne"
         return f"A `{self.tabella}` mancano {quante} {elenco}."
@@ -123,6 +149,15 @@ def verifica(arch) -> list[Problema]:
             problemi.append(Problema(tabella, tabella_mancante=True))
             continue
 
+        # Una tabella che non esiste non alza piu' un errore: si legge vuota,
+        # cosi' le pagine restano in piedi. Chi l'ha letta pero' se l'e'
+        # segnato, ed e' li' che bisogna guardare — altrimenti una tabella
+        # assente passerebbe per una tabella semplicemente senza righe, e
+        # questa pagina direbbe «tutto a posto» mentre il sito non funziona.
+        if tabella in getattr(arch, "assenti", ()):
+            problemi.append(Problema(tabella, tabella_mancante=True))
+            continue
+
         if righe.empty:
             continue  # nessuna riga: le colonne non si possono dedurre
 
@@ -140,10 +175,18 @@ def sql_di_riparazione(problemi: list[Problema]) -> str:
     righe: list[str] = []
     tabelle_da_creare = [p.tabella for p in problemi if p.tabella_mancante]
     if tabelle_da_creare:
+        files = sorted(
+            {migrazione_per(t) for t in tabelle_da_creare if migrazione_per(t)}
+        )
         righe.append(
             "-- Mancano tabelle intere: incolla il contenuto di db/schema.sql,\n"
             "-- che le crea tutte ed e' rieseguibile senza cancellare niente.\n"
             f"-- Tabelle assenti: {', '.join(tabelle_da_creare)}"
+            + (
+                "\n-- In alternativa basta il file che le introduce: " + ", ".join(files)
+                if files
+                else ""
+            )
         )
 
     for problema in problemi:

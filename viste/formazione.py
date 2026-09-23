@@ -29,6 +29,7 @@ from fantacalcio.mantra import Esito
 
 ui.barra_laterale()
 schermate.mostra_messaggio()
+ui.richiedi_tabelle("formazioni")
 st.markdown(tema.CSS_CAMPO, unsafe_allow_html=True)
 
 utente = ui.utente_corrente()

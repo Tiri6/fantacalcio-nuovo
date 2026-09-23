@@ -594,3 +594,120 @@ class TestRecuperoPassword:
             archivio, RichiestaPassword(id=3, lega_id=99, utente_id=8, nome_utente="x")
         )
         assert all(r.lega_id != 99 for r in carica_richieste_password(archivio, 1))
+
+
+class TestTabellaCheNonEsiste:
+    """Una migrazione non lanciata non deve uccidere la pagina.
+
+    E' successo davvero: su Supabase mancava la tabella `formazioni` e la
+    pagina Formazione moriva con un errore che Streamlit oscura («original
+    error message is redacted»). Da fuori sembrava un guasto del sito, mentre
+    bastava eseguire un file SQL — e la pagina che elenca i problemi dello
+    schema non guardava nemmeno quella tabella.
+    """
+
+    def archivio_che_non_ha(self, mancanti, codice="PGRST205"):
+        """Un finto Supabase a cui certe tabelle non esistono."""
+        from fantacalcio.data import ArchivioSupabase
+
+        class ErroreFinto(Exception):
+            def __init__(self, nome):
+                super().__init__(
+                    f"Could not find the table 'public.{nome}' in the schema cache"
+                )
+                self.code = codice
+                self.message = f"Could not find the table 'public.{nome}'"
+
+        class FintaTabella:
+            def __init__(self, nome):
+                self.nome = nome
+
+            def select(self, *_):
+                return self
+
+            def execute(self):
+                if self.nome in mancanti:
+                    raise ErroreFinto(self.nome)
+                return type("Risposta", (), {"data": []})()
+
+        class FintoClient:
+            def table(self, nome):
+                return FintaTabella(nome)
+
+        arch = ArchivioSupabase.__new__(ArchivioSupabase)
+        arch._client = FintoClient()
+        return arch
+
+    def test_si_legge_come_vuota_invece_di_esplodere(self):
+        from fantacalcio.data import COLONNE_ATTESE
+
+        arch = self.archivio_che_non_ha({"formazioni"})
+        righe = arch.tabella("formazioni")
+        assert righe.empty
+        # Vuota ma con le sue colonne, come per ogni tabella senza righe.
+        assert list(righe.columns) == list(COLONNE_ATTESE["formazioni"])
+
+    def test_anche_col_codice_di_postgres(self):
+        arch = self.archivio_che_non_ha({"voti"}, codice="42P01")
+        assert arch.tabella("voti").empty
+
+    def test_si_ricorda_quale_mancava(self):
+        arch = self.archivio_che_non_ha({"formazioni", "voti"})
+        arch.tabella("formazioni")
+        arch.tabella("voti")
+        arch.tabella("squadre")
+        assert {"formazioni", "voti"} <= arch.assenti
+        assert "squadre" not in arch.assenti
+
+    def test_quando_la_tabella_arriva_smette_di_dirlo(self):
+        senza = self.archivio_che_non_ha({"formazioni"})
+        senza.tabella("formazioni")
+        assert "formazioni" in senza.assenti
+        # Migrazione lanciata: la lettura riesce e l'allarme si spegne.
+        senza.tabella("squadre")
+        con = self.archivio_che_non_ha(set())
+        con.tabella("formazioni")
+        assert "formazioni" not in con.assenti
+
+    def test_due_archivi_non_si_scambiano_le_assenze(self):
+        # L'elenco descrive un database, non il programma: tenerlo globale
+        # faceva credere a un archivio sano di avere i guasti di un altro.
+        malato = self.archivio_che_non_ha({"formazioni"})
+        malato.tabella("formazioni")
+        sano = self.archivio_che_non_ha(set())
+        sano.tabella("formazioni")
+        assert malato.assenti == {"formazioni"}
+        assert sano.assenti == set()
+
+    def test_un_errore_diverso_deve_farsi_sentire(self):
+        """Chiave sbagliata, rete, permessi: la cura e' un'altra, e si deve vedere."""
+        from fantacalcio.data import ArchivioSupabase
+
+        class Ostile:
+            def table(self, nome):
+                raise RuntimeError("Invalid API key")
+
+        arch = ArchivioSupabase.__new__(ArchivioSupabase)
+        arch._client = Ostile()
+        with pytest.raises(RuntimeError, match="Invalid API key"):
+            arch.tabella("formazioni")
+
+    def test_anche_sqlite_lo_dice_a_modo_suo(self, tmp_path):
+        """SQLite scrive «no such table», PostgREST scrive altro: valgono entrambi."""
+        import sqlite3
+
+        from fantacalcio.data import ArchivioSQLite
+
+        percorso = tmp_path / "vecchio.db"
+        arch = ArchivioSQLite(percorso)
+        with sqlite3.connect(percorso) as conn:
+            conn.execute("drop table if exists formazioni")
+        assert arch.tabella("formazioni").empty
+        assert "formazioni" in arch.assenti
+
+    def test_le_formazioni_si_caricano_vuote(self):
+        """Il pezzo che si rompeva: `carica_formazioni` su una tabella assente."""
+        from fantacalcio.data import carica_formazioni
+
+        arch = self.archivio_che_non_ha({"formazioni"})
+        assert carica_formazioni(arch, giornata=1) == {}

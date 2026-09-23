@@ -242,6 +242,35 @@ COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
 }
 
 
+# PostgREST dice «non la trovo» in due modi: il codice suo (PGRST205, tabella
+# fuori dalla cache dello schema) e quello di PostgreSQL (42P01, undefined
+# table). Si guardano tutti e due, piu' il testo, perche' la libreria cambia
+# forma fra una versione e l'altra.
+_CODICI_TABELLA_ASSENTE = ("PGRST205", "PGRST200", "42P01")
+_FRASI_TABELLA_ASSENTE = (
+    "does not exist",
+    "could not find the table",
+    "schema cache",
+    "no such table",  # e' cosi' che lo dice SQLite
+)
+
+
+def _tabella_inesistente(errore: Exception) -> bool:
+    """Se quell'errore vuol dire «quella tabella non c'e'» e non altro."""
+    codice = str(getattr(errore, "code", "") or "")
+    if codice in _CODICI_TABELLA_ASSENTE:
+        return True
+    testo = f"{getattr(errore, 'message', '')} {errore}".lower()
+    return any(frase in testo for frase in _FRASI_TABELLA_ASSENTE)
+
+
+def migrazione_per(tabella: str) -> str:
+    """Il file di migrazione che crea quella tabella. Vuoto se non si sa."""
+    from .diagnostica import migrazione_per as quale
+
+    return quale(tabella)
+
+
 def con_colonne(nome: str, righe: pd.DataFrame) -> pd.DataFrame:
     """Garantisce che una tabella vuota abbia comunque le sue colonne.
 
@@ -260,6 +289,24 @@ class Archivio:
     """Interfaccia comune ai backend."""
 
     nome: str = "sconosciuto"
+
+    @property
+    def assenti(self) -> set[str]:
+        """Le tabelle che **questo** database non ha, scoperte leggendo.
+
+        Sta sull'archivio e non in una variabile di modulo perche' e' una
+        proprieta' del database, non del programma: due archivi diversi hanno
+        due situazioni diverse, e uno stato globale se le mescolerebbe.
+        """
+        if not hasattr(self, "_assenti"):
+            self._assenti: set[str] = set()
+        return self._assenti
+
+    def _segna_assente(self, nome: str) -> None:
+        self.assenti.add(nome)
+
+    def _segna_presente(self, nome: str) -> None:
+        self.assenti.discard(nome)
 
     def tabella(self, nome: str) -> pd.DataFrame:  # pragma: no cover - astratto
         raise NotImplementedError
@@ -300,8 +347,18 @@ class ArchivioSQLite(Archivio):
     def tabella(self, nome: str) -> pd.DataFrame:
         if nome not in TABELLE:
             raise ValueError(f"Tabella non prevista: {nome}")
-        with sqlite3.connect(self.percorso) as conn:
-            return con_colonne(nome, pd.read_sql_query(f"select * from {nome}", conn))
+        try:
+            with sqlite3.connect(self.percorso) as conn:
+                letta = pd.read_sql_query(f"select * from {nome}", conn)
+        except Exception as errore:  # noqa: BLE001 - pandas riavvolge l'errore
+            # Stessa regola di Supabase: una tabella che non c'e' si legge
+            # vuota e si segnala, invece di far morire la pagina.
+            if not _tabella_inesistente(errore):
+                raise
+            self._segna_assente(nome)
+            return con_colonne(nome, pd.DataFrame())
+        self._segna_presente(nome)
+        return con_colonne(nome, letta)
 
     def scrivi(self, nome: str, righe: list[dict], chiave: str) -> int:
         if nome not in TABELLE:
@@ -343,7 +400,22 @@ class ArchivioSupabase(Archivio):
     def tabella(self, nome: str) -> pd.DataFrame:
         if nome not in TABELLE:
             raise ValueError(f"Tabella non prevista: {nome}")
-        risposta = self._client.table(nome).select("*").execute()
+        try:
+            risposta = self._client.table(nome).select("*").execute()
+        except Exception as errore:  # noqa: BLE001 - PostgREST alza APIError
+            # Una tabella che non esiste **ancora** — migrazione non lanciata —
+            # si legge come vuota: la pagina si apre, mostra che non c'e'
+            # niente, e la diagnostica dice quale file eseguire. Prima moriva
+            # tutta la pagina con un errore che Streamlit oscura, e da fuori
+            # sembrava un guasto del sito invece di una migrazione saltata.
+            #
+            # Solo quella: un problema di chiave, di rete o di permessi deve
+            # continuare a farsi sentire, perche' la cura e' un'altra.
+            if not _tabella_inesistente(errore):
+                raise
+            self._segna_assente(nome)
+            return con_colonne(nome, pd.DataFrame())
+        self._segna_presente(nome)
         # Senza righe PostgREST non dice quali colonne esistano: `con_colonne`
         # ci mette quelle attese, cosi' chi legge non deve saperlo.
         return con_colonne(nome, pd.DataFrame(risposta.data or []))

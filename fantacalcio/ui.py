@@ -126,6 +126,11 @@ class _ArchivioInCache:
     def calendario(self) -> pd.DataFrame:
         return self.tabella("calendario")
 
+    @property
+    def assenti(self) -> set[str]:
+        """Le tabelle che il database non ha: la verita' sta nell'archivio vero."""
+        return archivio().assenti
+
     def scrivi(self, nome: str, righe: list[dict], chiave: str) -> int:
         return archivio().scrivi(nome, righe, chiave)
 
@@ -603,6 +608,55 @@ def annunci() -> list:
 
     lega = lega_corrente()
     return carica_annunci(dati(), lega.id if lega else None)
+
+
+def richiedi_tabelle(*nomi: str) -> None:
+    """Ferma la pagina se il database non ha ancora le tabelle che le servono.
+
+    Senza questo la pagina si apriva vuota e sembrava rotta: si vedevano zero
+    formazioni e zero voti, e non c'era modo di capire che mancava una
+    migrazione. Meglio una frase che dice quale file eseguire.
+    """
+    import contextlib
+
+    from .data import migrazione_per
+
+    # Si **legge** ogni tabella prima di giudicare: l'elenco delle assenti si
+    # riempie leggendo, e chiedendolo prima di aver letto si otterrebbe sempre
+    # «tutto a posto» al primo giro — cioe' una pagina vuota senza
+    # spiegazione, che e' proprio quel che si voleva evitare. La lettura passa
+    # dalla cache, quindi non costa un viaggio in piu'.
+    archivio_in_uso = dati()
+    for nome in nomi:
+        # Un errore diverso da «non c'e'» lo mostrera' la pagina quando
+        # provera' a usarla davvero: qui interessa solo sapere se manca.
+        with contextlib.suppress(Exception):
+            archivio_in_uso.tabella(nome)
+
+    mancanti = [n for n in nomi if n in archivio_in_uso.assenti]
+    if not mancanti:
+        return
+
+    quali = ", ".join(f"`{n}`" for n in mancanti)
+    files = sorted({migrazione_per(n) for n in mancanti if migrazione_per(n)})
+    st.error(
+        f"**Il database non ha ancora {quali}.** Questa pagina ci scrive e ci "
+        f"legge, quindi finche' mancano non puo' funzionare.",
+        icon="🗄️",
+    )
+    if files:
+        st.markdown(
+            "**Come si risolve** — apri Supabase → *SQL Editor*, incolla il "
+            "contenuto di "
+            + " e ".join(f"`{f}`" for f in files)
+            + " e premi **Run**. Si puo' rieseguire senza danno: non cancella "
+            "niente."
+        )
+    st.caption(
+        "Le migrazioni stanno nel repository, cartella `db/`. La pagina "
+        "«Impostazioni lega» elenca tutto quello che manca."
+    )
+    st.stop()
 
 
 def richieste_password_aperte() -> list:
