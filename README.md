@@ -34,7 +34,7 @@ le rose della demo sono conformi al regolamento, quindi sono un banco di prova
 valido per le regole.
 
 ```bash
-.venv/bin/pytest        # 986 test
+.venv/bin/pytest        # 1088 test
 .venv/bin/ruff check .
 ```
 
@@ -58,7 +58,8 @@ valido per le regole.
 | **Draft** | Draft Lottery riproducibile, ordine di chiamata round per round, probabilita' delle pick, draft list delle scadenze. |
 | **Campionato** | Classifica e risultati importati da Leghe: servono a determinare l'ordine del draft. |
 | **Scambi** | Proposte ricevute e inviate, ratifica del presidente, storico di chi ha fatto cosa. |
-| **Regolamento** | I valori che il gestionale applica davvero, articolo per articolo. |
+| **Regolamento** | I valori che il gestionale applica davvero, articolo per articolo. In cima, il pulsante per chiederlo a parole. |
+| **Chat sul regolamento** | Si chiede una norma a parole e si riceve la risposta, presa dai parametri di **questa** lega e non dalle regole standard di un altro fantacalcio. Serve una chiave dell'API di Anthropic: senza, la pagina spiega come attivarla invece di rompersi. |
 
 ---
 
@@ -85,9 +86,10 @@ fantacalcio/
   data.py                 accesso ai dati: Supabase o SQLite demo
   vista.py                dai dati grezzi alle tabelle a schermo
   ui.py                   helper Streamlit (l'unico modulo che importa st)
+  assistente.py           il dossier del regolamento per la chat AI
   demo_data.py            genera la lega di demo
 db/schema.sql             schema Postgres da incollare in Supabase
-tests/                    986 test sulle regole, i dati e le viste
+tests/                    1088 test sulle regole, i dati e le viste
 ```
 
 Due regole tengono insieme il progetto:
@@ -99,8 +101,8 @@ motivo per cui la pagina Regolamento puo' stampare i parametri veri invece di
 una copia scritta a mano che prima o poi diverge.
 
 **La logica non conosce Streamlit.** `regole`, `modelli`, `conformita`,
-`draft`, `mercato`, `formazioni`, `giornata` e `vista` sono Python puro. I 986
-test girano in una quarantina di secondi senza avviare nulla — ed e' il
+`draft`, `mercato`, `formazioni`, `giornata` e `vista` sono Python puro. I 1088
+test girano in una decina di secondi senza avviare nulla — ed e' il
 motivo per cui questa parte sopravvivrebbe intatta a un cambio di tecnologia
 del sito.
 

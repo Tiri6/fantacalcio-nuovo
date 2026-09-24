@@ -182,7 +182,7 @@ numerazioni, ed e' cio' che la pagina esiste per mostrare.
 
 **Lega · <nome della lega>**
 Bacheca · Cruscotto · Formazione · Giornata · Campionato · *Coppa Italia* ·
-*Supercoppa* · Calendario · Albo d'oro · Regolamento
+*Supercoppa* · Calendario · Albo d'oro · Regolamento · Chat sul regolamento
 
 **Squadre e giocatori**
 Squadre · Listone giocatori · Identita' squadre
@@ -402,14 +402,49 @@ delle chiamate**, che e' quel che si usa mentre il draft si fa:
 
 ---
 
-## 9. Com'e' fatto
+## 9. La chat sul regolamento
+
+Le tabelle della pagina Regolamento dicono *quanto*, ma non rispondono a
+*posso?*. La chat serve a quello: si scrive "chi puo' entrare al posto di un
+difensore centrale?" e arriva la risposta.
+
+**Non e' un modello che ricorda il fantacalcio.** A ogni domanda il sito gli
+consegna un dossier costruito da `assistente.scheda_regolamento()`: i
+parametri del regolamento, le scelte di questa lega, la tabella delle
+sostituzioni del Mantra con la legenda degli asterischi, le caselle di ogni
+modulo, e `PUNTI_APERTI.md` — cioe' anche *cosa la lega non ha ancora votato*.
+Le istruzioni gli dicono che quella scheda e' l'unica fonte, che i numeri non
+si inventano e che dove la scheda tace si manda la domanda al presidente.
+
+Il dossier chiude con un elenco generato scorrendo i campi delle due
+dataclass. Non e' un vezzo: e' cio' che impedisce alla chat di rispondere con
+la regola di prima dopo che la lega ha votato un lodo. Un test parametrizzato
+pretende che **ogni** campo compaia, quindi un parametro nuovo che non arriva
+alla chat fa fallire la suite.
+
+**Cosa resta fuori.** Rose, contratti, utenti. La scheda parla di regole, e le
+regole non hanno bisogno di sapere chi ha in squadra chi — cosi' la chat non
+diventa un modo per leggere i dati di qualcun altro.
+
+**Quanto costa.** La scheda e' circa seimila token e non cambia fra una
+domanda e l'altra, quindi viaggia in un blocco messo in cache: dalla seconda
+domanda in poi si paga un decimo. La risposta ha un tetto di 2048 token,
+perche' una norma si spiega in un paragrafo.
+
+**Se la chiave non c'e'.** La pagina si apre comunque e spiega come attivarla
+(al presidente: dove prendere la chiave e dove incollarla). E' l'unico pezzo
+del sito che non gira da solo, e non deve far sembrare rotto il resto.
+
+---
+
+## 10. Com'e' fatto
 
 ```
 app.py            i quattro cancelli e la navigazione
 fantacalcio/      la logica: non importa Streamlit (tranne ui e schermate)
 viste/            una pagina per file, eseguite da st.navigation
 db/schema.sql     lo schema Postgres, rieseguibile
-tests/            986 test, una decina di secondi
+tests/            1088 test, una decina di secondi
 ```
 
 ### Le regole che tengono in piedi il progetto
@@ -451,7 +486,7 @@ tests/            986 test, una decina di secondi
 
 ---
 
-## 10. Cosa manca
+## 11. Cosa manca
 
 In ordine di utilita'.
 
@@ -471,7 +506,7 @@ In ordine di utilita'.
 
 ---
 
-## 11. Manutenzione
+## 12. Manutenzione
 
 **Aggiornare il database** — `db/schema.sql` e' rieseguibile e contiene gli
 `alter table ... add column if not exists`. Se qualcosa manca, la pagina

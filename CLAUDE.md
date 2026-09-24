@@ -94,6 +94,12 @@ all'avvio: non ricrearlo a mano.
 - **I permessi si controllano nel dominio, non solo nell'interfaccia.**
   `Utente.puo_gestire()` e le transizioni in `scambi.py` sollevano
   `TransizioneNonAmmessa`: nascondere un bottone non e' un controllo.
+- **La chat sul regolamento legge un dossier generato, non scritto a mano.**
+  `assistente.scheda_regolamento()` chiude con un elenco costruito scorrendo i
+  campi di `ParametriLega` e `OpzioniLega`: un parametro nuovo arriva alla chat
+  da solo, e un test parametrizzato lo pretende. Non aggiungere numeri a mano
+  nel prompt — sarebbe la copia che diverge. Nel dossier non entrano rose,
+  contratti o utenti: la chat parla di regole.
 
 ## Dove mettere le mani
 
@@ -104,6 +110,7 @@ all'avvio: non ricrearlo a mano.
 | Cambiare una regola di scambio | `mercato.valida_scambio` + `test_mercato.py` |
 | Toccare l'ordine del draft | `draft.ordine_round` + `test_draft.py` |
 | Aggiungere una schermata | nuovo file in `viste/`, registrato in `app.py` |
+| Toccare la chat sul regolamento | `assistente.py` + `test_assistente.py` |
 | Nuova tabella o colonna | `db/schema.sql` **e** `SCHEMA_SQLITE`, poi `data.py` |
 | Toccare colori o maglia | `identita.py` + `test_identita.py` |
 | Cambiare il formato del CSV | `importazione.py` (i sinonimi stanno in `COLONNE_ROSE`) |

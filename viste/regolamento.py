@@ -13,6 +13,14 @@ ui.intestazione(
 )
 ui.barra_laterale()
 
+if st.button(
+    "💬 Chat AI sul regolamento",
+    type="primary",
+    use_container_width=True,
+    help="Chiedi una norma a parole invece di cercarla nelle tabelle.",
+):
+    st.switch_page("viste/regolamento_chat.py")
+
 p = ui.parametri()
 
 # --- le scelte di questa lega ----------------------------------------------

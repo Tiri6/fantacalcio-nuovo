@@ -94,6 +94,7 @@ sezione_lega += [
     st.Page("viste/calendario.py", title="Calendario", icon="📅"),
     st.Page("viste/albo.py", title="Albo d'oro", icon="🏛️"),
     st.Page("viste/regolamento.py", title="Regolamento", icon="📖"),
+    st.Page("viste/regolamento_chat.py", title="Chat sul regolamento", icon="💬"),
 ]
 
 # --- Squadre e giocatori ----------------------------------------------------
