@@ -409,7 +409,7 @@ app.py            i quattro cancelli e la navigazione
 fantacalcio/      la logica: non importa Streamlit (tranne ui e schermate)
 viste/            una pagina per file, eseguite da st.navigation
 db/schema.sql     lo schema Postgres, rieseguibile
-tests/            986 test, una quarantina di secondi
+tests/            986 test, una decina di secondi
 ```
 
 ### Le regole che tengono in piedi il progetto

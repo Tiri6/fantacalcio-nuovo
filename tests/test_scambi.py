@@ -6,7 +6,6 @@ import pytest
 from conftest import STAGIONE, costruisci_rosa
 
 from fantacalcio.autenticazione import Ruolo, Utente
-from fantacalcio.data import ArchivioSQLite
 from fantacalcio.mercato import PropostaScambio
 from fantacalcio.scambi import (
     StatoScambio,
@@ -181,8 +180,8 @@ class TestGiornataDiEfficacia:
 
 
 class TestPersistenza:
-    def test_salva_e_rilegge(self, tmp_path, rose, proposta):
-        archivio = ArchivioSQLite(tmp_path / "scambi.db")
+    def test_salva_e_rilegge(self, archivio_demo, rose, proposta):
+        archivio = archivio_demo
         creato, _ = proponi(
             1,
             *rose,
@@ -203,8 +202,8 @@ class TestPersistenza:
         assert riletto.creato_il == datetime(2026, 10, 1, 18, 30)
         assert len(riletto.movimenti) == 2
 
-    def test_aggiornare_lo_stato_non_duplica(self, tmp_path, rose, proposta):
-        archivio = ArchivioSQLite(tmp_path / "scambi2.db")
+    def test_aggiornare_lo_stato_non_duplica(self, archivio_demo, rose, proposta):
+        archivio = archivio_demo
         creato, _ = proponi(1, *rose, proposta, ALLENATORE_A, STAGIONE)
         salva_scambio(archivio, creato)
         salva_scambio(archivio, accetta(creato, ALLENATORE_B))
@@ -213,11 +212,11 @@ class TestPersistenza:
         assert len(riletti) == 1
         assert riletti[0].stato is StatoScambio.ACCETTATO
 
-    def test_archivio_vuoto(self, tmp_path):
-        assert carica_scambi(ArchivioSQLite(tmp_path / "vuoto.db")) == []
+    def test_archivio_vuoto(self, archivio_demo):
+        assert carica_scambi(archivio_demo) == []
 
-    def test_applica_alle_rose_scrive_i_contratti(self, tmp_path, rose, proposta):
-        archivio = ArchivioSQLite(tmp_path / "applica.db")
+    def test_applica_alle_rose_scrive_i_contratti(self, archivio_demo, rose, proposta):
+        archivio = archivio_demo
         creato, _ = proponi(1, *rose, proposta, ALLENATORE_A, STAGIONE)
         _, nuova_a, nuova_b = ratifica(
             accetta(creato, ALLENATORE_B), *rose, PRESIDENTE, STAGIONE

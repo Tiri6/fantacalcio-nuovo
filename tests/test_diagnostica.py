@@ -126,12 +126,9 @@ class TestMessaggi:
 
 
 @pytest.mark.parametrize("tabella", sorted(ATTESO))
-def test_ogni_tabella_attesa_esiste_davvero(tabella, tmp_path):
+def test_ogni_tabella_attesa_esiste_davvero(tabella, archivio_demo):
     """L'elenco atteso non deve scollarsi dallo schema vero."""
-    from fantacalcio.data import ArchivioSQLite
-
-    arch = ArchivioSQLite(tmp_path / "prova.db")
-    arch.tabella(tabella)  # solleva se la tabella non c'e'
+    archivio_demo.tabella(tabella)  # solleva se la tabella non c'e'
 
 
 class TestNienteRestaFuoriControllo:
@@ -200,24 +197,21 @@ class TestTabellaAssenteSenzaErrore:
     e Giornata erano inutilizzabili. E' successo, ed e' questo test.
     """
 
-    def test_la_segnala_lo_stesso(self, tmp_path):
+    def test_la_segnala_lo_stesso(self, archivio_demo, db_demo):
         import sqlite3
 
-        from fantacalcio.data import ArchivioSQLite
         from fantacalcio.diagnostica import verifica
 
-        percorso = tmp_path / "senza-formazioni.db"
-        arch = ArchivioSQLite(percorso)
-        with sqlite3.connect(percorso) as conn:
+        arch = archivio_demo
+        with sqlite3.connect(db_demo) as conn:
             conn.execute("drop table formazioni")
 
         problemi = verifica(arch)
         assenti = [p.tabella for p in problemi if p.tabella_mancante]
         assert "formazioni" in assenti
 
-    def test_una_tabella_vuota_ma_esistente_non_e_un_problema(self, tmp_path):
-        from fantacalcio.data import ArchivioSQLite
+    def test_una_tabella_vuota_ma_esistente_non_e_un_problema(self, archivio_demo):
         from fantacalcio.diagnostica import verifica
 
-        arch = ArchivioSQLite(tmp_path / "vuoto.db")
+        arch = archivio_demo
         assert [p.tabella for p in verifica(arch) if p.tabella_mancante] == []

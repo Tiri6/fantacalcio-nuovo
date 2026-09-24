@@ -156,10 +156,8 @@ class TestNormalizzazione:
         assert con_colonne("tabella_mai_vista", vuota) is vuota
 
     @pytest.mark.parametrize("nome", sorted(COLONNE_ATTESE))
-    def test_le_colonne_dichiarate_esistono_davvero(self, nome, tmp_path):
+    def test_le_colonne_dichiarate_esistono_davvero(self, nome, archivio_demo):
         """L'elenco non deve scollarsi dallo schema vero."""
-        from fantacalcio.data import ArchivioSQLite
-
-        reale = set(ArchivioSQLite(tmp_path / "prova.db").tabella(nome).columns)
+        reale = set(archivio_demo.tabella(nome).columns)
         dichiarate = set(COLONNE_ATTESE[nome])
         assert dichiarate <= reale, f"in {nome} non esistono: {dichiarate - reale}"

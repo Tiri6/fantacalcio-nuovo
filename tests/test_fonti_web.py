@@ -431,11 +431,10 @@ class TestFileUnico:
 
 
 class TestScritturaInArchivio:
-    def test_applica_scrive_e_conta(self, tmp_path):
-        from fantacalcio.data import ArchivioSQLite
+    def test_applica_scrive_e_conta(self, archivio_demo):
         from fantacalcio.fonti_web import applica
 
-        arch = ArchivioSQLite(tmp_path / "listone.db")
+        arch = archivio_demo
         arch.svuota("giocatori")
         conteggio = applica(
             arch,
@@ -453,11 +452,10 @@ class TestScritturaInArchivio:
         salvati = arch.giocatori()
         assert set(salvati["nome"]) == {"Dybala", "Barella"}
 
-    def test_riapplicare_non_duplica(self, tmp_path):
-        from fantacalcio.data import ArchivioSQLite
+    def test_riapplicare_non_duplica(self, archivio_demo):
         from fantacalcio.fonti_web import applica
 
-        arch = ArchivioSQLite(tmp_path / "listone2.db")
+        arch = archivio_demo
         arch.svuota("giocatori")
         righe = [RigaListone(2071, "Dybala", "Roma", ("A",), ingaggio=6_000_000)]
         applica(arch, righe)
@@ -768,17 +766,14 @@ class TestListoneInUnFileSolo:
 class TestConteggioNuovi:
     """«Nuovi» conta chi non c'era, non la differenza fra due totali."""
 
-    def archivio(self, tmp_path, nome="conteggio.db"):
-        from fantacalcio.data import ArchivioSQLite
-
-        arch = ArchivioSQLite(tmp_path / nome)
+    def archivio(self, arch):
         arch.svuota("giocatori")
         return arch
 
-    def test_su_un_catalogo_gia_pieno(self, tmp_path):
+    def test_su_un_catalogo_gia_pieno(self, archivio_demo):
         from fantacalcio.fonti_web import applica
 
-        arch = self.archivio(tmp_path)
+        arch = self.archivio(archivio_demo)
         applica(
             arch,
             [
@@ -881,11 +876,9 @@ class TestListoneVeroDiSerieA:
 class TestSostituzioneDelListone:
     """Unire e sostituire sono due cose diverse, e si scelgono."""
 
-    def archivio(self, tmp_path, nome):
-        from fantacalcio.data import ArchivioSQLite
+    def archivio(self, arch):
         from fantacalcio.fonti_web import applica
 
-        arch = ArchivioSQLite(tmp_path / nome)
         arch.svuota("contratti")
         arch.svuota("giocatori")
         applica(
@@ -898,18 +891,18 @@ class TestSostituzioneDelListone:
         )
         return arch
 
-    def test_unire_lascia_stare_chi_non_c_e_nel_file(self, tmp_path):
+    def test_unire_lascia_stare_chi_non_c_e_nel_file(self, archivio_demo):
         from fantacalcio.fonti_web import applica
 
-        arch = self.archivio(tmp_path, "unisci.db")
+        arch = self.archivio(archivio_demo)
         conteggio = applica(arch, [RigaListone(2071, "Dybala", "Roma", ("A", "Pc"))])
         assert conteggio["rimossi"] == 0
         assert len(arch.giocatori()) == 3
 
-    def test_sostituire_cancella_chi_non_c_e_nel_file(self, tmp_path):
+    def test_sostituire_cancella_chi_non_c_e_nel_file(self, archivio_demo):
         from fantacalcio.fonti_web import applica
 
-        arch = self.archivio(tmp_path, "sostituisci.db")
+        arch = self.archivio(archivio_demo)
         conteggio = applica(
             arch,
             [RigaListone(2071, "Dybala", "Roma", ("A", "Pc"), ingaggio=6_000_000)],
@@ -920,11 +913,11 @@ class TestSostituzioneDelListone:
         rimasti = arch.giocatori()
         assert list(rimasti["nome"]) == ["Dybala"]
 
-    def test_sostituire_porta_via_anche_i_contratti(self, tmp_path):
+    def test_sostituire_porta_via_anche_i_contratti(self, archivio_demo):
         from fantacalcio.data import assegna_contratto
         from fantacalcio.fonti_web import applica
 
-        arch = self.archivio(tmp_path, "sostituisci2.db")
+        arch = self.archivio(archivio_demo)
         elenco = arch.giocatori()
         interno = int(elenco.loc[elenco["id_ufficiale"] == 555, "id"].iloc[0])
         assegna_contratto(arch, interno, squadra_id=1, anni_residui=3)

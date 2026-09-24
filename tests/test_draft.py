@@ -192,10 +192,7 @@ class TestTabelloneChiamate:
 class TestAssegnazioneContratti:
     """Assegnare e svincolare un giocatore alla volta."""
 
-    def archivio_con_giocatori(self, tmp_path):
-        from fantacalcio.data import ArchivioSQLite
-
-        arch = ArchivioSQLite(tmp_path / "draft.db")
+    def archivio_con_giocatori(self, arch):
         arch.svuota("contratti")
         arch.scrivi(
             "giocatori",
@@ -217,10 +214,10 @@ class TestAssegnazioneContratti:
         )
         return arch
 
-    def test_assegna_e_poi_svincola(self, tmp_path):
+    def test_assegna_e_poi_svincola(self, archivio_demo):
         from fantacalcio.data import assegna_contratto, svincola_giocatore
 
-        arch = self.archivio_con_giocatori(tmp_path)
+        arch = self.archivio_con_giocatori(archivio_demo)
         assegna_contratto(arch, giocatore_id=1, squadra_id=2, anni_residui=3)
         contratti = arch.contratti()
         assert len(contratti) == 1
@@ -230,20 +227,20 @@ class TestAssegnazioneContratti:
         svincola_giocatore(arch, 1)
         assert arch.contratti().empty
 
-    def test_riassegnare_sposta_invece_di_duplicare(self, tmp_path):
+    def test_riassegnare_sposta_invece_di_duplicare(self, archivio_demo):
         from fantacalcio.data import assegna_contratto
 
-        arch = self.archivio_con_giocatori(tmp_path)
+        arch = self.archivio_con_giocatori(archivio_demo)
         assegna_contratto(arch, 1, squadra_id=2, anni_residui=3)
         assegna_contratto(arch, 1, squadra_id=5, anni_residui=1)
         contratti = arch.contratti()
         assert len(contratti) == 1
         assert int(contratti.iloc[0]["squadra_id"]) == 5
 
-    def test_svincolare_chi_non_ha_contratto_non_esplode(self, tmp_path):
+    def test_svincolare_chi_non_ha_contratto_non_esplode(self, archivio_demo):
         from fantacalcio.data import svincola_giocatore
 
-        arch = self.archivio_con_giocatori(tmp_path)
+        arch = self.archivio_con_giocatori(archivio_demo)
         svincola_giocatore(arch, 999)
         assert arch.contratti().empty
 

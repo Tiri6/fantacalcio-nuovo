@@ -34,8 +34,8 @@ from fantacalcio.regole import ParametriLega
 
 
 @pytest.fixture(scope="module")
-def archivio(tmp_path_factory):
-    return ArchivioSQLite(tmp_path_factory.mktemp("db") / "nuovo.db")
+def archivio(archivio_demo_del_modulo):
+    return archivio_demo_del_modulo
 
 
 @pytest.fixture(scope="module")
@@ -403,10 +403,7 @@ def test_il_ruolo_editor_scrive_in_bacheca_ma_non_importa():
 class TestCancellazioni:
     """Togliere giocatori dal listone, e i contratti che li nominano."""
 
-    def archivio(self, tmp_path):
-        from fantacalcio.data import ArchivioSQLite
-
-        arch = ArchivioSQLite(tmp_path / "cancella.db")
+    def archivio(self, arch):
         arch.svuota("contratti")
         arch.svuota("giocatori")
         arch.scrivi(
@@ -444,26 +441,26 @@ class TestCancellazioni:
         )
         return arch
 
-    def test_elimina_giocatori_porta_via_anche_i_contratti(self, tmp_path):
+    def test_elimina_giocatori_porta_via_anche_i_contratti(self, archivio_demo):
         from fantacalcio.data import elimina_giocatori
 
-        arch = self.archivio(tmp_path)
+        arch = self.archivio(archivio_demo)
         assert elimina_giocatori(arch, [1]) == 1
         assert sorted(arch.giocatori()["id"]) == [2, 3]
         # Il contratto non resta appeso a un giocatore che non c'e' piu'.
         assert arch.contratti().empty
 
-    def test_eliminare_niente_non_fa_niente(self, tmp_path):
+    def test_eliminare_niente_non_fa_niente(self, archivio_demo):
         from fantacalcio.data import elimina_giocatori
 
-        arch = self.archivio(tmp_path)
+        arch = self.archivio(archivio_demo)
         assert elimina_giocatori(arch, []) == 0
         assert len(arch.giocatori()) == 3
 
-    def test_svuota_listone_dice_quanto_ha_cancellato(self, tmp_path):
+    def test_svuota_listone_dice_quanto_ha_cancellato(self, archivio_demo):
         from fantacalcio.data import svuota_listone
 
-        arch = self.archivio(tmp_path)
+        arch = self.archivio(archivio_demo)
         assert svuota_listone(arch) == {"giocatori": 3, "contratti": 1}
         assert arch.giocatori().empty
         assert arch.contratti().empty
@@ -692,15 +689,12 @@ class TestTabellaCheNonEsiste:
         with pytest.raises(RuntimeError, match="Invalid API key"):
             arch.tabella("formazioni")
 
-    def test_anche_sqlite_lo_dice_a_modo_suo(self, tmp_path):
+    def test_anche_sqlite_lo_dice_a_modo_suo(self, archivio_demo, db_demo):
         """SQLite scrive «no such table», PostgREST scrive altro: valgono entrambi."""
         import sqlite3
 
-        from fantacalcio.data import ArchivioSQLite
-
-        percorso = tmp_path / "vecchio.db"
-        arch = ArchivioSQLite(percorso)
-        with sqlite3.connect(percorso) as conn:
+        arch = archivio_demo
+        with sqlite3.connect(db_demo) as conn:
             conn.execute("drop table if exists formazioni")
         assert arch.tabella("formazioni").empty
         assert "formazioni" in arch.assenti

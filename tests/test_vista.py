@@ -3,7 +3,7 @@
 import pytest
 
 from fantacalcio.conformita import Momento
-from fantacalcio.data import ArchivioSQLite, carica_rose
+from fantacalcio.data import carica_rose
 from fantacalcio.demo_data import DATA_DRAFT, GIORNATE_GIOCATE, SQUADRE
 from fantacalcio.vista import (
     andamento_punti,
@@ -17,8 +17,8 @@ from fantacalcio.vista import (
 
 
 @pytest.fixture(scope="module")
-def archivio(tmp_path_factory):
-    return ArchivioSQLite(tmp_path_factory.mktemp("db") / "vista.db")
+def archivio(archivio_demo_del_modulo):
+    return archivio_demo_del_modulo
 
 
 @pytest.fixture(scope="module")

@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from fantacalcio.data import ArchivioSQLite, carica_rose
+from fantacalcio.data import carica_rose
 from fantacalcio.importazione import (
     COLONNE_ROSE,
     anteprima_conformita,
@@ -262,8 +262,8 @@ class TestAnteprimaConformita:
 
 class TestApplicaRose:
     @pytest.fixture
-    def archivio(self, tmp_path):
-        return ArchivioSQLite(tmp_path / "import.db")
+    def archivio(self, archivio_demo):
+        return archivio_demo
 
     def test_scrive_le_rose_importate(self, archivio):
         esito = importa_rose(
@@ -332,9 +332,9 @@ class TestRisultati:
         assert len(esito.righe) == 1
         assert "compare gia' nella giornata 1" in esito.errori[0].messaggio
 
-    def test_applica_aggiorna_la_partita_esistente(self, tmp_path):
+    def test_applica_aggiorna_la_partita_esistente(self, archivio_demo):
         """Il calendario esiste gia': importare i punti non deve duplicarlo."""
-        archivio = ArchivioSQLite(tmp_path / "ris.db")
+        archivio = archivio_demo
         squadre = archivio.squadre()
         nomi = dict(zip(squadre["id"], squadre["nome"], strict=True))
         calendario = archivio.calendario()
@@ -360,9 +360,9 @@ class TestRisultati:
         assert partita["gol_casa"] == 2
         assert partita["gol_trasferta"] == 0
 
-    def test_accoppiamento_in_conflitto_col_calendario(self, tmp_path):
+    def test_accoppiamento_in_conflitto_col_calendario(self, archivio_demo):
         """Se la squadra e' gia' impegnata in quella giornata, meglio fermarsi."""
-        archivio = ArchivioSQLite(tmp_path / "ris3.db")
+        archivio = archivio_demo
         squadre = archivio.squadre()
         nomi = dict(zip(squadre["id"], squadre["nome"], strict=True))
         calendario = archivio.calendario()
@@ -376,8 +376,8 @@ class TestRisultati:
         with pytest.raises(ValueError, match="gia' impegnata"):
             applica_risultati(archivio, esito)
 
-    def test_squadra_sconosciuta(self, tmp_path):
-        archivio = ArchivioSQLite(tmp_path / "ris2.db")
+    def test_squadra_sconosciuta(self, archivio_demo):
+        archivio = archivio_demo
         esito = importa_risultati(
             "giornata;casa;trasferta;punti_casa;punti_trasferta\n"
             "1;Marziani FC;Padel United;70;66"
@@ -474,12 +474,11 @@ class TestListone:
         assert not esito.importabile
         assert esito.errori[0].colonna == "file"
 
-    def test_applica_conserva_ingaggi_e_contratti(self, tmp_path):
+    def test_applica_conserva_ingaggi_e_contratti(self, archivio_demo):
         """Ri-caricare il listone non deve azzerare gli ingaggi Capology."""
-        from fantacalcio.data import ArchivioSQLite
         from fantacalcio.importazione import applica_listone, importa_listone
 
-        archivio = ArchivioSQLite(tmp_path / "listone.db")
+        archivio = archivio_demo
         contenuto = self.costruisci_xlsx(
             [(5841, "P", "Por", "Svilar", "Roma", 18, 18, 0, 18, 18, 0, 65, 65)]
         )

@@ -150,12 +150,11 @@ class TestAutenticazione:
 
 
 class TestUtentiDelDatabaseDiDemo:
-    def test_il_primo_utente_e_il_presidente(self, tmp_path):
-        from fantacalcio.data import ArchivioSQLite, carica_credenziali
+    def test_il_primo_utente_e_il_presidente(self, archivio_demo):
+        from fantacalcio.data import carica_credenziali
         from fantacalcio.demo_data import PASSWORD_DEMO
 
-        archivio = ArchivioSQLite(tmp_path / "utenti.db")
-        credenziali = carica_credenziali(archivio)
+        credenziali = carica_credenziali(archivio_demo)
 
         assert len(credenziali) == 10
         presidenti = [c.utente for c in credenziali.values() if c.utente.e_presidente]
@@ -165,18 +164,17 @@ class TestUtentiDelDatabaseDiDemo:
         assert entrato is not None
         assert entrato.squadra_id == 1
 
-    def test_ogni_utente_ha_la_sua_squadra(self, tmp_path):
-        from fantacalcio.data import ArchivioSQLite, carica_credenziali
+    def test_ogni_utente_ha_la_sua_squadra(self, archivio_demo):
+        from fantacalcio.data import carica_credenziali
 
-        credenziali = carica_credenziali(ArchivioSQLite(tmp_path / "u2.db"))
+        credenziali = carica_credenziali(archivio_demo)
         squadre = {c.utente.squadra_id for c in credenziali.values()}
         assert squadre == set(range(1, 11))
 
-    def test_le_password_non_sono_in_chiaro(self, tmp_path):
-        from fantacalcio.data import ArchivioSQLite
+    def test_le_password_non_sono_in_chiaro(self, archivio_demo):
         from fantacalcio.demo_data import PASSWORD_DEMO
 
-        righe = ArchivioSQLite(tmp_path / "u3.db").tabella("utenti")
+        righe = archivio_demo.tabella("utenti")
         assert PASSWORD_DEMO not in righe.to_string()
 
 
