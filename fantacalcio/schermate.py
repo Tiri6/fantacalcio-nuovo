@@ -1,8 +1,12 @@
 """Le schermate che precedono l'app vera: accesso, lega, squadra.
 
-Sono i tre cancelli che un partecipante attraversa una volta sola:
+Sono i cancelli che un partecipante attraversa una volta sola:
 
     registrati / accedi  ->  crea o unisciti a una lega  ->  crea la squadra
+
+Chi ha ricevuto una password temporanea ne attraversa uno in piu' subito dopo
+l'accesso: `ui.richiedi_password_nuova` ferma la pagina e gli mostra
+`modulo_cambio_password`, che sta qui sotto.
 
 Stanno qui e non in `viste/` perche' girano *prima* di `st.navigation`: non
 sono pagine del menu, sono le condizioni per vederlo.
