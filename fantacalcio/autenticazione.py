@@ -114,6 +114,17 @@ class Utente:
         """Il presidente e chi lui autorizza. Vedi `bacheca.puo_pubblicare`."""
         return self.attivo and (self.e_presidente or self.e_editor)
 
+    @property
+    def puo_svincolare(self) -> bool:
+        """Solo il presidente, anche sulla propria squadra (art. 7).
+
+        Volutamente piu' stretto di `puo_gestire`: un fantallenatore corregge
+        l'identita' della sua squadra, ma non taglia i suoi giocatori. Uno
+        svincolo genera Dead Money, e il Dead Money non concorre al Salary
+        Floor: sposta i conti di tutta la lega, non solo i propri.
+        """
+        return self.attivo and self.e_presidente
+
 
 def normalizza_nome_utente(valore: str) -> str:
     """Il nome utente si confronta senza maiuscole e spazi ai bordi."""

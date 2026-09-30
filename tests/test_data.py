@@ -705,3 +705,93 @@ class TestTabellaCheNonEsiste:
 
         arch = self.archivio_che_non_ha({"formazioni"})
         assert carica_formazioni(arch, giornata=1) == {}
+
+
+class TestSvincoloRegistrato:
+    """Lo svincolo scrive due cose: il contratto che sparisce e il debito che resta."""
+
+    def archivio(self, arch):
+        arch.svuota("contratti")
+        arch.svuota("giocatori")
+        arch.svuota("dead_money")
+        arch.scrivi(
+            "giocatori",
+            [
+                {
+                    "id": 1,
+                    "id_ufficiale": 1001,
+                    "nome": "Tale 1",
+                    "club": "Roma",
+                    "ruoli": "A",
+                    "ruolo_classic": "A",
+                    "ingaggio": 3_000_000,
+                    "nazionalita": "Italia",
+                    "data_nascita": None,
+                    "quotazione": 10,
+                    "fvm": 20,
+                }
+            ],
+            chiave="id",
+        )
+        arch.scrivi(
+            "contratti",
+            [
+                {
+                    "giocatore_id": 1,
+                    "squadra_id": 7,
+                    "anni_residui": 2,
+                    "prolungato": False,
+                    "stagione_prolungamento": None,
+                }
+            ],
+            chiave="giocatore_id",
+        )
+        return arch
+
+    def voce(self):
+        from fantacalcio.modelli import VoceDeadMoney
+
+        # 50% di (3M x 2 anni), cioe' quel che calcola `calcola_dead_money`.
+        return VoceDeadMoney(
+            giocatore_id=1,
+            nome_giocatore="Tale 1",
+            importo=3_000_000.0,
+            stagione="2026/27",
+        )
+
+    def test_con_una_voce_scrive_il_debito_e_libera_il_giocatore(self, archivio_demo):
+        from fantacalcio.data import registra_svincolo
+
+        arch = self.archivio(archivio_demo)
+        registra_svincolo(arch, squadra_id=7, giocatore_id=1, voce=self.voce())
+
+        assert arch.contratti().empty
+        debiti = arch.dead_money()
+        assert len(debiti) == 1
+        riga = debiti.iloc[0]
+        assert int(riga["squadra_id"]) == 7
+        assert float(riga["importo"]) == 3_000_000.0
+        assert riga["stagione"] == "2026/27"
+        assert not bool(riga["addebitato"])
+
+    def test_senza_voce_non_addebita_niente(self, archivio_demo):
+        """La correzione di un'assegnazione sbagliata non genera Dead Money."""
+        from fantacalcio.data import registra_svincolo
+
+        arch = self.archivio(archivio_demo)
+        registra_svincolo(arch, squadra_id=7, giocatore_id=1, voce=None)
+
+        assert arch.contratti().empty
+        assert arch.dead_money().empty
+
+    def test_il_debito_si_rilegge_nella_rosa(self, archivio_demo):
+        """La scrittura deve combaciare con la lettura, non solo con lo schema."""
+        from fantacalcio.data import carica_rose, registra_svincolo
+
+        arch = self.archivio(archivio_demo)
+        registra_svincolo(arch, squadra_id=7, giocatore_id=1, voce=self.voce())
+
+        rosa = carica_rose(arch)[7]
+        assert rosa.dimensione == 0
+        assert rosa.dead_money_totale == 3_000_000.0
+        assert rosa.dead_money[0].nome_giocatore == "Tale 1"

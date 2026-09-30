@@ -11,6 +11,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from enum import Enum
 
+from .autenticazione import Utente
 from .conformita import Gravita, Violazione
 from .modelli import Contratto, Rosa, VoceDeadMoney
 from .regole import CalendarioStagione, ParametriLega
@@ -68,6 +69,28 @@ def stato_mercato(
 # ---------------------------------------------------------------------------
 # Articolo 7: svincoli
 # ---------------------------------------------------------------------------
+
+
+class SvincoloNonAmmesso(Exception):
+    """Lo svincolo non e' consentito a questo utente, o su questo giocatore."""
+
+
+def verifica_svincolo(utente: Utente, rosa: Rosa, giocatore_id: int) -> None:
+    """Chi puo' svincolare chi. Solleva invece di restituire un booleano.
+
+    Sta qui e non nella pagina perche' nascondere un bottone non e' un
+    controllo: chi arrivasse alla scrittura per un'altra strada — un rerun a
+    meta', una sessione riaperta con un ruolo diverso — deve trovare comunque
+    la porta chiusa.
+    """
+    if not utente.puo_svincolare:
+        raise SvincoloNonAmmesso(
+            f"{utente.nome} non puo' svincolare: serve il presidente della lega."
+        )
+    if rosa.contratto_di(giocatore_id) is None:
+        raise SvincoloNonAmmesso(
+            f"{rosa.squadra.nome} non ha in rosa il giocatore {giocatore_id}."
+        )
 
 
 def calcola_dead_money(

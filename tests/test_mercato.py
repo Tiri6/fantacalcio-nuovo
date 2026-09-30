@@ -4,16 +4,19 @@ from datetime import datetime
 import pytest
 from conftest import STAGIONE, costruisci_rosa
 
+from fantacalcio.autenticazione import Ruolo, Utente
 from fantacalcio.conformita import Gravita
 from fantacalcio.mercato import (
     Finestra,
     PropostaScambio,
+    SvincoloNonAmmesso,
     applica_scambio,
     calcola_dead_money,
     scambio_ratificabile,
     stato_mercato,
     svincola,
     valida_scambio,
+    verifica_svincolo,
 )
 from fantacalcio.modelli import Contratto
 from fantacalcio.regole import CalendarioStagione, ParametriLega
@@ -66,6 +69,24 @@ class TestDeadMoney:
         contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=2)
         parametri = ParametriLega(quota_dead_money=1.0)
         assert calcola_dead_money(contratto, 3_000_000, parametri) == 6_000_000
+
+
+class TestChiPuoSvincolare:
+    """Il permesso vive nel dominio: nascondere un bottone non e' un controllo."""
+
+    PRESIDENTE = Utente(1, "marco", "Marco", Ruolo.PRESIDENTE, squadra_id=1)
+    ALLENATORE = Utente(2, "luca", "Luca", Ruolo.FANTALLENATORE, squadra_id=1)
+
+    def test_il_presidente_passa(self, rosa):
+        verifica_svincolo(self.PRESIDENTE, rosa, rosa.contratti[0].giocatore_id)
+
+    def test_il_fantallenatore_e_respinto_anche_sulla_sua(self, rosa):
+        with pytest.raises(SvincoloNonAmmesso, match="presidente"):
+            verifica_svincolo(self.ALLENATORE, rosa, rosa.contratti[0].giocatore_id)
+
+    def test_un_giocatore_che_non_e_in_rosa_e_respinto(self, rosa):
+        with pytest.raises(SvincoloNonAmmesso, match="non ha in rosa"):
+            verifica_svincolo(self.PRESIDENTE, rosa, 999_999)
 
 
 class TestSvincolo:

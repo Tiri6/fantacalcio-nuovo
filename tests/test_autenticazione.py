@@ -107,6 +107,19 @@ class TestPermessi:
         spento = Utente(4, "caio", "Caio", Ruolo.PRESIDENTE, squadra_id=1, attivo=False)
         assert not spento.puo_gestire(1)
         assert not spento.puo_importare
+        assert not spento.puo_svincolare
+
+    def test_svincola_solo_il_presidente(self):
+        """Piu' stretto di `puo_gestire`: il fantallenatore non taglia nemmeno
+        i propri giocatori, perche' il Dead Money sposta i conti di tutti."""
+        assert self.presidente().puo_svincolare
+
+        allenatore = self.allenatore()
+        assert allenatore.puo_gestire(2)  # la sua squadra la gestisce...
+        assert not allenatore.puo_svincolare  # ...ma non la puo' sfoltire
+
+        editor = Utente(5, "sara", "Sara", Ruolo.EDITOR, squadra_id=3)
+        assert not editor.puo_svincolare
 
 
 class TestAutenticazione:

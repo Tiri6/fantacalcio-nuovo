@@ -1246,6 +1246,45 @@ def svincola_giocatore(arch: Archivio, giocatore_id: int) -> None:
     ).execute()
 
 
+def registra_svincolo(
+    arch: Archivio,
+    squadra_id: int,
+    giocatore_id: int,
+    voce: VoceDeadMoney | None = None,
+) -> None:
+    """Svincola e, se c'e' una voce, scrive il Dead Money che ne nasce.
+
+    `voce` a None e' la correzione di un'assegnazione sbagliata: il giocatore
+    torna svincolato e non si addebita niente, perche' un contratto messo per
+    errore non ha prodotto nessun valore residuo. Con una voce e' lo svincolo
+    dell'articolo 7, e il debito resta scritto.
+
+    **Il Dead Money si scrive prima di cancellare il contratto.** Su PostgREST
+    le due scritture non stanno in una transazione, quindi una puo' riuscire e
+    l'altra no: in quest'ordine il caso peggiore e' un debito registrato con il
+    giocatore ancora in rosa — si vede e si corregge. Nell'ordine opposto
+    sarebbe un giocatore libero senza debito, cioe' una regola saltata in
+    silenzio e a vantaggio di chi svincola.
+    """
+    if voce is not None:
+        arch.scrivi(
+            "dead_money",
+            [
+                {
+                    "id": prossimo_id(arch, "dead_money"),
+                    "squadra_id": int(squadra_id),
+                    "giocatore_id": int(giocatore_id),
+                    "nome_giocatore": voce.nome_giocatore,
+                    "importo": float(voce.importo),
+                    "stagione": voce.stagione,
+                    "addebitato": int(bool(voce.addebitato)),
+                }
+            ],
+            chiave="id",
+        )
+    svincola_giocatore(arch, giocatore_id)
+
+
 def elimina_giocatori(arch: Archivio, giocatori_ids: Iterable[int]) -> int:
     """Toglie giocatori dal listone, e con loro i contratti che li nominano.
 
