@@ -204,6 +204,84 @@ export type ModificaIdentita = {
   rimuovi_maglia?: boolean;
 };
 
+export type AnnuncioLetto = {
+  id: number;
+  titolo: string;
+  /** Markdown grezzo. Si rende con `<Markdown>`, mai con dangerouslySetInnerHTML. */
+  testo: string;
+  tipo: string;
+  tipo_etichetta: string;
+  tipo_icona: string;
+  autore_nome: string;
+  giornata: number | null;
+  pubblicato: boolean;
+  in_evidenza: boolean;
+  data_leggibile: string;
+};
+
+export type Bacheca = {
+  annunci: AnnuncioLetto[];
+  tipi: { nome: string; etichetta: string; icona: string }[];
+  posso_scrivere: boolean;
+  nome_lega: string;
+  titolo_minimo: number;
+  titolo_massimo: number;
+  testo_massimo: number;
+};
+
+export type Scritto = {
+  titolo: string;
+  testo: string;
+  tipo: string;
+  giornata: number | null;
+  pubblicato: boolean;
+  in_evidenza: boolean;
+};
+
+/** Solo i campi mandati cambiano: due bottoni premuti insieme non si sovrascrivono. */
+export type Correzione = Partial<Scritto>;
+
+export type Conteggio = {
+  etichetta: string;
+  valore: string;
+  nota: string;
+  quota: number | null;
+  stato: string;
+};
+
+export type RigaCruscotto = {
+  squadra_id: number;
+  squadra: string;
+  dimensione: number;
+  limite_dimensione: number;
+  slot_u21: number;
+  portieri: number;
+  anni_impegnati: number;
+  monte_anni: number;
+  anni_disponibili: number;
+  contratti_annuali: number;
+  annuali_richiesti: number;
+  monte_ingaggi: number;
+  dead_money: number;
+  spesa_salariale: number;
+  limite_cap: number;
+  spazio_salariale: number;
+  conforme: boolean;
+  violazioni: Violazione[];
+};
+
+export type Cruscotto = {
+  momento: string;
+  momenti: { nome: string; etichetta: string }[];
+  conteggi: Conteggio[];
+  righe: RigaCruscotto[];
+  monte_anni: number;
+  salary_cap: number;
+  salary_floor: number;
+  mercato_bloccato: boolean;
+  finestra_piu_recente: string;
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -226,6 +304,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify(corpo),
     }),
+  bacheca: () => chiama<Bacheca>("/bacheca"),
+  scriviInBacheca: (corpo: Scritto) =>
+    chiama<AnnuncioLetto>("/bacheca", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  correggiAnnuncio: (id: number, corpo: Correzione) =>
+    chiama<AnnuncioLetto>(`/bacheca/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(corpo),
+    }),
+  cancellaAnnuncio: (id: number) =>
+    chiama<void>(`/bacheca/${id}`, { method: "DELETE" }),
+  cruscotto: (momento: string) =>
+    chiama<Cruscotto>(`/cruscotto?momento=${encodeURIComponent(momento)}`),
   caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>
     chiama<{ data_uri: string }>("/immagini", {
       method: "POST",
