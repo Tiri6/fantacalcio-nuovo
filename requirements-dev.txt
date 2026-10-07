@@ -1,3 +1,10 @@
 -r requirements.txt
+# L'API React-facing: i suoi test stanno in `tests/`, quindi la CI deve
+# poterla importare. Senza questa riga `pytest` non raccoglie nemmeno
+# `test_api_accesso.py` e il lavoro si ferma su un errore di import.
+-r requirements-api.txt
 pytest>=8.0
 ruff>=0.5
+# Il `TestClient` di FastAPI ci parla attraverso httpx. Serve solo a provare
+# l'API, non a servirla: per questo sta qui e non in requirements-api.txt.
+httpx>=0.27
