@@ -1,5 +1,7 @@
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { Accesso } from "./pagine/Accesso";
+import { Listone } from "./pagine/Listone";
+import { Squadra } from "./pagine/Squadra";
 import { Squadre } from "./pagine/Squadre";
 import { ConSessione, useSessione } from "./sessione";
 
@@ -20,6 +22,12 @@ function Intelaiatura() {
           >
             Squadre
           </NavLink>
+          <NavLink
+            to="/giocatori"
+            className={({ isActive }) => (isActive ? "attiva" : undefined)}
+          >
+            Listone
+          </NavLink>
           <button className="esci" onClick={esci}>
             Esci, {utente.nome}
           </button>
@@ -28,6 +36,8 @@ function Intelaiatura() {
       <main>
         <Routes>
           <Route path="/squadre" element={<Squadre />} />
+          <Route path="/squadre/:id" element={<Squadra />} />
+          <Route path="/giocatori" element={<Listone />} />
           <Route path="*" element={<Navigate to="/squadre" replace />} />
         </Routes>
       </main>

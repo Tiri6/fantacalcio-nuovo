@@ -696,58 +696,49 @@ def albo() -> list:
     return carica_albo(dati(), lega.id if lega else None)
 
 
-SVINCOLATO = "— svincolato —"
+# Il nome lo decide il dominio: la stessa etichetta la usano la pagina e
+# l'API, e due costanti uguali divergono al primo ripensamento.
+SVINCOLATO = vista.SVINCOLATO
 
 
 @st.cache_data(ttl=TTL)
 def _giocatori_con_proprietario(versione: int) -> pd.DataFrame:
     """Il listone con la squadra che li possiede e i flag Ita / U21.
 
+    Le righe le costruisce `vista.elenco_giocatori`, che non sa niente di
+    Streamlit e serve anche l'API: qui si fa solo la cache e si danno alle
+    colonne i nomi che le tabelle mostrano a schermo.
+
     Si costruisce una volta e si mette in cache: sono cinquecento righe e la
     pagina la filtra molte volte per rerun.
     """
-    from .data import carica_giocatori
-
-    arch = dati()
-    giocatori = carica_giocatori(arch)
-    if not giocatori:
+    righe = vista.elenco_giocatori(dati(), data_u21(), parametri(), nomi_squadre())
+    if not righe:
         return pd.DataFrame()
 
-    contratti = arch.contratti()
-    proprietario: dict[int, tuple[str, int]] = {}
-    if not contratti.empty:
-        nomi = nomi_squadre()
-        for _, c in contratti.iterrows():
-            proprietario[int(c["giocatore_id"])] = (
-                nomi.get(int(c["squadra_id"]), "?"),
-                int(c["anni_residui"]),
-            )
-
-    riferimento = data_u21()
-    par = parametri()
-    righe = []
-    for giocatore in giocatori.values():
-        squadra, anni = proprietario.get(giocatore.id, (SVINCOLATO, 0))
-        righe.append(
+    tabella = pd.DataFrame(
+        [
             {
-                "Giocatore": giocatore.nome,
-                "Club": giocatore.club,
-                "Ruoli": "/".join(giocatore.ruoli),
-                "Squadra": squadra,
-                "Anni": anni,
-                "Ingaggio": giocatore.ingaggio,
-                "Nazionalita": giocatore.nazionalita,
+                "Giocatore": r["nome"],
+                "Club": r["club"],
+                "Ruoli": "/".join(r["ruoli"]),
+                "Squadra": r["squadra"],
+                "Anni": r["anni"],
+                "Ingaggio": r["ingaggio"],
+                "Nazionalita": r["nazionalita"],
                 "Nato": (
-                    giocatore.data_nascita.strftime("%d/%m/%Y")
-                    if giocatore.data_nascita
+                    date.fromisoformat(r["data_nascita"]).strftime("%d/%m/%Y")
+                    if r["data_nascita"]
                     else ""
                 ),
-                "Eta": giocatore.eta_al(riferimento) or 0,
-                "Ita": giocatore.italiano,
-                "U21": giocatore.under_21(riferimento, par),
+                "Eta": r["eta"] or 0,
+                "Ita": r["italiano"],
+                "U21": r["u21"],
             }
-        )
-    return pd.DataFrame(righe).sort_values("Giocatore").reset_index(drop=True)
+            for r in righe
+        ]
+    )
+    return tabella.sort_values("Giocatore").reset_index(drop=True)
 
 
 def giocatori_con_proprietario() -> pd.DataFrame:

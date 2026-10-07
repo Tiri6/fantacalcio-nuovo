@@ -188,6 +188,72 @@ def rosa_dettagliata(
     ).reset_index(drop=True)
 
 
+# Come si chiama, nelle tabelle, un giocatore che non ha contratto.
+SVINCOLATO = "— svincolato —"
+
+
+def elenco_giocatori(
+    arch: Archivio,
+    riferimento: date,
+    parametri: ParametriLega | None = None,
+    nomi_squadre: dict[int, str] | None = None,
+) -> list[dict]:
+    """Il listone con chi possiede ciascuno, e i flag Ita / U21.
+
+    Sta qui e non nella pagina perche' lo chiedono in due — Streamlit e
+    l'API — e una seconda copia diverge alla prima colonna aggiunta: una
+    delle due la prenderebbe e l'altra no, senza che niente lo segnali.
+
+    Restituisce dizionari e non un DataFrame: a chi serve una tabella la
+    costruisce in una riga, mentre il contrario costringerebbe l'API a
+    smontare un DataFrame per rifarne del JSON.
+    """
+    from .data import carica_giocatori
+
+    parametri = parametri or ParametriLega()
+    giocatori = carica_giocatori(arch)
+    if not giocatori:
+        return []
+
+    nomi = nomi_squadre or {}
+    contratti = arch.contratti()
+    proprietario: dict[int, tuple[str, int]] = {}
+    if not contratti.empty:
+        for _, c in contratti.iterrows():
+            proprietario[int(c["giocatore_id"])] = (
+                nomi.get(int(c["squadra_id"]), "?"),
+                int(c["anni_residui"]),
+            )
+
+    righe = []
+    for giocatore in giocatori.values():
+        squadra, anni = proprietario.get(giocatore.id, (SVINCOLATO, 0))
+        righe.append(
+            {
+                "id": giocatore.id,
+                "nome": giocatore.nome,
+                "club": giocatore.club,
+                "ruoli": list(giocatore.ruoli),
+                "ruolo_classic": giocatore.ruolo_classic,
+                "squadra": squadra,
+                "anni": anni,
+                "ingaggio": giocatore.ingaggio,
+                "nazionalita": giocatore.nazionalita,
+                "data_nascita": (
+                    giocatore.data_nascita.isoformat() if giocatore.data_nascita else None
+                ),
+                "eta": giocatore.eta_al(riferimento),
+                "italiano": giocatore.italiano,
+                "u21": giocatore.under_21(riferimento, parametri),
+                "quotazione": giocatore.quotazione,
+                "fvm": giocatore.fvm,
+            }
+        )
+
+    righe.sort(key=lambda r: r["nome"])
+    return righe
+
+
 def contratti_in_scadenza(rose: dict[int, Rosa], data_draft: date) -> pd.DataFrame:
     """Chi va a scadenza a fine stagione: la draft list della prossima asta."""
     righe = []

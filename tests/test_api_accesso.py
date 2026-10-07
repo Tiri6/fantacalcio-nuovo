@@ -185,3 +185,80 @@ class TestSquadre:
         assert r.status_code == 200
         assert r.json()["stato"] == "ok"
         assert "SQLite" in r.json()["backend"]
+
+
+class TestListone:
+    def test_senza_entrare_non_si_vede(self, client):
+        assert client.get("/api/giocatori").status_code == 401
+
+    def test_porta_tutto_in_una_volta(self, client):
+        """Si manda l'elenco intero: filtrarlo nel browser e' quello che
+        rende la ricerca istantanea invece di una richiesta per lettera."""
+        client.post(
+            "/api/accesso", json={"nome_utente": "marco", "password": "fantanuovo26"}
+        )
+        d = client.get("/api/giocatori").json()
+        assert len(d["giocatori"]) > 100
+        assert d["riferimento_u21"].endswith("-08-31"), "U21 al 31 agosto"
+
+        g = d["giocatori"][0]
+        assert isinstance(g["ruoli"], list)
+        assert d["con_stipendio"] <= len(d["giocatori"])
+
+    def test_chi_non_ha_contratto_e_marcato_svincolato(self, client):
+        client.post(
+            "/api/accesso", json={"nome_utente": "marco", "password": "fantanuovo26"}
+        )
+        d = client.get("/api/giocatori").json()
+        posseduti = {g["squadra"] for g in d["giocatori"]}
+        assert d["svincolato"] not in posseduti or any(
+            g["anni"] == 0 for g in d["giocatori"] if g["squadra"] == d["svincolato"]
+        )
+
+
+class TestDettaglioSquadra:
+    def entra(self, client, chi="marco"):
+        client.post("/api/accesso", json={"nome_utente": chi, "password": "fantanuovo26"})
+
+    def test_senza_entrare_non_si_vede(self, client):
+        assert client.get("/api/squadre/1").status_code == 401
+
+    def test_una_squadra_che_non_esiste_da_404(self, client):
+        self.entra(client)
+        assert client.get("/api/squadre/999999").status_code == 404
+
+    def test_porta_rosa_conti_e_conformita(self, client):
+        self.entra(client)
+        d = client.get("/api/squadre/1").json()
+
+        assert d["rosa"], "la squadra 1 della demo ha una rosa"
+        assert d["conti"]["giocatori"] == len(d["rosa"])
+        # I conti li fa il dominio: il front-end disegna numeri, non li deduce.
+        assert d["conti"]["monte_anni"] == 66
+        assert d["conti"]["italiani"] == sum(1 for g in d["rosa"] if g["italiano"])
+        assert isinstance(d["violazioni"], list)
+
+    def test_la_rosa_porta_il_dead_money_di_ciascuno(self, client):
+        """Serve a dire *prima* quanto costa tagliare, non dopo."""
+        self.entra(client)
+        d = client.get("/api/squadre/1").json()
+        g = d["rosa"][0]
+        atteso = round(0.50 * g["anni_residui"] * g["ingaggio"], 2)
+        assert g["valore_residuo"] == g["anni_residui"] * g["ingaggio"]
+        assert g["dead_money_se_tagliato"] == atteso
+
+    def test_i_permessi_vengono_dal_dominio(self, client):
+        """`posso_gestirla` e' `Utente.puo_gestire`, non una deduzione del
+        front-end dal nome del ruolo."""
+        self.entra(client, "marco")
+        assert client.get("/api/squadre/1").json()["posso_gestirla"] is True
+        assert client.get("/api/squadre/2").json()["posso_gestirla"] is True
+
+        client.post("/api/esci")
+        self.entra(client, "luca")
+        mie = [s for s in client.get("/api/squadre").json() if s["e_mia"]]
+        assert len(mie) == 1
+        sua = mie[0]["id"]
+        assert client.get(f"/api/squadre/{sua}").json()["posso_gestirla"] is True
+        altra = next(s["id"] for s in client.get("/api/squadre").json() if not s["e_mia"])
+        assert client.get(f"/api/squadre/{altra}").json()["posso_gestirla"] is False
