@@ -282,6 +282,73 @@ export type Cruscotto = {
   finestra_piu_recente: string;
 };
 
+export type RigaClassifica = {
+  posizione: number;
+  squadra: string;
+  giocate: number;
+  vinte: number;
+  pareggiate: number;
+  perse: number;
+  gol_fatti: number;
+  gol_subiti: number;
+  differenza_reti: number;
+  punti: number;
+  punti_fantacalcio: number;
+};
+
+export type Partita = {
+  giornata: number;
+  casa: string;
+  trasferta: string;
+  gol_casa: number | null;
+  gol_trasferta: number | null;
+  punti_casa: number | null;
+  punti_trasferta: number | null;
+};
+
+export type AndamentoSquadra = {
+  squadra: string;
+  punti: { giornata: number; punti: number }[];
+};
+
+export type Campionato = {
+  classifica: RigaClassifica[];
+  partite: Partita[];
+  andamento: AndamentoSquadra[];
+  giornate_disputate: number;
+  giornate_totali: number;
+  giornate_in_calendario: number;
+  calendario_importato: boolean;
+};
+
+export type TitoloLetto = {
+  id: number;
+  competizione: string;
+  competizione_etichetta: string;
+  competizione_icona: string;
+  stagione: string;
+  squadra_nome: string;
+  squadra_id: number | null;
+  note: string;
+};
+
+export type Albo = {
+  titoli: TitoloLetto[];
+  bacheche: { squadra: string; titoli: Record<string, number>; totale: number }[];
+  competizioni: { nome: string; etichetta: string; icona: string }[];
+  squadre: string[];
+  stagione_corrente: string;
+  nome_lega: string;
+  posso_registrare: boolean;
+};
+
+export type Registrazione = {
+  competizione: string;
+  stagione: string;
+  squadra_nome: string;
+  note: string;
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -317,6 +384,12 @@ export const api = {
     }),
   cancellaAnnuncio: (id: number) =>
     chiama<void>(`/bacheca/${id}`, { method: "DELETE" }),
+  campionato: () => chiama<Campionato>("/campionato"),
+  albo: () => chiama<Albo>("/albo"),
+  registraTitolo: (corpo: Registrazione) =>
+    chiama<TitoloLetto>("/albo", { method: "POST", body: JSON.stringify(corpo) }),
+  cancellaTitolo: (id: number) =>
+    chiama<void>(`/albo/${id}`, { method: "DELETE" }),
   cruscotto: (momento: string) =>
     chiama<Cruscotto>(`/cruscotto?momento=${encodeURIComponent(momento)}`),
   caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>

@@ -25,6 +25,15 @@ def client(monkeypatch, db_demo):
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("SUPABASE_KEY", raising=False)
 
+    # `data.archivio()` tiene un'istanza sola in cache, ed e' giusto cosi' in
+    # produzione: il database non cambia mentre il sito gira. Nei test pero'
+    # ogni caso vuole la **sua** copia, e senza svuotare la cache il primo che
+    # gira fissa il file per tutti gli altri: scriverebbero tutti li', e un
+    # test vedrebbe le righe lasciate dai precedenti.
+    from fantacalcio.data import archivio
+
+    archivio.cache_clear()
+
     from api.main import app
 
     return TestClient(app)
