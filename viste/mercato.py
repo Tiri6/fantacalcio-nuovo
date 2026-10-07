@@ -94,10 +94,12 @@ with scambi:
     prolungamenti: dict[int, int] = {}
     if da_a or da_b:
         st.subheader("Prolungamenti (facoltativi)")
+        regole = ui.parametri()
         st.caption(
             "In sede di scambio il contratto puo' essere prolungato, restando nei "
-            "66 anni. Lodo Bono: non si puo' accorciare. Lodo Corti: una sola volta "
-            "per giocatore. Lodo Longoni: massimo 2 per squadra a stagione."
+            f"{regole.monte_anni} anni. Lodo Bono: non si puo' accorciare. Lodo "
+            "Corti: una sola volta per giocatore. Lodo Longoni: massimo "
+            f"{regole.prolungamenti_per_squadra_a_stagione} per squadra a stagione."
         )
         for giocatore_id, origine in [(g, rosa_a) for g in da_a] + [
             (g, rosa_b) for g in da_b

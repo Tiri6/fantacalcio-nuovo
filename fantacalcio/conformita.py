@@ -80,6 +80,17 @@ class StatoRosa:
         """Quanto si puo' ancora spendere prima del Salary Cap."""
         return self.limite_cap - self.spesa_salariale
 
+    @property
+    def monte_anni(self) -> int:
+        """Il tetto di anni della lega, ricavato invece che riscritto.
+
+        Serve a chi mostra «impegnati su totale»: senza, finiva che il
+        totale veniva scritto a mano accanto al numero calcolato, e un lodo
+        che spostasse il monte anni avrebbe cambiato il primo e non il
+        secondo.
+        """
+        return self.anni_impegnati + self.anni_disponibili
+
 
 def _milioni(importo: float) -> str:
     return f"{importo / 1_000_000:.1f}M"
