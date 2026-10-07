@@ -17,7 +17,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .rotte import accesso, giocatori, squadre
+from .rotte import accesso, giocatori, identita, squadre
 
 app = FastAPI(
     title="FantaCalcio NuoVo",
@@ -40,6 +40,7 @@ if os.environ.get("FANTA_AMBIENTE") == "sviluppo":
 
 app.include_router(accesso.rotte, prefix="/api")
 app.include_router(giocatori.rotte, prefix="/api")
+app.include_router(identita.rotte, prefix="/api")
 app.include_router(squadre.rotte, prefix="/api")
 
 

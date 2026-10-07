@@ -262,3 +262,143 @@ class TestDettaglioSquadra:
         assert client.get(f"/api/squadre/{sua}").json()["posso_gestirla"] is True
         altra = next(s["id"] for s in client.get("/api/squadre").json() if not s["e_mia"])
         assert client.get(f"/api/squadre/{altra}").json()["posso_gestirla"] is False
+
+
+class TestIdentita:
+    def entra(self, client, chi="marco"):
+        client.post("/api/esci")
+        client.post("/api/accesso", json={"nome_utente": chi, "password": "fantanuovo26"})
+
+    def corpo_di(self, squadra: dict) -> dict:
+        return {
+            k: squadra[k]
+            for k in (
+                "nome",
+                "presidente",
+                "motto",
+                "stadio",
+                "citta",
+                "curva",
+                "colore_primario",
+                "colore_secondario",
+                "stile_maglia",
+                "anno_fondazione",
+            )
+        }
+
+    def test_senza_entrare_niente_galleria(self, client):
+        assert client.get("/api/identita").status_code == 401
+
+    def test_la_maglia_la_disegna_il_dominio(self, client):
+        """Non React: due squadre con gli stessi colori devono venire uguali
+        a chiunque le guardi."""
+        self.entra(client)
+        g = client.get("/api/identita").json()
+        assert len(g["squadre"]) == 10
+        assert all(
+            s["maglia"].startswith("data:image/svg+xml;base64,") for s in g["squadre"]
+        )
+        assert [s["nome"] for s in g["stili"]][0] == "TINTA_UNITA"
+
+    def test_il_presidente_puo_tutto_il_fantallenatore_solo_la_sua(self, client):
+        self.entra(client, "marco")
+        g = client.get("/api/identita").json()
+        assert g["posso_crearne"] is True
+        assert all(s["modificabile"] for s in g["squadre"])
+
+        self.entra(client, "luca")
+        g = client.get("/api/identita").json()
+        assert g["posso_crearne"] is False
+        assert sum(1 for s in g["squadre"] if s["modificabile"]) == 1
+
+    def test_si_modifica_e_si_rilegge(self, client):
+        self.entra(client)
+        mia = next(
+            s for s in client.get("/api/identita").json()["squadre"] if s["modificabile"]
+        )
+        corpo = {**self.corpo_di(mia), "motto": "Scritto dal test"}
+
+        r = client.put(f"/api/squadre/{mia['id']}/identita", json=corpo)
+        assert r.status_code == 200
+        assert r.json()["motto"] == "Scritto dal test"
+
+        rilette = client.get("/api/identita").json()["squadre"]
+        assert next(s for s in rilette if s["id"] == mia["id"])["motto"] == (
+            "Scritto dal test"
+        )
+
+    def test_il_proprio_nome_invariato_non_e_un_doppione(self, client):
+        """Era il difetto che mi aspettavo: senza escludere se stessa, riaprire
+        il modulo e salvare fallirebbe sempre."""
+        self.entra(client)
+        mia = next(
+            s for s in client.get("/api/identita").json()["squadre"] if s["modificabile"]
+        )
+        r = client.put(f"/api/squadre/{mia['id']}/identita", json=self.corpo_di(mia))
+        assert r.status_code == 200
+
+    def test_il_nome_di_un_altra_squadra_e_rifiutato(self, client):
+        self.entra(client)
+        squadre = client.get("/api/identita").json()["squadre"]
+        mia = squadre[0]
+        altra = next(s for s in squadre if s["id"] != mia["id"])
+        r = client.put(
+            f"/api/squadre/{mia['id']}/identita",
+            json={**self.corpo_di(mia), "nome": altra["nome"]},
+        )
+        assert r.status_code == 409
+        assert altra["nome"] in r.json()["detail"]
+
+    def test_un_colore_non_valido_e_rifiutato(self, client):
+        self.entra(client)
+        mia = client.get("/api/identita").json()["squadre"][0]
+        r = client.put(
+            f"/api/squadre/{mia['id']}/identita",
+            json={**self.corpo_di(mia), "colore_primario": "verde"},
+        )
+        assert r.status_code == 422
+
+    def test_il_fantallenatore_non_tocca_le_altre(self, client):
+        """Il permesso lo impone il dominio: nascondere il modulo non basta."""
+        self.entra(client, "luca")
+        squadre = client.get("/api/identita").json()["squadre"]
+        altrui = next(s for s in squadre if not s["modificabile"])
+        r = client.put(
+            f"/api/squadre/{altrui['id']}/identita", json=self.corpo_di(altrui)
+        )
+        assert r.status_code == 403
+
+    def test_solo_il_presidente_crea_squadre(self, client):
+        self.entra(client, "luca")
+        modello = client.get("/api/identita").json()["squadre"][0]
+        r = client.post(
+            "/api/squadre", json={**self.corpo_di(modello), "nome": "Squadra Abusiva"}
+        )
+        assert r.status_code == 403
+
+    def test_un_immagine_troppo_grande_e_rifiutata(self, client):
+        """Il limite lo impone `identita.immagine_a_data_uri`, lo stesso che
+        usa Streamlit: riscriverlo qui sarebbe la copia che diverge."""
+        import base64
+
+        self.entra(client)
+        enorme = base64.b64encode(b"x" * (2 * 1024 * 1024)).decode()
+        r = client.post(
+            "/api/immagini",
+            json={"contenuto_base64": enorme, "tipo_mime": "image/png"},
+        )
+        assert r.status_code == 422
+        assert "KB" in r.json()["detail"]
+
+    def test_un_formato_non_ammesso_e_rifiutato(self, client):
+        import base64
+
+        self.entra(client)
+        r = client.post(
+            "/api/immagini",
+            json={
+                "contenuto_base64": base64.b64encode(b"ciao").decode(),
+                "tipo_mime": "application/pdf",
+            },
+        )
+        assert r.status_code == 422

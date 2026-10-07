@@ -162,6 +162,48 @@ export type Listone = {
   riferimento_u21: string;
 };
 
+
+export type SquadraInGalleria = {
+  id: number;
+  nome: string;
+  presidente: string;
+  motto: string;
+  stadio: string;
+  citta: string;
+  curva: string;
+  anno_fondazione: number | null;
+  colore_primario: string;
+  colore_secondario: string;
+  stile_maglia: string;
+  maglia: string;
+  logo: string | null;
+  modificabile: boolean;
+};
+
+export type Galleria = {
+  squadre: SquadraInGalleria[];
+  stili: { nome: string; etichetta: string }[];
+  posso_crearne: boolean;
+  nomi_occupati: string[];
+};
+
+export type ModificaIdentita = {
+  nome: string;
+  presidente: string;
+  motto: string;
+  stadio: string;
+  citta: string;
+  curva: string;
+  colore_primario: string;
+  colore_secondario: string;
+  stile_maglia: string;
+  anno_fondazione: number | null;
+  logo?: string | null;
+  maglia_caricata?: string | null;
+  rimuovi_logo?: boolean;
+  rimuovi_maglia?: boolean;
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -173,4 +215,20 @@ export const api = {
   squadre: () => chiama<Squadra[]>("/squadre"),
   squadra: (id: number) => chiama<SquadraInDettaglio>(`/squadre/${id}`),
   listone: () => chiama<Listone>("/giocatori"),
+  identita: () => chiama<Galleria>("/identita"),
+  salvaIdentita: (id: number, corpo: ModificaIdentita) =>
+    chiama<SquadraInGalleria>(`/squadre/${id}/identita`, {
+      method: "PUT",
+      body: JSON.stringify(corpo),
+    }),
+  creaSquadra: (corpo: ModificaIdentita) =>
+    chiama<SquadraInGalleria>("/squadre", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>
+    chiama<{ data_uri: string }>("/immagini", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, tipo_mime }),
+    }),
 };

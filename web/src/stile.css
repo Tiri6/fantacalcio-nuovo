@@ -781,3 +781,165 @@ a.scheda {
   color: inherit;
   text-decoration: none;
 }
+
+/* --- identita' squadre --------------------------------------------------- */
+
+.galleria {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 16px;
+}
+
+.scheda-identita {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 22px 18px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  transition: border-color 0.18s var(--passo), transform 0.18s var(--passo);
+}
+
+.scheda-identita:hover {
+  border-color: var(--bordo-vivo);
+  transform: translateY(-2px);
+}
+
+.scheda-identita img {
+  margin-bottom: 12px;
+}
+
+.scheda-identita h3 {
+  font-size: 16px;
+  margin-bottom: 3px;
+}
+
+.scheda-identita p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.scheda-identita .motto {
+  margin-top: 5px;
+  font-style: italic;
+  color: var(--testo-fioco);
+}
+
+.minuta {
+  margin: 13px 0 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--testo-tenue);
+}
+
+.minuta div {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.minuta dt,
+.minuta dd {
+  margin: 0;
+}
+
+button.secondario {
+  margin-top: 15px;
+  padding: 8px 15px;
+  background: transparent;
+  border-color: var(--bordo);
+  color: var(--testo-tenue);
+  font-size: 13.5px;
+}
+
+button.secondario:hover:not(:disabled) {
+  border-color: var(--verde-cupo);
+  color: var(--testo);
+}
+
+button.secondario.crea {
+  margin: 0 0 18px;
+}
+
+/* --- modulo ------------------------------------------------------------- */
+
+.modulo {
+  max-width: 680px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 26px;
+}
+
+.modulo-testata {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.modulo-testata h2 {
+  font-size: 20px;
+}
+
+.modulo-testata button {
+  margin-top: 0;
+}
+
+.coppia,
+.terna {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.coppia {
+  grid-template-columns: 1fr 1fr;
+}
+
+.terna {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.coppia .campo + .campo,
+.terna .campo + .campo {
+  margin-top: 0;
+}
+
+input[type="color"] {
+  height: 42px;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.modulo select {
+  width: 100%;
+  padding: 11px 13px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  color: var(--testo);
+  font: inherit;
+  cursor: pointer;
+}
+
+.conferma {
+  margin-bottom: 18px;
+  padding: 12px 15px;
+  border-radius: var(--raggio-piccolo);
+  background: rgb(53 208 127 / 0.09);
+  border: 1px solid rgb(53 208 127 / 0.28);
+  color: var(--verde);
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .coppia,
+  .terna {
+    grid-template-columns: 1fr;
+  }
+}
