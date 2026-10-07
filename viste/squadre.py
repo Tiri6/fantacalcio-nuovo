@@ -8,12 +8,13 @@ e quanto pesa ciascuno sul budget.
 import pandas as pd
 import streamlit as st
 
-from fantacalcio import schermate, tema, ui
+from fantacalcio import mercato, schermate, tema, ui
 from fantacalcio.competizioni import (
     TipoCompetizione,
     conta_per_competizione,
     titoli_di,
 )
+from fantacalcio.data import archivio, registra_svincolo
 
 ui.barra_laterale()
 schermate.mostra_messaggio()
@@ -287,6 +288,114 @@ else:
         f"Under 21 valutati al {riferimento.strftime('%d/%m/%Y')} · "
         f"ingaggi dalla fonte Capology"
     )
+
+    # --- svincolo -----------------------------------------------------------
+    #
+    # Solo il presidente, anche sulla propria squadra: lo dice
+    # `utente.puo_svincolare` e lo impone `mercato.verifica_svincolo`. Che
+    # questo blocco sia disegnato o no non e' il controllo, e' la conseguenza.
+    #
+    # Sta qui, sotto la rosa, perche' e' da qui che si guarda chi c'e': mandare
+    # a cercare un'altra pagina per togliere un giocatore che hai davanti agli
+    # occhi e' il modo di far credere che non si possa.
+    if utente.puo_svincolare:
+        with st.expander("🔻 Svincola un giocatore"):
+            scelte = {}
+            for contratto in sorted(rosa.contratti, key=lambda c: -c.anni_residui):
+                try:
+                    chi = rosa.giocatore(contratto.giocatore_id)
+                except KeyError:
+                    continue
+                anni = "anno" if contratto.anni_residui == 1 else "anni"
+                scelte[f"{chi.nome} · {contratto.anni_residui} {anni}"] = (
+                    chi,
+                    contratto,
+                )
+
+            if not scelte:
+                st.caption(
+                    "Nessun giocatore svincolabile: i contratti di questa rosa "
+                    "puntano a giocatori che non sono in anagrafica."
+                )
+            else:
+                etichetta = st.selectbox("Chi", list(scelte), key="svincolo_chi")
+                chi, contratto = scelte[etichetta]
+
+                residuo_contratto = contratto.valore_residuo(chi.ingaggio)
+                dovuto = mercato.calcola_dead_money(contratto, chi.ingaggio, parametri)
+
+                ARTICOLO = "articolo"
+                motivo = st.radio(
+                    "Perche' lo togli",
+                    options=(ARTICOLO, "correzione"),
+                    format_func=lambda m: (
+                        f"Svincolo (art. 7) — addebita {dovuto / 1_000_000:.2f}M "
+                        "di Dead Money"
+                        if m == ARTICOLO
+                        else "Correzione di un'assegnazione sbagliata — nessun addebito"
+                    ),
+                    key="svincolo_motivo",
+                )
+
+                if motivo == ARTICOLO:
+                    st.caption(
+                        f"{chi.ingaggio / 1_000_000:.2f}M × "
+                        f"{contratto.anni_residui} = "
+                        f"{residuo_contratto / 1_000_000:.2f}M di valore residuo, "
+                        f"al {parametri.quota_dead_money:.0%} fanno "
+                        f"{dovuto / 1_000_000:.2f}M (Lodo Origi). Si addebitano "
+                        "alla prima sessione di mercato utile e non concorrono "
+                        "al Salary Floor."
+                    )
+                else:
+                    st.caption(
+                        "Da usare per un contratto messo per errore: non avendo "
+                        "prodotto valore residuo, non c'e' niente da addebitare."
+                    )
+
+                anni = "anno" if contratto.anni_residui == 1 else "anni"
+                conferma = st.checkbox(
+                    f"Confermo: {chi.nome} torna svincolato e i suoi "
+                    f"{contratto.anni_residui} {anni} di contratto tornano "
+                    f"liberi nel monte di {squadra.nome}.",
+                    key="svincolo_conferma",
+                )
+
+                if st.button(
+                    "🔻 Svincola",
+                    type="primary",
+                    disabled=not conferma,
+                    key="svincolo_fai",
+                ):
+                    voce = None
+                    try:
+                        mercato.verifica_svincolo(utente, rosa, contratto.giocatore_id)
+                        if motivo == ARTICOLO:
+                            _, voce = mercato.svincola(
+                                rosa, contratto.giocatore_id, lega.stagione, parametri
+                            )
+                        registra_svincolo(
+                            archivio(), squadra.id, contratto.giocatore_id, voce
+                        )
+                    except mercato.SvincoloNonAmmesso as errore:
+                        st.error(str(errore), icon="⛔")
+                    except Exception as errore:  # noqa: BLE001 - backend diversi
+                        st.error(f"Non riesco a svincolare: {errore}", icon="⛔")
+                    else:
+                        ui.invalida_dati()
+                        # Il messaggio non puo' essere mostrato qui: `st.rerun()`
+                        # ridisegna la pagina e lo cancellerebbe.
+                        st.session_state[schermate.CHIAVE_MESSAGGIO] = (
+                            "warning",
+                            f"{chi.nome} svincolato da {squadra.nome}"
+                            + (
+                                f": {dovuto / 1_000_000:.2f}M di Dead Money "
+                                f"addebitati ({lega.stagione})."
+                                if voce is not None
+                                else ", senza addebito."
+                            ),
+                        )
+                        st.rerun()
 
 st.divider()
 st.subheader("Conformita' al regolamento")
