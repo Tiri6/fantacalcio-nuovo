@@ -28,6 +28,8 @@ from .rotte import (
     cruscotto,
     giocatori,
     identita,
+    lega,
+    profilo,
     squadre,
 )
 from .statici import monta_sito
@@ -83,6 +85,8 @@ app.include_router(campionato.rotte, prefix="/api")
 app.include_router(bacheca.rotte, prefix="/api")
 app.include_router(cruscotto.rotte, prefix="/api")
 app.include_router(giocatori.rotte, prefix="/api")
+app.include_router(lega.rotte, prefix="/api")
+app.include_router(profilo.rotte, prefix="/api")
 app.include_router(identita.rotte, prefix="/api")
 app.include_router(squadre.rotte, prefix="/api")
 

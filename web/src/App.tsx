@@ -6,7 +6,9 @@ import { Bacheca } from "./pagine/Bacheca";
 import { Campionato } from "./pagine/Campionato";
 import { Cruscotto } from "./pagine/Cruscotto";
 import { Identita } from "./pagine/Identita";
+import { Lega } from "./pagine/Lega";
 import { Listone } from "./pagine/Listone";
+import { Profilo } from "./pagine/Profilo";
 import { Squadra } from "./pagine/Squadra";
 import { Squadre } from "./pagine/Squadre";
 import { ConSessione, useSessione } from "./sessione";
@@ -34,6 +36,13 @@ const SEZIONI = [
       { a: "/squadre", icona: "🛡️", testo: "Squadre" },
       { a: "/giocatori", icona: "📋", testo: "Listone" },
       { a: "/identita", icona: "🎨", testo: "Identità" },
+    ],
+  },
+  {
+    titolo: "Impostazioni",
+    voci: [
+      { a: "/profilo", icona: "👤", testo: "Il mio profilo" },
+      { a: "/lega", icona: "⚙️", testo: "La lega" },
     ],
   },
 ];
@@ -99,6 +108,8 @@ function Intelaiatura() {
           <Route path="/squadre/:id" element={<Squadra />} />
           <Route path="/giocatori" element={<Listone />} />
           <Route path="/identita" element={<Identita />} />
+          <Route path="/profilo" element={<Profilo />} />
+          <Route path="/lega" element={<Lega />} />
           {/* La bacheca è la pagina d'ingresso: chi entra vuole sapere cosa
               è successo, non leggere una tabella di contratti. */}
           <Route path="*" element={<Navigate to="/bacheca" replace />} />
