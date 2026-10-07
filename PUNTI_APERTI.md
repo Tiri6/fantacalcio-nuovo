@@ -61,8 +61,32 @@ Con 10 squadre, andata e ritorno fanno **18 giornate**, e i gironcini da 9
 partite dell'articolo 5 tornano perfettamente. L'appendice pero' propone un
 campionato su **27 giornate** (ancora da votare), che darebbe tre gironcini.
 
-**Oggi il codice** genera 18 giornate. Se passa la proposta a 27, cambiano
-anche le giornate di apertura delle finestre (9 / 18 / 27?).
+**Oggi il codice dice due cose diverse**, ed e' bene saperlo:
+
+- Il **numero dichiarato** parte da **27**: e' il valore iniziale sia di
+  `CalendarioStagione.giornate_totali` (`fantacalcio/regole.py`) sia di
+  `OpzioniLega.giornate_totali` (`fantacalcio/leghe.py`), cioe' la proposta
+  dell'appendice. Essendo un'opzione di lega, la decisione si applica dalla
+  schermata di creazione senza toccare il codice: chi vuole le 18 le scrive li'.
+- Il **calendario vero** ne ha **18**. Il generatore della demo fa andata e
+  ritorno fra 10 squadre, e con 10 squadre andata e ritorno fanno 18 giornate:
+  non c'e' modo di arrivare a 27 con un girone doppio. Lo stesso varra' per il
+  calendario importato da Leghe Fantacalcio, che rispecchia il girone giocato.
+
+Finche' la lega non vota, i due numeri restano disallineati e le pagine lo
+**dicono invece di nasconderlo**: la pagina Campionato mostra «N disputate su
+27 previste» e aggiunge che il calendario caricato ne ha 18. Far vedere un
+numero solo lascerebbe credere che manchino partite che nessuno ha mai
+programmato.
+
+Se la lega conferma le 27, non basta cambiare il parametro: serve decidere
+**come** si arriva a 27 partite con 10 squadre (un terzo girone? gironi da
+nove con incroci?), perche' il generatore del calendario oggi non sa farlo.
+
+Le **finestre di mercato** restano dopo la 9ª e la 18ª giornata
+(`giornate_apertura_finestre`), che e' il testo vigente dell'articolo 5. Se la
+lega conferma le 27 giornate va deciso anche se se ne apre una terza
+(9 / 18 / 27?).
 
 ## 6. Sforamento del Salary Cap: quali punizioni?
 
@@ -117,7 +141,7 @@ collegarli all'articolo che modificano.
 E' probabilmente la cosa piu' utile da aggiungere subito dopo le scritture:
 oggi un lodo vive in una chat, e fra due stagioni nessuno ricorda perche'.
 
-## 7. Soglie dei modificatori di reparto
+## 12. Soglie dei modificatori di reparto
 
 La creazione lega permette di accendere i modificatori di **difesa**,
 **centrocampo** e **attacco**, come fa Leghe Fantacalcio. Quello che il
@@ -146,13 +170,7 @@ Finche' i voti di giornata non entrano nel gestionale (oggi arrivano gia'
 aggregati da Leghe Fantacalcio), la scelta non cambia nessun risultato: e' una
 scheda di configurazione che il sito conserva, non un calcolo che esegue.
 
-## 8. Numero di giornate
-
-`OpzioniLega.giornate_totali` parte da 27, come `CalendarioStagione`. Resta il
-punto aperto gia' annotato altrove: 18 o 27. Ora che e' un'opzione di lega, la
-decisione si applica dalla schermata di creazione senza toccare il codice.
-
-## Lottery con un numero di squadre diverso da dieci
+## 13. Lottery con un numero di squadre diverso da dieci
 
 I pesi dell'articolo 3 — *50% – 20% – 15% – 10% – 5%* — sono **cinque**,
 cioe' descrivono una fascia da cinque squadre e quindi una lega da dieci.
@@ -170,7 +188,7 @@ verso il basso (5% – 3% – 1%…) oppure rinormalizzare i cinque pesi sulla n
 lunghezza. E' un voto, non un dettaglio tecnico: cambia le probabilita' di
 tutti.
 
-## Under 21: il sito usa il 31 agosto, l'articolo 2 dice «data del draft»
+## 14. Under 21: il sito usa il 31 agosto, l'articolo 2 dice «data del draft»
 
 **Divergenza voluta, da regolarizzare nel testo.** L'articolo 2 della V2.1
 scrive che e' Under 21 l'italiano che non ha compiuto 21 anni *alla data del
@@ -189,7 +207,7 @@ cosi' l'articolo 2 dice quel che il sito fa. Finche' non succede, questa e' la
 differenza nota fra testo e codice. Cambiarla e' una riga:
 `GIORNO_RIFERIMENTO_U21` in `fantacalcio/competizioni.py`.
 
-## Appendice V2.1 — calendario 2026/27 (da votare)
+## 15. Appendice V2.1 — calendario 2026/27 (da votare)
 
 La proposta in appendice: primo draft dopo la chiusura del mercato estivo,
 idealmente nella pausa nazionali ed entro l'11 ottobre; secondo draft nella
@@ -201,7 +219,7 @@ finestre di mercato dopo la 9ª e la 18ª giornata (art. 5), che e' il testo
 vigente. Le tre date dei draft non sono modellate: quando saranno votate,
 diventano il calendario delle sessioni.
 
-## Voti di giornata: si caricano a mano, non si pescano dal web
+## 16. Voti di giornata: si caricano a mano, non si pescano dal web
 
 **Limite tecnico, non una scelta.** Come per il listone e gli stipendi
 (vedi PROGETTO.md), le fonti dei voti — Fantacalcio.it in testa — rispondono
@@ -224,7 +242,7 @@ funzione che scarica quel testo — il calcolo non cambia.
 pagamento a una fonte voti, oppure tenere il copia-incolla, che per 27
 giornate all'anno costa pochi minuti a giornata.
 
-## Mantra: le due tabelle, quel che c'e' e quel che manca
+## 17. Mantra: le due tabelle, quel che c'e' e quel che manca
 
 Il Mantra sta in due tabelle. Una dice **chi puo' coprire cosa**, l'altra
 **cosa c'e' da coprire** — cioe' i ruoli che ogni modulo chiede, casella per
