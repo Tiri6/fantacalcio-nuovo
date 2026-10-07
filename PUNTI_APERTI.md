@@ -61,11 +61,27 @@ Con 10 squadre, andata e ritorno fanno **18 giornate**, e i gironcini da 9
 partite dell'articolo 5 tornano perfettamente. L'appendice pero' propone un
 campionato su **27 giornate** (ancora da votare), che darebbe tre gironcini.
 
-**Oggi il codice** parte da **27 giornate**: e' il valore iniziale sia di
-`CalendarioStagione.giornate_totali` (`fantacalcio/regole.py`) sia di
-`OpzioniLega.giornate_totali` (`fantacalcio/leghe.py`), cioe' la proposta
-dell'appendice. Ora che e' un'opzione di lega la decisione si applica dalla
-schermata di creazione senza toccare il codice: chi vuole le 18 le scrive li'.
+**Oggi il codice dice due cose diverse**, ed e' bene saperlo:
+
+- Il **numero dichiarato** parte da **27**: e' il valore iniziale sia di
+  `CalendarioStagione.giornate_totali` (`fantacalcio/regole.py`) sia di
+  `OpzioniLega.giornate_totali` (`fantacalcio/leghe.py`), cioe' la proposta
+  dell'appendice. Essendo un'opzione di lega, la decisione si applica dalla
+  schermata di creazione senza toccare il codice: chi vuole le 18 le scrive li'.
+- Il **calendario vero** ne ha **18**. Il generatore della demo fa andata e
+  ritorno fra 10 squadre, e con 10 squadre andata e ritorno fanno 18 giornate:
+  non c'e' modo di arrivare a 27 con un girone doppio. Lo stesso varra' per il
+  calendario importato da Leghe Fantacalcio, che rispecchia il girone giocato.
+
+Finche' la lega non vota, i due numeri restano disallineati e le pagine lo
+**dicono invece di nasconderlo**: la pagina Campionato mostra «N disputate su
+27 previste» e aggiunge che il calendario caricato ne ha 18. Far vedere un
+numero solo lascerebbe credere che manchino partite che nessuno ha mai
+programmato.
+
+Se la lega conferma le 27, non basta cambiare il parametro: serve decidere
+**come** si arriva a 27 partite con 10 squadre (un terzo girone? gironi da
+nove con incroci?), perche' il generatore del calendario oggi non sa farlo.
 
 Le **finestre di mercato** restano dopo la 9ª e la 18ª giornata
 (`giornate_apertura_finestre`), che e' il testo vigente dell'articolo 5. Se la
