@@ -12,17 +12,47 @@ stare in due posti.
 
 from __future__ import annotations
 
+import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .rotte import accesso, giocatori, identita, squadre
+from .statici import monta_sito
+
+registro = logging.getLogger("fantacalcio")
+
+
+@asynccontextmanager
+async def avvio(app: FastAPI) -> AsyncIterator[None]:
+    """Urla se in produzione sta girando sul database di demo.
+
+    Senza `SUPABASE_URL` l'app parte lo stesso, sul SQLite di demo: e' quello
+    che la rende sempre avviabile in CI e nelle sessioni cloud. In produzione
+    pero' e' una trappola silenziosa — la gente entrerebbe con utenti finti e
+    ogni riavvio cancellerebbe quello che ha scritto. Meglio dirlo forte.
+    """
+    from fantacalcio.config import carica_impostazioni
+
+    if os.environ.get("FANTA_AMBIENTE") != "sviluppo" and not (
+        carica_impostazioni().usa_supabase
+    ):
+        registro.warning(
+            "ATTENZIONE: mancano SUPABASE_URL/SUPABASE_KEY, sto girando sul "
+            "database di DEMO. Gli utenti sono finti e tutto quello che viene "
+            "scritto sparisce al prossimo riavvio."
+        )
+    yield
+
 
 app = FastAPI(
     title="FantaCalcio NuoVo",
     description="Contratti, monte anni, Salary Cap, draft e scambi.",
     version="0.1.0",
+    lifespan=avvio,
 )
 
 # In produzione React e API stanno sullo stesso dominio e il CORS non serve.
@@ -50,3 +80,13 @@ def salute() -> dict[str, str]:
     from fantacalcio.config import carica_impostazioni
 
     return {"stato": "ok", "backend": carica_impostazioni().backend}
+
+
+# Le pagine si montano per ultime: qui sotto c'e' una rotta che risponde a
+# qualunque indirizzo, e le rotte si provano nell'ordine di registrazione.
+if not monta_sito(app):
+    registro.info(
+        "Nessun sito in web/dist: servo solo l'API. In sviluppo e' normale "
+        "(React sta su Vite); in produzione vuol dire che `npm run build` "
+        "non e' stato eseguito."
+    )

@@ -24,3 +24,28 @@ jobs:
 
       - name: Test
         run: pytest
+
+  # Il front-end non lo vedeva nessuno: un errore di TypeScript passava i test
+  # e si sarebbe visto solo al momento di pubblicare, come deploy fallito.
+  sito:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Installa le dipendenze
+        working-directory: web
+        run: npm ci
+
+      - name: Controlla i tipi
+        working-directory: web
+        run: npx tsc --noEmit
+
+      - name: Costruisci le pagine
+        working-directory: web
+        run: npm run build
