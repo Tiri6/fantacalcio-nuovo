@@ -1,0 +1,423 @@
+/* Il tema del sito.
+ *
+ * Non e' il verde di `tema.py` ricopiato: quello era fatto per stare dentro
+ * i vincoli di Streamlit. Qui si parte dal campo da gioco — verde profondo,
+ * luce bassa, accenti che vengono dai colori delle squadre — e si usa quello
+ * che Streamlit non poteva dare: transizioni, stati hover veri, niente
+ * ricaricamenti.
+ */
+
+:root {
+  --sfondo: #0a0f0c;
+  --sfondo-alto: #111a14;
+  --superficie: #16211a;
+  --superficie-viva: #1d2b22;
+  --bordo: #243a2c;
+  --bordo-vivo: #2f4d3a;
+
+  --testo: #e8f0ea;
+  --testo-tenue: #8da394;
+  --testo-fioco: #5d7265;
+
+  --verde: #35d07f;
+  --verde-cupo: #1f7a4d;
+  --ambra: #f0b429;
+  --rosso: #e5484d;
+
+  --raggio: 14px;
+  --raggio-piccolo: 9px;
+  --ombra: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+
+  --passo: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #12241a 0%, transparent 60%),
+    var(--sfondo);
+  color: var(--testo);
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  letter-spacing: -0.02em;
+  font-weight: 650;
+}
+
+/* --- accesso ------------------------------------------------------------ */
+
+.accesso {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.accesso-riquadro {
+  width: min(400px, 100%);
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 32px;
+  box-shadow: var(--ombra);
+}
+
+.occhiello {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--verde);
+  margin-bottom: 10px;
+}
+
+.accesso h1 {
+  font-size: 27px;
+  margin-bottom: 6px;
+}
+
+.sottotitolo {
+  color: var(--testo-tenue);
+  font-size: 14px;
+  margin: 0 0 26px;
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 560;
+  color: var(--testo-tenue);
+  margin-bottom: 7px;
+}
+
+input {
+  width: 100%;
+  padding: 11px 13px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  color: var(--testo);
+  font: inherit;
+  transition: border-color 0.15s var(--passo), box-shadow 0.15s var(--passo);
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--verde-cupo);
+  box-shadow: 0 0 0 3px rgb(53 208 127 / 0.14);
+}
+
+.campo + .campo {
+  margin-top: 16px;
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  border-radius: var(--raggio-piccolo);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s var(--passo), transform 0.08s var(--passo),
+    opacity 0.15s var(--passo);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.principale {
+  width: 100%;
+  margin-top: 24px;
+  padding: 12px;
+  background: var(--verde);
+  color: #06120b;
+}
+
+.principale:hover:not(:disabled) {
+  background: #45e08f;
+}
+
+.errore {
+  margin-top: 18px;
+  padding: 11px 13px;
+  background: rgb(229 72 77 / 0.1);
+  border: 1px solid rgb(229 72 77 / 0.3);
+  border-radius: var(--raggio-piccolo);
+  color: #ff9ca0;
+  font-size: 13.5px;
+}
+
+.nota-demo {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--bordo);
+  color: var(--testo-fioco);
+  font-size: 12.5px;
+}
+
+.nota-demo code {
+  color: var(--testo-tenue);
+  background: var(--sfondo-alto);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* --- intelaiatura ------------------------------------------------------- */
+
+.testata {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 13px 24px;
+  background: rgb(10 15 12 / 0.82);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--bordo);
+}
+
+.marchio {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.marchio span {
+  color: var(--verde);
+}
+
+.navigazione {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  align-items: center;
+}
+
+.navigazione a {
+  padding: 7px 13px;
+  border-radius: var(--raggio-piccolo);
+  color: var(--testo-tenue);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 540;
+  transition: background 0.15s var(--passo), color 0.15s var(--passo);
+}
+
+.navigazione a:hover {
+  background: var(--superficie);
+  color: var(--testo);
+}
+
+.navigazione a.attiva {
+  background: var(--superficie-viva);
+  color: var(--testo);
+}
+
+.esci {
+  margin-left: 10px;
+  padding: 7px 13px;
+  background: transparent;
+  border-color: var(--bordo);
+  color: var(--testo-tenue);
+  font-size: 14px;
+}
+
+.esci:hover {
+  border-color: var(--bordo-vivo);
+  color: var(--testo);
+}
+
+main {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 24px 72px;
+}
+
+.intestazione-pagina {
+  margin-bottom: 26px;
+}
+
+.intestazione-pagina h1 {
+  font-size: 30px;
+}
+
+.intestazione-pagina p {
+  color: var(--testo-tenue);
+  margin: 7px 0 0;
+}
+
+/* --- squadre ------------------------------------------------------------ */
+
+.griglia {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 16px;
+}
+
+.scheda {
+  position: relative;
+  overflow: hidden;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 20px;
+  transition: border-color 0.18s var(--passo), transform 0.18s var(--passo),
+    box-shadow 0.18s var(--passo);
+}
+
+.scheda:hover {
+  border-color: var(--bordo-vivo);
+  transform: translateY(-2px);
+  box-shadow: var(--ombra);
+}
+
+/* La striscia coi colori sociali: e' l'identita' della squadra, ed e' il
+   motivo per cui due schede non si confondono a colpo d'occhio. */
+.striscia {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+}
+
+.scheda.mia {
+  border-color: var(--verde-cupo);
+}
+
+.pastiglia-mia {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(53 208 127 / 0.14);
+  color: var(--verde);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+.scheda h2 {
+  font-size: 18px;
+  margin-bottom: 3px;
+}
+
+.motto {
+  color: var(--testo-fioco);
+  font-size: 13px;
+  font-style: italic;
+  margin: 0 0 16px;
+  min-height: 19px;
+}
+
+.numeri {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding-top: 15px;
+  border-top: 1px solid var(--bordo);
+}
+
+.numero .etichetta {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--testo-fioco);
+  margin-bottom: 3px;
+}
+
+.numero .valore {
+  font-size: 19px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.numero .valore.sfora {
+  color: var(--ambra);
+}
+
+.presidente {
+  color: var(--testo-tenue);
+  font-size: 13px;
+  margin: 0 0 4px;
+}
+
+/* --- stati -------------------------------------------------------------- */
+
+.caricamento {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+}
+
+.fantasma {
+  height: 186px;
+  border-radius: var(--raggio);
+  background: linear-gradient(
+    100deg,
+    var(--superficie) 30%,
+    var(--superficie-viva) 50%,
+    var(--superficie) 70%
+  );
+  background-size: 220% 100%;
+  animation: scorre 1.3s infinite linear;
+}
+
+@keyframes scorre {
+  to {
+    background-position: -220% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .testata {
+    padding: 11px 16px;
+    gap: 10px;
+  }
+
+  .navigazione a {
+    padding: 7px 10px;
+  }
+
+  main {
+    padding: 24px 16px 56px;
+  }
+
+  .griglia,
+  .caricamento {
+    grid-template-columns: 1fr;
+  }
+}

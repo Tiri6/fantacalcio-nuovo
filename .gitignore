@@ -12,3 +12,7 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+
+# Front-end React
+web/node_modules/
+web/dist/
