@@ -73,11 +73,14 @@ all'avvio: non ricrearlo a mano.
 - **`st.stop()` dentro una scheda ferma tutto lo script**, quindi le schede
   successive non si disegnano. Se una scheda non ha niente da mostrare, non
   crearla proprio.
-- **I tre cancelli hanno un ordine.** `app.py` chiama in sequenza `richiedi_login` →
-  `richiedi_password_nuova` → `richiedi_lega` → `richiedi_squadra`. Ognuno ferma la
-  pagina finche' non e' superato: da li' in giu' c'e' sempre un utente dentro
-  una lega. Aggiungere un cancello vuol dire aggiungerlo li', non dentro una
-  vista.
+- **I cancelli hanno un ordine.** `app.py` chiama in sequenza `richiedi_login`
+  → `richiedi_password_nuova` → `richiedi_lega` → `richiedi_squadra`. Sono
+  **quattro**, ma il secondo scatta solo per chi ha `deve_cambiare_password`:
+  chi si registra da solo ne attraversa tre, ed e' per questo che altrove ne
+  trovi scritto tre. Ognuno ferma la pagina finche' non e' superato: da li' in
+  giu' c'e' sempre un utente dentro una lega. Aggiungere un cancello vuol dire
+  aggiungerlo li', non dentro una vista — e **non numerarlo nel docstring**,
+  perche' il numero invecchia appena se ne infila uno in mezzo.
 - **La sessione conserva il nome utente, non l'oggetto `Utente`.** Appena entri
   in una lega o fondi la squadra la riga cambia: un oggetto congelato al
   momento del login mostrerebbe ancora lo stato vecchio.

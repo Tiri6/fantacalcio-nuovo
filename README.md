@@ -198,9 +198,11 @@ e i gol vengono calcolati dalle fasce della lega.
 
 ---
 
-## Entrare: i tre cancelli
+## Entrare: i cancelli
 
-Prima del menu ci sono tre passaggi, ognuno una volta sola.
+Prima del menu ci sono tre passaggi, ognuno una volta sola. Se la password te
+l'ha generata chi amministra la lega ce n'e' un quarto, subito dopo l'accesso:
+devi sostituirla prima di andare avanti.
 
 **1. Registrati.** Chi arriva si crea l'account da solo: nome, cognome, data
 di nascita (gg/mm/aaaa), sesso, citta', squadra del cuore, nome utente, email

@@ -57,8 +57,10 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 - **Leghe multiple**: creazione con tutte le opzioni di gioco (modalita',
   formato, rosa, asta, moduli, bonus/malus, fasce di gol, modificatori di
   reparto), codice d'invito, inviti per email, pagina «La lega».
-- **Tre cancelli all'ingresso**: accesso/registrazione → crea o unisciti a una
-  lega → fonda la squadra (nome, citta', stadio, curva, colori, maglia).
+- **Cancelli all'ingresso**: accesso/registrazione → crea o unisciti a una
+  lega → fonda la squadra (nome, citta', stadio, curva, colori, maglia). Piu'
+  un quarto fra il primo e il secondo, che scatta solo per chi ha ricevuto una
+  password temporanea.
 - **Bacheca dei titoli** nella pagina Squadre: si popola da sola dall'albo
   d'oro, nessun dato da tenere allineato a mano.
 - **Identita' modificabile da dove la si guarda**: l'editor sta in

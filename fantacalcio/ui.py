@@ -323,7 +323,7 @@ def richiedi_password_nuova(utente: Utente) -> None:
 
 
 def richiedi_lega(utente: Utente) -> Lega:
-    """Secondo cancello: senza una lega non c'e' niente da amministrare."""
+    """Cancello: senza una lega non c'e' niente da amministrare."""
     from . import schermate
 
     lega = lega_corrente()
@@ -342,7 +342,7 @@ def richiedi_lega(utente: Utente) -> Lega:
 
 
 def richiedi_squadra(utente: Utente, lega: Lega) -> None:
-    """Terzo cancello: si puo' rimandare, ma senza squadra il sito e' vuoto.
+    """Cancello: si puo' rimandare, ma senza squadra il sito e' vuoto.
 
     Rimandabile di proposito: chi amministra e basta non e' obbligato ad avere
     una squadra, e obbligarlo lo bloccherebbe fuori dal proprio gestionale.
