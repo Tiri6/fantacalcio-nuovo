@@ -4,6 +4,7 @@ from conftest import DATA_DRAFT, costruisci_rosa
 
 from fantacalcio.conformita import Gravita, Momento, verifica_rosa
 from fantacalcio.modelli import VoceDeadMoney
+from fantacalcio.regole import ParametriLega
 
 
 def codici(stato) -> set[str]:
@@ -149,14 +150,28 @@ class TestEconomia:
         assert violazione.gravita is Gravita.AVVISO
         assert stato.conforme
 
-    def test_sotto_il_floor_blocca_a_fine_asta(self):
-        rosa = costruisci_rosa(ingaggio=2_000_000)  # 60M
+    def test_col_v3_il_floor_non_esiste(self):
+        """Il regolamento V3 non prevede nessuna soglia minima di spesa.
+
+        L'articolo 4 parla solo del tetto massimo, e vale il principio di
+        tassativita': «e' consentito solo cio' che il regolamento prevede
+        espressamente». Una squadra che spende poco non sta violando niente.
+        """
+        rosa = costruisci_rosa(ingaggio=2_000_000)  # 60M, sotto i vecchi 80M
         stato = verifica_rosa(rosa, DATA_DRAFT, momento=Momento.RIPARAZIONE)
+        assert "salary_floor" not in codici(stato)
+
+    def test_sotto_il_floor_blocca_a_fine_asta_se_la_lega_lo_riaccende(self):
+        """Il meccanismo resta: basta un lodo per rimetterlo in funzione."""
+        con_floor = ParametriLega(salary_floor_attivo=True)
+        rosa = costruisci_rosa(ingaggio=2_000_000)  # 60M
+        stato = verifica_rosa(rosa, DATA_DRAFT, con_floor, momento=Momento.RIPARAZIONE)
         assert "salary_floor" in codici(stato)
 
     def test_il_floor_non_si_verifica_in_stagione(self):
+        con_floor = ParametriLega(salary_floor_attivo=True)
         rosa = costruisci_rosa(ingaggio=2_000_000)
-        stato = verifica_rosa(rosa, DATA_DRAFT, momento=Momento.STAGIONE)
+        stato = verifica_rosa(rosa, DATA_DRAFT, con_floor, momento=Momento.STAGIONE)
         assert "salary_floor" not in codici(stato)
 
 
@@ -170,11 +185,17 @@ class TestDeadMoney:
         assert "salary_cap" in codici(stato)
 
     def test_non_conta_per_il_floor(self):
-        """Articolo 4: la soglia minima va raggiunta con gli ingaggi in rosa."""
+        """La soglia minima, dove la lega la usi, va raggiunta con gli ingaggi.
+
+        Il V3 il floor non ce l'ha, quindi il caso si prova accendendolo:
+        la buonuscita non deve poter far figurare una rosa come se spendesse
+        piu' di quanto spende davvero.
+        """
+        con_floor = ParametriLega(salary_floor_attivo=True)
         rosa = costruisci_rosa(ingaggio=2_500_000)  # 75M, sotto gli 80M
         rosa.dead_money = [VoceDeadMoney(1, "Tagliato", 20_000_000, "2026/27")]
 
-        stato = verifica_rosa(rosa, DATA_DRAFT, momento=Momento.ASTA_SETTEMBRE)
+        stato = verifica_rosa(rosa, DATA_DRAFT, con_floor, momento=Momento.ASTA_SETTEMBRE)
         assert stato.monte_ingaggi == 75_000_000
         assert "salary_floor" in codici(stato)
 

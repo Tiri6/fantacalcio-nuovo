@@ -83,9 +83,16 @@ class TestOrdineDeiRound:
         lottery = list(reversed(classifica))
         assert ordine_round(1, lottery, classifica) == tuple(lottery)
 
-    def test_secondo_round_e_a_serpente(self, classifica):
+    def test_il_secondo_round_ripete_la_lottery(self, classifica):
+        """Il V3 non prevede nessun giro a serpente.
+
+        «L'ordine determinato dalla Lottery vale per tutti i giri di chiamata
+        del draft di Settembre, con l'eccezione dei round multipli di 3.» E
+        infatti nel draft 2026/27 il secondo giro ha ripetuto il primo
+        identico, squadra per squadra.
+        """
         lottery = list(reversed(classifica))
-        assert ordine_round(2, lottery, classifica) == tuple(reversed(lottery))
+        assert ordine_round(2, lottery, classifica) == tuple(lottery)
 
     @pytest.mark.parametrize("numero", [3, 6, 9, 12])
     def test_i_multipli_di_tre_seguono_la_classifica(self, classifica, numero):

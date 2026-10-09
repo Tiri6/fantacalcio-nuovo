@@ -77,8 +77,12 @@ class ParametriLega:
 
     # Articolo 4 - Economia (fonte stipendi: Capology)
     salary_cap: float = 100_000_000.0
+    # Il V3 non prevede nessun Salary Floor: l'articolo 4 parla solo del tetto
+    # massimo. Il parametro resta perche' il vincolo e' gia' scritto e provato,
+    # e la lega puo' riaccenderlo con un lodo senza toccare il codice — ma di
+    # suo e' spento, altrimenti il sito contesterebbe una regola che non c'e'.
     salary_floor: float = 80_000_000.0
-    salary_floor_attivo: bool = True
+    salary_floor_attivo: bool = False
 
     # Articolo 7 - Svincoli (Lodo Origi)
     quota_dead_money: float = 0.50

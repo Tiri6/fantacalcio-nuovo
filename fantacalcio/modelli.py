@@ -85,9 +85,25 @@ class Contratto:
         """Contratto annuale: quello che conta per la regola "1/3"."""
         return self.anni_residui == 1
 
+    @property
+    def anni_oltre_quello_in_corso(self) -> int:
+        """Gli anni che resterebbero da pagare **dopo** la stagione in corso.
+
+        E' la base del Dead Money secondo il regolamento V3: l'anno in corso
+        si paga comunque, perche' «i salari vengono pagati in anticipo», e
+        quindi non entra nella buonuscita.
+        """
+        return max(self.anni_residui - 1, 0)
+
     def valore_residuo(self, ingaggio: float) -> float:
-        """Ingaggio annuo x anni residui: la base di calcolo del Dead Money."""
-        return ingaggio * self.anni_residui
+        """Ingaggio annuo x anni residui oltre quello in corso.
+
+        E' la base di calcolo del Dead Money (art. 7, Lodo Origi). Contare
+        anche l'anno in corso gonfiava la buonuscita di un'annualita': sul
+        caso d'esempio del regolamento — ingaggio 10M, contratto di 5 anni,
+        svincolo nel primo anno — veniva 25M invece dei 20M scritti li'.
+        """
+        return ingaggio * self.anni_oltre_quello_in_corso
 
 
 @dataclass(frozen=True)

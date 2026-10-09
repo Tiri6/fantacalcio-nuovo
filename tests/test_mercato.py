@@ -56,17 +56,34 @@ class TestFinestreDiMercato:
 
 
 class TestDeadMoney:
-    def test_meta_del_valore_residuo(self):
-        contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=3)
-        # 4M di ingaggio x 3 anni = 12M di residuo, il 50% fa 6M.
-        assert calcola_dead_money(contratto, 4_000_000) == 6_000_000
+    """Art. 7 del V3: conta solo quel che resta **oltre** l'anno in corso.
 
-    def test_contratto_annuale(self):
+    L'anno in corso si paga comunque — «i salari vengono pagati in anticipo,
+    anche se il giocatore viene successivamente venduto» — quindi non entra
+    nella buonuscita.
+    """
+
+    def test_l_esempio_del_regolamento(self):
+        """Il caso scritto nel V3, parola per parola.
+
+        «Ingaggio 10M, contratto di 5 anni, svincolo durante il primo anno;
+        anni residui oltre quello in corso: 4; buonuscita: 4 x 10M / 2 = 20M.»
+        """
+        contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=5)
+        assert calcola_dead_money(contratto, 10_000_000) == 20_000_000
+
+    def test_meta_degli_anni_oltre_quello_in_corso(self):
+        contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=3)
+        # 4M x 2 anni oltre quello in corso = 8M, la meta' fa 4M.
+        assert calcola_dead_money(contratto, 4_000_000) == 4_000_000
+
+    def test_un_annuale_non_costa_buonuscita(self):
+        """Chi scade a fine stagione non lascia niente dietro di se'."""
         contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=1)
-        assert calcola_dead_money(contratto, 5_000_000) == 2_500_000
+        assert calcola_dead_money(contratto, 5_000_000) == 0
 
     def test_quota_configurabile(self):
-        contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=2)
+        contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=3)
         parametri = ParametriLega(quota_dead_money=1.0)
         assert calcola_dead_money(contratto, 3_000_000, parametri) == 6_000_000
 
@@ -103,9 +120,10 @@ class TestSvincolo:
         bersaglio = rosa.contratti[-1]  # contratto da 2 anni, ingaggio 3M
         nuova, voce = svincola(rosa, bersaglio.giocatore_id, STAGIONE)
 
-        assert voce.importo == 3_000_000  # 50% di (3M x 2 anni)
+        # 3M x 1 anno oltre quello in corso = 3M, la meta' fa 1,5M.
+        assert voce.importo == 1_500_000
         assert not voce.addebitato
-        assert nuova.dead_money_totale == 3_000_000
+        assert nuova.dead_money_totale == 1_500_000
 
     def test_il_taglio_non_libera_spazio_salariale_pieno(self, rosa):
         """Lodo Origi: il 50% del residuo resta a carico del bilancio."""
