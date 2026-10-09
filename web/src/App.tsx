@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { Accesso } from "./pagine/Accesso";
+import { Albo } from "./pagine/Albo";
 import { Bacheca } from "./pagine/Bacheca";
+import { Campionato } from "./pagine/Campionato";
 import { Cruscotto } from "./pagine/Cruscotto";
 import { Identita } from "./pagine/Identita";
 import { Listone } from "./pagine/Listone";
@@ -22,6 +24,8 @@ const SEZIONI = [
     voci: [
       { a: "/bacheca", icona: "📣", testo: "Bacheca" },
       { a: "/cruscotto", icona: "🏠", testo: "Cruscotto" },
+      { a: "/campionato", icona: "🏆", testo: "Campionato" },
+      { a: "/albo", icona: "🏛️", testo: "Albo d'oro" },
     ],
   },
   {
@@ -89,6 +93,8 @@ function Intelaiatura() {
         <Routes>
           <Route path="/bacheca" element={<Bacheca />} />
           <Route path="/cruscotto" element={<Cruscotto />} />
+          <Route path="/campionato" element={<Campionato />} />
+          <Route path="/albo" element={<Albo />} />
           <Route path="/squadre" element={<Squadre />} />
           <Route path="/squadre/:id" element={<Squadra />} />
           <Route path="/giocatori" element={<Listone />} />

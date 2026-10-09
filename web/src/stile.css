@@ -1385,3 +1385,298 @@ button.filtro.attiva {
   border-color: rgb(229 72 77 / 0.4);
   color: var(--rosso);
 }
+
+/* --- schede -------------------------------------------------------------- */
+
+.schede {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--bordo);
+}
+
+button.scheda {
+  padding: 9px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--testo-tenue);
+  font-size: 14px;
+}
+
+button.scheda:hover:not(:disabled) {
+  color: var(--testo);
+}
+
+button.scheda.attiva {
+  color: var(--testo);
+  border-bottom-color: var(--verde);
+}
+
+/* --- calendario ---------------------------------------------------------- */
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--verde);
+}
+
+.partite {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.partita {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  font-size: 14.5px;
+}
+
+.partita .squadra {
+  font-weight: 540;
+}
+
+.partita .squadra.casa {
+  text-align: right;
+}
+
+.partita .risultato {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  font-size: 17px;
+  white-space: nowrap;
+}
+
+.partita .risultato.da-giocare {
+  color: var(--testo-fioco);
+  font-weight: 400;
+}
+
+/* I punti stanno sotto il risultato, nella colonna di mezzo. */
+.partita .punti {
+  grid-column: 2;
+  text-align: center;
+  font-size: 12px;
+  color: var(--testo-fioco);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- grafico ------------------------------------------------------------- */
+
+.grafico {
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 16px 18px;
+}
+
+.grafico-testata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+/* La legenda c'e' sempre con due o piu' linee: l'identita' non si affida
+   mai al colore da solo. */
+.legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.voce-legenda {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--testo-tenue);
+}
+
+.segno {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+  border: 1px solid var(--bordo);
+}
+
+.grafico .tela {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* Griglia e assi indietro: servono a leggere i dati, non a farsi guardare. */
+.tela .griglia {
+  stroke: var(--bordo);
+  stroke-width: 1;
+}
+
+.tela .tacca {
+  fill: var(--testo-fioco);
+  font-size: 11px;
+  text-anchor: middle;
+}
+
+.tela .tacca.fine {
+  text-anchor: end;
+}
+
+.tela .mirino {
+  stroke: var(--bordo-vivo);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.tela .pallino {
+  stroke: var(--superficie);
+  stroke-width: 2;
+}
+
+/* L'etichetta in fondo alla linea resta inchiostro, non il colore della
+   serie: il colore ce l'ha gia' la linea accanto. */
+.tela .etichetta-linea {
+  fill: var(--testo-tenue);
+  font-size: 11.5px;
+  font-weight: 560;
+}
+
+.suggerimento {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  margin-top: 12px;
+  padding: 9px 13px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  font-size: 12.5px;
+  color: var(--testo-tenue);
+}
+
+.suggerimento span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.suggerimento b {
+  color: var(--testo);
+  font-variant-numeric: tabular-nums;
+}
+
+.filtri.scelta-squadre button.filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.filtri.scelta-squadre button.filtro:disabled {
+  opacity: 0.35;
+}
+
+/* --- albo d'oro ---------------------------------------------------------- */
+
+.sottotitolo {
+  margin: 28px 0 13px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--testo-fioco);
+}
+
+.bacheche {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.bacheca-squadra {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+}
+
+.bacheca-squadra .totale {
+  font-size: 25px;
+  font-weight: 650;
+  color: var(--ambra);
+  font-variant-numeric: tabular-nums;
+}
+
+.bacheca-squadra .nome {
+  font-weight: 560;
+  font-size: 14px;
+}
+
+.bacheca-squadra .dettaglio {
+  font-size: 12.5px;
+}
+
+.titoli {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.titolo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+}
+
+.titolo .coppa {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.titolo .dettagli {
+  flex: 1;
+  min-width: 0;
+}
+
+.titolo h3 {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--testo-tenue);
+  margin: 0;
+}
+
+.titolo .vincitrice {
+  margin: 2px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.titolo .nota {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--testo-fioco);
+}
+
+.titolo .azioni {
+  margin-top: 0;
+}
