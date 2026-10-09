@@ -349,6 +349,59 @@ export type Registrazione = {
   note: string;
 };
 
+export type Profilo = {
+  nome_utente: string;
+  nome_completo: string;
+  ruolo: string;
+  ruolo_etichetta: string;
+  squadra: string;
+  nome_lega: string;
+  email: string;
+  data_nascita: string;
+  eta: number | null;
+  sesso: string;
+  citta: string;
+  squadra_preferita: string;
+  ha_codice_recupero: boolean;
+};
+
+export type Voce = { etichetta: string; valore: string; nota: string };
+
+export type Partecipante = {
+  id: number;
+  nome_utente: string;
+  nome_completo: string;
+  ruolo: string;
+  ruolo_etichetta: string;
+  squadra: string;
+  sono_io: boolean;
+};
+
+export type DatiLega = {
+  nome: string;
+  stagione: string;
+  modalita: string;
+  codice_invito: string;
+  partecipanti: Partecipante[];
+  posti: number;
+  squadre_fondate: number;
+  regole: { titolo: string; voci: Voce[] }[];
+  fasce_gol: { da: string; gol: number }[];
+  moduli_ammessi: string[];
+  moduli_possibili: number;
+  bonus: Voce[];
+  modificatori: string[];
+  spiegazione_sostituzioni: string;
+  posso_amministrare: boolean;
+  posso_cambiare_regole: boolean;
+  posso_reimpostare_password: boolean;
+  inviti: { email: string; stato: string }[];
+  richieste_password: { id: number; nome_utente: string; chiesta_il: string }[];
+  ruoli_assegnabili: { nome: string; etichetta: string }[];
+  problemi_schema: { messaggio: string }[];
+  sql_di_riparazione: string;
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -384,6 +437,32 @@ export const api = {
     }),
   cancellaAnnuncio: (id: number) =>
     chiama<void>(`/bacheca/${id}`, { method: "DELETE" }),
+  profilo: () => chiama<Profilo>("/profilo"),
+  cambiaPassword: (attuale: string, nuova: string, conferma: string) =>
+    chiama<void>("/profilo/password", {
+      method: "PUT",
+      body: JSON.stringify({ attuale, nuova, conferma }),
+    }),
+  generaCodiceRecupero: () =>
+    chiama<{ codice: string }>("/profilo/codice-recupero", { method: "POST" }),
+  lega: () => chiama<DatiLega>("/lega"),
+  invita: (email: string) =>
+    chiama<DatiLega>("/lega/inviti", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  assegnaRuolo: (nome_utente: string, ruolo: string) =>
+    chiama<DatiLega>("/lega/ruoli", {
+      method: "PUT",
+      body: JSON.stringify({ nome_utente, ruolo }),
+    }),
+  reimpostaPassword: (nome_utente: string) =>
+    chiama<{ nome_utente: string; password: string }>(
+      `/lega/reimposta/${encodeURIComponent(nome_utente)}`,
+      { method: "POST" },
+    ),
+  archiviaRichiesta: (id: number) =>
+    chiama<DatiLega>(`/lega/richieste/${id}`, { method: "DELETE" }),
   campionato: () => chiama<Campionato>("/campionato"),
   albo: () => chiama<Albo>("/albo"),
   registraTitolo: (corpo: Registrazione) =>

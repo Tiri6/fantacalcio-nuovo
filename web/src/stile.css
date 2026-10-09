@@ -1680,3 +1680,280 @@ input[type="range"] {
 .titolo .azioni {
   margin-top: 0;
 }
+
+/* --- impostazioni -------------------------------------------------------- */
+
+.riquadro .valore.piccolo {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.moduli-affiancati {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 16px;
+  margin-top: 28px;
+  align-items: start;
+}
+
+.riquadro-modulo {
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 20px 22px;
+}
+
+.riquadro-modulo h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.riquadro-modulo > p.tenue {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.riquadro-modulo .principale,
+.riquadro-modulo .secondario {
+  margin-top: 18px;
+}
+
+/* Password temporanea e codice di recupero esistono in chiaro una volta
+   sola: vanno letti e trascritti, quindi grandi e a larghezza fissa. */
+.codice-grande {
+  margin: 14px 0;
+  padding: 16px;
+  background: var(--sfondo-alto);
+  border: 1px dashed var(--bordo-vivo);
+  border-radius: var(--raggio-piccolo);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--verde);
+  user-select: all;
+}
+
+.scheda-nota {
+  margin-top: 28px;
+  padding: 18px 20px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-left: 3px solid var(--bordo-vivo);
+  border-radius: var(--raggio-piccolo);
+}
+
+.scheda-nota h3 {
+  margin: 0 0 7px;
+  font-size: 15px;
+}
+
+.scheda-nota p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--testo-tenue);
+}
+
+/* --- come si entra ------------------------------------------------------- */
+
+.ingresso {
+  display: grid;
+  grid-template-columns: minmax(260px, 2fr) 3fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .ingresso {
+    grid-template-columns: 1fr;
+  }
+}
+
+.codice-invito {
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 16px 18px;
+}
+
+.codice-invito .etichetta {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--testo-fioco);
+}
+
+.codice-invito .codice {
+  display: block;
+  margin: 7px 0 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--verde);
+  user-select: all;
+}
+
+.codice-invito p {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* --- pannelli richiudibili ----------------------------------------------- */
+
+.pannelli {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 24px 0 8px;
+}
+
+.pannello {
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  overflow: hidden;
+}
+
+button.testa-pannello {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 13px 17px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--testo);
+  font-size: 14.5px;
+  font-weight: 560;
+  text-align: left;
+}
+
+button.testa-pannello:hover:not(:disabled) {
+  background: var(--sfondo-alto);
+}
+
+.testa-pannello .freccia {
+  color: var(--testo-fioco);
+}
+
+.corpo-pannello {
+  padding: 4px 17px 18px;
+  border-top: 1px solid var(--bordo);
+}
+
+.corpo-pannello > p.tenue {
+  margin: 14px 0;
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 76ch;
+}
+
+.in-linea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.in-linea .campo {
+  flex: 1 1 210px;
+  margin: 0;
+}
+
+.in-linea .campo + .campo {
+  margin-top: 0;
+}
+
+.in-linea button {
+  padding: 10px 15px;
+}
+
+.in-linea .errore {
+  flex: 1 1 100%;
+  margin-top: 0;
+}
+
+/* Chi ha chiesto aiuto e' rimasto fuori dal sito: la richiesta si vede
+   subito, non dentro qualcosa da aprire. */
+.richieste {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  background: rgb(240 180 41 / 0.07);
+  border: 1px solid rgb(240 180 41 / 0.3);
+  border-radius: var(--raggio-piccolo);
+}
+
+.richieste h4 {
+  margin: 0 0 11px;
+  font-size: 13.5px;
+}
+
+.richiesta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+}
+
+.richiesta + .richiesta {
+  border-top: 1px solid var(--bordo);
+}
+
+.richiesta .azioni {
+  margin-top: 0;
+  margin-left: auto;
+}
+
+.avviso.grande {
+  display: block;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+}
+
+.avviso.grande h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.avviso.grande p,
+.avviso.grande ul {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.avviso.grande ul {
+  padding-left: 20px;
+}
+
+pre.sql {
+  margin: 0;
+  padding: 13px 15px;
+  background: var(--sfondo);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--testo-tenue);
+}
+
+.tabella-contenitore.stretta {
+  max-width: 380px;
+}
+
+.tabella td .pastiglia {
+  margin-left: 8px;
+}
