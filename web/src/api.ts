@@ -74,6 +74,136 @@ export type Squadra = {
   e_mia: boolean;
 };
 
+
+export type Violazione = {
+  codice: string;
+  articolo: string;
+  gravita: string;
+  messaggio: string;
+  valore: number | null;
+  limite: number | null;
+  bloccante: boolean;
+};
+
+export type GiocatoreInRosa = {
+  id: number;
+  nome: string;
+  club: string;
+  ruoli: string[];
+  nazionalita: string;
+  data_nascita: string | null;
+  eta: number | null;
+  italiano: boolean;
+  u21: boolean;
+  anni_residui: number;
+  ingaggio: number;
+  prolungato: boolean;
+  in_scadenza: boolean;
+  valore_residuo: number;
+  dead_money_se_tagliato: number;
+};
+
+export type Titolo = {
+  competizione: string;
+  etichetta: string;
+  icona: string;
+  stagione: string;
+  note: string;
+};
+
+export type Conti = {
+  giocatori: number;
+  limite_dimensione: number;
+  slot_u21: number;
+  portieri: number;
+  anni_impegnati: number;
+  monte_anni: number;
+  contratti_annuali: number;
+  annuali_richiesti: number;
+  monte_ingaggi: number;
+  dead_money: number;
+  limite_cap: number;
+  italiani: number;
+  u21: number;
+};
+
+export type SquadraInDettaglio = Squadra & {
+  posso_gestirla: boolean;
+  conti: Conti;
+  rosa: GiocatoreInRosa[];
+  violazioni: Violazione[];
+  titoli: Titolo[];
+  riferimento_u21: string;
+};
+
+export type Giocatore = {
+  id: number;
+  nome: string;
+  club: string;
+  ruoli: string[];
+  ruolo_classic: string;
+  squadra: string;
+  anni: number;
+  ingaggio: number;
+  nazionalita: string;
+  data_nascita: string | null;
+  eta: number | null;
+  italiano: boolean;
+  u21: boolean;
+  quotazione: number | null;
+  fvm: number | null;
+};
+
+export type Listone = {
+  giocatori: Giocatore[];
+  svincolato: string;
+  con_stipendio: number;
+  con_data_nascita: number;
+  riferimento_u21: string;
+};
+
+
+export type SquadraInGalleria = {
+  id: number;
+  nome: string;
+  presidente: string;
+  motto: string;
+  stadio: string;
+  citta: string;
+  curva: string;
+  anno_fondazione: number | null;
+  colore_primario: string;
+  colore_secondario: string;
+  stile_maglia: string;
+  maglia: string;
+  logo: string | null;
+  modificabile: boolean;
+};
+
+export type Galleria = {
+  squadre: SquadraInGalleria[];
+  stili: { nome: string; etichetta: string }[];
+  posso_crearne: boolean;
+  nomi_occupati: string[];
+};
+
+export type ModificaIdentita = {
+  nome: string;
+  presidente: string;
+  motto: string;
+  stadio: string;
+  citta: string;
+  curva: string;
+  colore_primario: string;
+  colore_secondario: string;
+  stile_maglia: string;
+  anno_fondazione: number | null;
+  logo?: string | null;
+  maglia_caricata?: string | null;
+  rimuovi_logo?: boolean;
+  rimuovi_maglia?: boolean;
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -83,4 +213,22 @@ export const api = {
   io: () => chiama<ChiSono>("/io"),
   esci: () => chiama<void>("/esci", { method: "POST" }),
   squadre: () => chiama<Squadra[]>("/squadre"),
+  squadra: (id: number) => chiama<SquadraInDettaglio>(`/squadre/${id}`),
+  listone: () => chiama<Listone>("/giocatori"),
+  identita: () => chiama<Galleria>("/identita"),
+  salvaIdentita: (id: number, corpo: ModificaIdentita) =>
+    chiama<SquadraInGalleria>(`/squadre/${id}/identita`, {
+      method: "PUT",
+      body: JSON.stringify(corpo),
+    }),
+  creaSquadra: (corpo: ModificaIdentita) =>
+    chiama<SquadraInGalleria>("/squadre", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>
+    chiama<{ data_uri: string }>("/immagini", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, tipo_mime }),
+    }),
 };

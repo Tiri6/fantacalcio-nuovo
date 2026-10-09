@@ -421,3 +421,525 @@ main {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- dettaglio squadra -------------------------------------------------- */
+
+.indietro {
+  display: inline-block;
+  margin-bottom: 18px;
+  color: var(--testo-tenue);
+  text-decoration: none;
+  font-size: 14px;
+  transition: color 0.15s var(--passo);
+}
+
+.indietro:hover {
+  color: var(--verde);
+}
+
+.testata-squadra {
+  position: relative;
+  overflow: hidden;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 26px;
+  margin-bottom: 30px;
+}
+
+.testata-squadra h1 {
+  font-size: 29px;
+}
+
+.testata-squadra .motto {
+  margin: 6px 0 0;
+  min-height: 0;
+}
+
+.anagrafica {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 16px;
+  margin: 22px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--bordo);
+}
+
+.anagrafica dt {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--testo-fioco);
+}
+
+.anagrafica dd {
+  margin: 4px 0 0;
+  font-weight: 540;
+}
+
+section {
+  margin-bottom: 34px;
+}
+
+h2.sezione {
+  font-size: 19px;
+  margin-bottom: 14px;
+}
+
+/* --- riquadri numerici -------------------------------------------------- */
+
+.riquadri {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.riquadro {
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 16px 18px;
+}
+
+.riquadro .etichetta {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--testo-fioco);
+}
+
+.riquadro .valore {
+  display: block;
+  margin-top: 5px;
+  font-size: 27px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.riquadro .valore.sfora {
+  color: var(--ambra);
+}
+
+.riquadro .nota {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--testo-tenue);
+}
+
+.barra {
+  margin-top: 11px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--sfondo-alto);
+  overflow: hidden;
+}
+
+.barra .piena {
+  height: 100%;
+  background: var(--verde-cupo);
+  transition: width 0.4s var(--passo);
+}
+
+.barra .piena.sfora {
+  background: var(--ambra);
+}
+
+/* --- tabelle ------------------------------------------------------------ */
+
+.tabella-contenitore {
+  overflow-x: auto;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+}
+
+.tabella {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.tabella th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  padding: 11px 14px;
+  background: var(--superficie-viva);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--testo-tenue);
+  white-space: nowrap;
+}
+
+.tabella td {
+  padding: 9px 14px;
+  border-top: 1px solid var(--bordo);
+  white-space: nowrap;
+}
+
+.tabella tbody tr {
+  transition: background 0.12s var(--passo);
+}
+
+.tabella tbody tr:hover {
+  background: var(--sfondo-alto);
+}
+
+.tabella .numerica {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabella .centrata {
+  text-align: center;
+  color: var(--verde);
+}
+
+.tabella .forte {
+  font-weight: 560;
+}
+
+.tabella .tenue {
+  color: var(--testo-tenue);
+}
+
+.tabella .scadenza {
+  color: var(--ambra);
+}
+
+.tabella .segno {
+  margin-left: 5px;
+  color: var(--testo-fioco);
+}
+
+.ruoli {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--testo-tenue);
+}
+
+.didascalia {
+  margin: 11px 0 0;
+  font-size: 12.5px;
+  color: var(--testo-fioco);
+}
+
+.didascalia.conteggio {
+  margin: 0 0 11px;
+}
+
+/* --- filtri ------------------------------------------------------------- */
+
+.filtri {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.filtri input.cerca {
+  width: auto;
+  flex: 1 1 230px;
+}
+
+.filtri select {
+  padding: 10px 12px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  color: var(--testo);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s var(--passo);
+}
+
+.filtri select:hover {
+  border-color: var(--bordo-vivo);
+}
+
+.interruttore {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 10px 13px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  color: var(--testo-tenue);
+  font-size: 14px;
+  font-weight: 540;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s var(--passo), color 0.15s var(--passo);
+}
+
+.interruttore:has(input:checked) {
+  border-color: var(--verde-cupo);
+  color: var(--testo);
+}
+
+.interruttore input {
+  width: auto;
+  margin: 0;
+  accent-color: var(--verde);
+  cursor: pointer;
+}
+
+/* --- violazioni, titoli, vuoti ------------------------------------------ */
+
+.violazioni {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 9px;
+}
+
+.violazioni li {
+  padding: 12px 15px;
+  border-radius: var(--raggio-piccolo);
+  border: 1px solid;
+  font-size: 14px;
+}
+
+.violazioni li.blocco {
+  background: rgb(229 72 77 / 0.1);
+  border-color: rgb(229 72 77 / 0.3);
+}
+
+.violazioni li.avviso {
+  background: rgb(240 180 41 / 0.08);
+  border-color: rgb(240 180 41 / 0.28);
+}
+
+.violazioni strong {
+  margin-right: 7px;
+  color: var(--testo-tenue);
+}
+
+.violazioni .scarto {
+  margin-left: 8px;
+  font-variant-numeric: tabular-nums;
+  color: var(--testo-fioco);
+  font-size: 13px;
+}
+
+.conforme {
+  padding: 12px 15px;
+  border-radius: var(--raggio-piccolo);
+  background: rgb(53 208 127 / 0.09);
+  border: 1px solid rgb(53 208 127 / 0.28);
+  color: var(--verde);
+  margin: 0;
+}
+
+.pastiglie {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pastiglia {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--superficie-viva);
+  border: 1px solid var(--bordo);
+  font-size: 13px;
+  font-weight: 540;
+}
+
+.vuoto {
+  margin: 0;
+  padding: 16px;
+  border-radius: var(--raggio-piccolo);
+  background: var(--superficie);
+  border: 1px dashed var(--bordo);
+  color: var(--testo-tenue);
+  font-size: 14px;
+}
+
+.fantasma.alto {
+  height: 420px;
+}
+
+/* Le schede sono diventate link: niente sottolineature nè blu. */
+a.scheda {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* --- identita' squadre --------------------------------------------------- */
+
+.galleria {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 16px;
+}
+
+.scheda-identita {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 22px 18px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  transition: border-color 0.18s var(--passo), transform 0.18s var(--passo);
+}
+
+.scheda-identita:hover {
+  border-color: var(--bordo-vivo);
+  transform: translateY(-2px);
+}
+
+.scheda-identita img {
+  margin-bottom: 12px;
+}
+
+.scheda-identita h3 {
+  font-size: 16px;
+  margin-bottom: 3px;
+}
+
+.scheda-identita p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.scheda-identita .motto {
+  margin-top: 5px;
+  font-style: italic;
+  color: var(--testo-fioco);
+}
+
+.minuta {
+  margin: 13px 0 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--testo-tenue);
+}
+
+.minuta div {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.minuta dt,
+.minuta dd {
+  margin: 0;
+}
+
+button.secondario {
+  margin-top: 15px;
+  padding: 8px 15px;
+  background: transparent;
+  border-color: var(--bordo);
+  color: var(--testo-tenue);
+  font-size: 13.5px;
+}
+
+button.secondario:hover:not(:disabled) {
+  border-color: var(--verde-cupo);
+  color: var(--testo);
+}
+
+button.secondario.crea {
+  margin: 0 0 18px;
+}
+
+/* --- modulo ------------------------------------------------------------- */
+
+.modulo {
+  max-width: 680px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 26px;
+}
+
+.modulo-testata {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.modulo-testata h2 {
+  font-size: 20px;
+}
+
+.modulo-testata button {
+  margin-top: 0;
+}
+
+.coppia,
+.terna {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.coppia {
+  grid-template-columns: 1fr 1fr;
+}
+
+.terna {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.coppia .campo + .campo,
+.terna .campo + .campo {
+  margin-top: 0;
+}
+
+input[type="color"] {
+  height: 42px;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.modulo select {
+  width: 100%;
+  padding: 11px 13px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  color: var(--testo);
+  font: inherit;
+  cursor: pointer;
+}
+
+.conferma {
+  margin-bottom: 18px;
+  padding: 12px 15px;
+  border-radius: var(--raggio-piccolo);
+  background: rgb(53 208 127 / 0.09);
+  border: 1px solid rgb(53 208 127 / 0.28);
+  color: var(--verde);
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .coppia,
+  .terna {
+    grid-template-columns: 1fr;
+  }
+}
