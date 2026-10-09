@@ -280,7 +280,7 @@ def _lega_demo() -> list[dict]:
                 anni_contratto_massimi=ParametriLega().contratto_anni_massimo,
                 budget_cap=ParametriLega().salary_cap,
                 coppa_italia=True,
-                supercoppa=True,
+                f1_rush=True,
             ).a_json(),
             "creata_il": "2026-08-01T10:00:00",
         }

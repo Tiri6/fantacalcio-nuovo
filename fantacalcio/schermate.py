@@ -50,11 +50,12 @@ from .autenticazione import (
     reimposta_password,
 )
 from .competizioni import (
+    GIORNATE_SERIE_A,
     CompetizioneNonValida,
-    CriterioSupercoppa,
+    CriterioF1Rush,
     FormatoCoppa,
     RegoleCoppa,
-    RegoleSupercoppa,
+    RegoleF1Rush,
 )
 from .data import (
     archivio,
@@ -580,7 +581,7 @@ def _modulo_opzioni(
     )
     riga = st.columns(2)
     coppa = riga[0].toggle("Coppa Italia", value=base.coppa_italia)
-    supercoppa = riga[1].toggle("Supercoppa", value=base.supercoppa)
+    f1_rush = riga[1].toggle("F1 Rush Finale", value=base.f1_rush)
 
     regole_coppa = base.regole_coppa
     if coppa:
@@ -640,23 +641,47 @@ def _modulo_opzioni(
                 )
                 st.caption(f"Tabellone: {turni}")
 
-    regole_supercoppa = base.regole_supercoppa
-    if supercoppa:
-        with st.expander("Regole della Supercoppa", expanded=True):
-            criterio = st.selectbox(
-                "Chi si affronta",
-                list(CriterioSupercoppa),
-                index=list(CriterioSupercoppa).index(base.regole_supercoppa.criterio),
+    regole_f1_rush = base.regole_f1_rush
+    if f1_rush:
+        with st.expander("Regole della F1 Rush Finale", expanded=True):
+            riga = st.columns(2)
+            criterio = riga[0].selectbox(
+                "Come si assegnano i punti",
+                list(CriterioF1Rush),
+                index=list(CriterioF1Rush).index(base.regole_f1_rush.criterio),
                 format_func=lambda c: c.etichetta,
-                help="Il primo anno l'albo d'oro e' vuoto: le due squadre le "
-                "scegli a mano. Dall'anno dopo si ricavano da sole.",
+                help="L'articolo 1 dice soltanto che si corre sulle ultime sei "
+                "giornate di Serie A: il meccanismo non lo scrive, e questo e' "
+                "un punto da votare (vedi PUNTI_APERTI.md).",
             )
-            prima_stagione = st.toggle(
-                "Si gioca prima dell'inizio del campionato",
-                value=base.regole_supercoppa.prima_della_stagione,
+            quante = riga[1].number_input(
+                "Su quante giornate di Serie A",
+                min_value=1,
+                max_value=GIORNATE_SERIE_A,
+                value=base.regole_f1_rush.giornate_serie_a,
+                step=1,
             )
-            regole_supercoppa = RegoleSupercoppa(
-                criterio=criterio, prima_della_stagione=bool(prima_stagione)
+            scala = st.text_input(
+                "Punti di tappa, dal primo in giu'",
+                value=" ".join(str(p) for p in base.regole_f1_rush.punti_per_posizione),
+                help="Separati da spazi. Chi arriva oltre l'ultima posizione "
+                "elencata non prende niente, come in Formula 1.",
+                disabled=criterio is not CriterioF1Rush.PUNTI_PER_POSIZIONE,
+            )
+            try:
+                punti_tappa = tuple(int(p) for p in scala.split())
+            except ValueError:
+                st.warning(
+                    "I punti di tappa devono essere numeri interi separati da "
+                    "spazi: tengo la scala di prima.",
+                    icon="⚠️",
+                )
+                punti_tappa = base.regole_f1_rush.punti_per_posizione
+            regole_f1_rush = RegoleF1Rush(
+                criterio=criterio,
+                giornate_serie_a=int(quante),
+                punti_per_posizione=punti_tappa
+                or base.regole_f1_rush.punti_per_posizione,
             )
 
     st.markdown("#### Formazione")
@@ -775,9 +800,9 @@ def _modulo_opzioni(
             anni_contratto_massimi=int(anni_contratto),
             budget_cap=float(budget_milioni) * 1_000_000,
             coppa_italia=bool(coppa),
-            supercoppa=bool(supercoppa),
+            f1_rush=bool(f1_rush),
             regole_coppa=regole_coppa,
-            regole_supercoppa=regole_supercoppa,
+            regole_f1_rush=regole_f1_rush,
             rosa_portieri=portieri,
             rosa_difensori=difensori,
             rosa_centrocampisti=centrocampisti,

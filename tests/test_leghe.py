@@ -1,7 +1,10 @@
 """Leghe, codici d'invito e opzioni di gioco."""
 
+import json
+
 import pytest
 
+from fantacalcio.competizioni import RegoleF1Rush, TipoCompetizione
 from fantacalcio.leghe import (
     FASCE_DIFESA,
     MODULI_CLASSIC,
@@ -672,3 +675,33 @@ class TestAvvisiSulleRegole:
         )
         assert differenze(mista, mista) == []
         assert mista.rosa_portieri == 3 and mista.rosa_difensori is None
+
+
+class TestF1RushNelleOpzioni:
+    """La F1 Rush ha preso il posto della Supercoppa, anche nelle leghe salvate."""
+
+    def test_round_trip(self):
+        opzioni = OpzioniLega(f1_rush=True)
+        assert OpzioniLega.da_json(opzioni.a_json()) == opzioni
+
+    def test_la_scala_sopravvive_al_json(self):
+        opzioni = OpzioniLega(
+            f1_rush=True, regole_f1_rush=RegoleF1Rush(punti_per_posizione=(10, 6, 3))
+        )
+        rifatta = OpzioniLega.da_json(opzioni.a_json()).regole_f1_rush
+        assert rifatta.punti_per_posizione == (10, 6, 3)
+
+    def test_una_lega_che_aveva_la_supercoppa_trova_la_f1_rush(self):
+        """Perderla in silenzio farebbe sparire una voce di menu da sola."""
+        vecchia = json.dumps({"supercoppa": True})
+        assert OpzioniLega.da_json(vecchia).f1_rush
+
+    def test_una_lega_senza_supercoppa_non_la_trova_accesa(self):
+        assert not OpzioniLega.da_json(json.dumps({"supercoppa": False})).f1_rush
+
+    def test_la_f1_rush_compare_fra_le_competizioni(self):
+        attive = OpzioniLega(f1_rush=True).competizioni
+        assert TipoCompetizione.F1_RUSH in attive
+
+    def test_spenta_non_compare(self):
+        assert TipoCompetizione.F1_RUSH not in OpzioniLega().competizioni

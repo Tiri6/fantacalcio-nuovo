@@ -1,23 +1,25 @@
-"""Competizioni: coppa, supercoppa, albo d'oro e calendario dei weekend."""
+"""Competizioni: coppa, F1 Rush, albo d'oro e calendario dei weekend."""
 
 from datetime import date
 
 import pytest
 
 from fantacalcio.competizioni import (
+    GIORNATE_SERIE_A,
     CompetizioneNonValida,
-    CriterioSupercoppa,
+    CriterioF1Rush,
     FormatoCoppa,
     RegoleCoppa,
-    RegoleSupercoppa,
+    RegoleF1Rush,
     TipoCompetizione,
     Titolo,
     bacheca_squadre,
+    classifica_f1,
     conta_per_competizione,
     costruisci_weekend,
     crea_titolo,
     data_riferimento_u21,
-    finaliste_supercoppa,
+    giornate_f1_rush,
     ordina_albo,
     titoli_di,
     titolo_esistente,
@@ -139,7 +141,7 @@ class TestAlbo:
 
     def test_nella_stessa_stagione_prima_il_campionato(self):
         titoli = [
-            self.titolo(1, TipoCompetizione.SUPERCOPPA, "2026/27", "A"),
+            self.titolo(1, TipoCompetizione.F1_RUSH, "2026/27", "A"),
             self.titolo(2, TipoCompetizione.CAMPIONATO, "2026/27", "B"),
         ]
         assert ordina_albo(titoli)[0].competizione is TipoCompetizione.CAMPIONATO
@@ -161,34 +163,137 @@ class TestAlbo:
         assert not titolo_esistente(titoli, TipoCompetizione.CAMPIONATO, "2025/26")
 
 
-class TestSupercoppa:
-    def titolo(self, competizione, stagione, squadra):
-        return crea_titolo(1, 1, competizione, stagione, squadra)
+class TestF1Rush:
+    """La F1 Rush Finale, che nel V3 ha preso il posto della Supercoppa."""
 
-    def test_il_primo_anno_non_si_deduce_niente(self):
-        """Albo vuoto: le due squadre le sceglie l'amministratore."""
-        assert finaliste_supercoppa([], RegoleSupercoppa(), "2025/26") == (None, None)
+    def test_si_corre_sulle_ultime_giornate_di_serie_a(self):
+        assert giornate_f1_rush() == (33, 34, 35, 36, 37, 38)
 
-    def test_dedotte_dall_albo(self):
-        titoli = [
-            self.titolo(TipoCompetizione.CAMPIONATO, "2025/26", "Tiri Team"),
-            self.titolo(TipoCompetizione.COPPA_ITALIA, "2025/26", "Padel United"),
+    def test_con_un_campionato_piu_corto_si_prende_quel_che_c_e(self):
+        """Meglio quattro tappe che sei giornate che non esistono."""
+        assert giornate_f1_rush(4) == (1, 2, 3, 4)
+
+    def test_quante_giornate_e_un_parametro(self):
+        regole = RegoleF1Rush(giornate_serie_a=3)
+        assert giornate_f1_rush(GIORNATE_SERIE_A, regole) == (36, 37, 38)
+
+    def test_zero_giornate_non_fa_nessuna_tappa(self):
+        assert giornate_f1_rush(0) == ()
+
+    def test_una_durata_impossibile_si_rifiuta(self):
+        with pytest.raises(CompetizioneNonValida, match="almeno una giornata"):
+            RegoleF1Rush(giornate_serie_a=0)
+
+    def test_la_scala_arriva_dai_parametri(self):
+        regole = RegoleF1Rush(punti_per_posizione=(10, 6, 3))
+        assert regole.punti_di_posizione(1) == 10
+        assert regole.punti_di_posizione(3) == 3
+
+    def test_oltre_la_scala_non_si_prende_niente(self):
+        """Come in Formula 1: oltre l'ultima posizione premiata, zero."""
+        regole = RegoleF1Rush(punti_per_posizione=(10, 6, 3))
+        assert regole.punti_di_posizione(4) == 0
+        assert regole.punti_di_posizione(0) == 0
+
+    def test_da_json_la_scala_torna_una_tupla(self):
+        """Una dataclass congelata con una lista dentro non e' hashabile."""
+        regole = RegoleF1Rush(punti_per_posizione=[10, 6, 3])
+        assert regole.punti_per_posizione == (10, 6, 3)
+        assert hash(regole)
+
+
+class TestClassificaF1:
+    def test_i_punti_di_tappa_si_sommano(self):
+        tappe = [
+            {"A": 80.0, "B": 70.0, "C": 60.0},
+            {"A": 50.0, "B": 90.0, "C": 70.0},
         ]
-        assert finaliste_supercoppa(titoli, RegoleSupercoppa(), "2025/26") == (
-            "Tiri Team",
-            "Padel United",
+        classifica = classifica_f1(tappe, RegoleF1Rush(punti_per_posizione=(10, 6, 3)))
+        punti = {r.squadra: r.punti for r in classifica}
+        assert punti == {"A": 13, "B": 16, "C": 9}
+
+    def test_i_pari_merito_prendono_i_punti_della_posizione_migliore(self):
+        tappe = [{"A": 90.0, "B": 90.0, "C": 60.0}]
+        classifica = classifica_f1(tappe, RegoleF1Rush(punti_per_posizione=(10, 6, 3)))
+        punti = {r.squadra: r.punti for r in classifica}
+        assert punti["A"] == punti["B"] == 10
+        assert punti["C"] == 3
+
+    def test_a_pari_punti_valgono_le_vittorie_di_tappa(self):
+        """E' il primo spareggio della Formula 1, nel suo stesso ordine."""
+        tappe = [
+            {"A": 90.0, "B": 10.0},
+            {"A": 10.0, "B": 90.0},
+            {"A": 90.0, "B": 10.0},
+            {"A": 10.0, "B": 11.0},
+        ]
+        classifica = classifica_f1(tappe, RegoleF1Rush(punti_per_posizione=(10, 10)))
+        assert classifica[0].squadra == "A"
+        assert classifica[0].punti == classifica[1].punti
+        assert classifica[0].vittorie_di_tappa == 2
+
+    def test_a_pari_punti_e_vittorie_valgono_i_fantapunti(self):
+        tappe = [{"A": 90.0, "B": 80.0}]
+        classifica = classifica_f1(tappe, RegoleF1Rush(punti_per_posizione=(10, 10)))
+        assert classifica[0].squadra == "A"
+        assert classifica[0].fantapunti == 90.0
+
+    def test_col_criterio_a_fantapunti_i_punti_restano_a_zero(self):
+        tappe = [{"A": 90.0, "B": 80.0}]
+        regole = RegoleF1Rush(criterio=CriterioF1Rush.SOMMA_FANTAPUNTI)
+        classifica = classifica_f1(tappe, regole)
+        assert all(r.punti == 0 for r in classifica)
+        assert classifica[0].squadra == "A"
+
+    def test_senza_tappe_non_c_e_classifica(self):
+        assert classifica_f1([]) == []
+
+    def test_le_tappe_vuote_si_saltano(self):
+        assert classifica_f1([{}, {"A": 10.0}])[0].tappe == 1
+
+    def test_la_scala_in_vigore_premia_dieci_squadre(self):
+        """Dieci partecipanti, dieci posizioni a punti: nessuno corre per nulla."""
+        assert len(RegoleF1Rush().punti_per_posizione) == 10
+
+
+class TestLaF1RushNelCalendario:
+    def test_non_occupa_un_weekend_suo(self):
+        """Corre sugli stessi fantapunti del campionato: non fa slittare niente."""
+        senza = costruisci_weekend(38, 18, prima_giornata_serie_a=1)
+        con = costruisci_weekend(
+            38, 18, prima_giornata_serie_a=1, regole_f1_rush=RegoleF1Rush()
         )
+        campionato = [
+            [i for i in t.impegni if i[0] is TipoCompetizione.CAMPIONATO] for t in senza
+        ]
+        uguale = [
+            [i for i in t.impegni if i[0] is TipoCompetizione.CAMPIONATO] for t in con
+        ]
+        assert campionato == uguale
 
-    def test_col_criterio_manuale_non_si_deduce_mai(self):
-        titoli = [self.titolo(TipoCompetizione.CAMPIONATO, "2025/26", "Tiri Team")]
-        regole = RegoleSupercoppa(criterio=CriterioSupercoppa.MANUALE)
-        assert finaliste_supercoppa(titoli, regole, "2025/26") == (None, None)
+    def test_le_tappe_cadono_sugli_ultimi_sei_turni(self):
+        turni = costruisci_weekend(
+            38, 18, prima_giornata_serie_a=1, regole_f1_rush=RegoleF1Rush()
+        )
+        con_f1 = [
+            t.giornata_serie_a
+            for t in turni
+            if any(i[0] is TipoCompetizione.F1_RUSH for i in t.impegni)
+        ]
+        assert con_f1 == [33, 34, 35, 36, 37, 38]
 
-    def test_manca_la_vincitrice_di_coppa(self):
-        titoli = [self.titolo(TipoCompetizione.CAMPIONATO, "2025/26", "Tiri Team")]
-        campione, sfidante = finaliste_supercoppa(titoli, RegoleSupercoppa(), "2025/26")
-        assert campione == "Tiri Team"
-        assert sfidante is None
+    def test_la_tappa_si_numera_da_uno(self):
+        turni = costruisci_weekend(
+            38, 18, prima_giornata_serie_a=1, regole_f1_rush=RegoleF1Rush()
+        )
+        prima = next(
+            t for t in turni if any(i[0] is TipoCompetizione.F1_RUSH for i in t.impegni)
+        )
+        assert "1ª tappa di 6" in prima.descrizione
+
+    def test_senza_regole_non_compare(self):
+        turni = costruisci_weekend(38, 18, prima_giornata_serie_a=1)
+        assert not any(i[0] is TipoCompetizione.F1_RUSH for t in turni for i in t.impegni)
 
 
 def test_ogni_competizione_ha_icona_ed_etichetta():
@@ -217,7 +322,7 @@ class TestBachecaDiUnaSquadra:
             self.titolo(1, TipoCompetizione.CAMPIONATO, "2025/26", "Tiri Team", 7),
             self.titolo(2, TipoCompetizione.COPPA_ITALIA, "2025/26", "Padel United", 8),
             self.titolo(3, TipoCompetizione.CAMPIONATO, "2026/27", "Tiri Team", 7),
-            self.titolo(4, TipoCompetizione.SUPERCOPPA, "2026/27", "Tiri Team", 7),
+            self.titolo(4, TipoCompetizione.F1_RUSH, "2026/27", "Tiri Team", 7),
         ]
 
     def test_prende_solo_i_suoi(self):
@@ -250,7 +355,7 @@ class TestBachecaDiUnaSquadra:
     def test_conteggio_per_competizione(self):
         conteggio = conta_per_competizione(titoli_di(self.albo(), 7, "Tiri Team"))
         assert conteggio[TipoCompetizione.CAMPIONATO] == 2
-        assert conteggio[TipoCompetizione.SUPERCOPPA] == 1
+        assert conteggio[TipoCompetizione.F1_RUSH] == 1
         assert conteggio[TipoCompetizione.COPPA_ITALIA] == 0
 
     def test_il_conteggio_elenca_tutte_le_competizioni(self):

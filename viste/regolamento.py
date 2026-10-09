@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from fantacalcio import ui
+from fantacalcio.competizioni import giornate_f1_rush
 from fantacalcio.regole import ETICHETTE_RUOLO
 
 ui.intestazione(
@@ -103,14 +104,12 @@ if opzioni.coppa_italia:
         )
     )
 
-if opzioni.supercoppa:
+if opzioni.f1_rush:
+    f1 = opzioni.regole_f1_rush
+    turni = giornate_f1_rush(regole=f1)
     st.markdown(
-        f"**Supercoppa** — {opzioni.regole_supercoppa.criterio.etichetta}, "
-        + (
-            "si gioca prima dell'inizio del campionato."
-            if opzioni.regole_supercoppa.prima_della_stagione
-            else "si gioca a stagione in corso."
-        )
+        f"**F1 Rush Finale** — ultime {f1.giornate_serie_a} giornate di Serie A "
+        f"({turni[0]}ª–{turni[-1]}ª). {f1.criterio.etichetta}."
     )
 
 st.divider()

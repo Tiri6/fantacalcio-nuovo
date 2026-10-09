@@ -320,4 +320,51 @@ entra, se paga, e il portiere che non si adatta mai — ma due cose no.
 - **Basic**, per la stessa ragione, non tenta la ricostruzione dello schema su
   un modulo diverso: prova la casella giusta, poi adatta su quella che c'e'.
 
+## 18. F1 Rush Finale: si sa quando, non si sa come
 
+Il V3 ha abolito la Supercoppa e messo al suo posto la *F1 Rush Finale*. Di
+lei l'articolo 1 dice **due cose sole**: che si disputa «nelle ultime 6
+giornate di Serie A», e che il montepremi e' un paio di calzettoni. Il
+meccanismo non c'e'.
+
+**Oggi il codice** applica la lettura piu' vicina al nome e alla piattaforma,
+dove il campionato «Formula 1» assegna punti per posizione in ogni giornata:
+ogni tappa si ordina per fantapunti e si danno **25-18-15-12-10-8-6-4-2-1** —
+la scala in vigore in F1, che con dieci squadre arriva esattamente in fondo
+alla griglia, cosi' nessuno corre per nulla. A pari fantapunti nella stessa
+tappa valgono i pari merito. L'ordine finale e' punti, poi vittorie di tappa,
+poi fantapunti totali: i due spareggi della Formula 1, nel suo stesso ordine.
+
+Sono tutti parametri (`RegoleF1Rush`), e si cambiano dalla creazione lega
+senza toccare il codice. C'e' anche il criterio alternativo «somma dei
+fantapunti delle sei giornate», che e' l'altra lettura possibile.
+
+**Da decidere e votare:**
+
+1. **La scala dei punti**, se non e' quella della Formula 1.
+2. **Cosa si gioca in quelle sei giornate.** Qui c'e' un problema di
+   calendario che vale la pena vedere adesso: con dieci squadre, andata e
+   ritorno fanno 18 giornate, e partendo dalla 5ª di Serie A il campionato
+   finisce intorno alla 22ª-26ª (dipende da quanti turni di coppa slittano).
+   Le ultime sei giornate di Serie A — dalla 33ª alla 38ª — **cadono quindi a
+   campionato finito**. Due letture:
+   - la F1 Rush e' quello che si gioca in quelle sei giornate altrimenti
+     vuote, cioe' la coda della stagione (e allora i fantapunti sono i suoi,
+     non quelli del campionato);
+   - oppure il campionato arriva fin la' (le 27 giornate dell'appendice, o un
+     terzo girone), e la F1 Rush gli corre sopra usando gli stessi fantapunti.
+
+   Il codice fa la **seconda**: la F1 Rush non occupa un weekend suo, non fa
+   slittare niente e legge i fantapunti delle giornate in quella finestra. E'
+   l'ipotesi che non rompe niente se poi si decide l'altra — ma va deciso,
+   perche' nella prima lettura servono sei giornate in piu' in calendario.
+3. **Chi vince, se nessuno carica i risultati di quelle giornate.** Oggi la
+   pagina propone la prima della classifica e il presidente conferma: il
+   titolo nell'albo d'oro si registra a mano, come per il campionato e la
+   coppa.
+
+Nota tecnica: il calendario porta una colonna `giornata_serie_a`, che e'
+quella che serve per sapere quali sono «le ultime sei». Quando l'import non
+l'ha compilata, la pagina usa le ultime sei **giornate di lega** disputate e
+**lo dice in chiaro**, invece di mostrare una classifica che sembra giusta e
+non lo e'.

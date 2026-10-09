@@ -65,7 +65,7 @@ all'avvio: non ricrearlo a mano.
   un aggiornamento del codice rompe l'app con un AttributeError. Si mette in
   cache la tabella grezza (`ui.dati()`) e si ricostruisce a ogni giro.
 - **Le voci di menu delle competizioni sono condizionali.** Coppa e
-  Supercoppa compaiono solo se la lega le gioca: una voce che parla di una
+  F1 Rush compaiono solo se la lega le gioca: una voce che parla di una
   competizione inesistente e' peggio di una voce mancante.
 - **Under 21 si valuta al 31 agosto**, non alla data del draft: lo status
   si cristallizza li' e vale per tutta la stagione. Vedi

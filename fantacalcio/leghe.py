@@ -22,10 +22,10 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from .competizioni import (
-    CriterioSupercoppa,
+    CriterioF1Rush,
     FormatoCoppa,
     RegoleCoppa,
-    RegoleSupercoppa,
+    RegoleF1Rush,
     TipoCompetizione,
 )
 
@@ -327,9 +327,9 @@ class OpzioniLega:
 
     # Competizioni. Il campionato c'e' sempre; le altre si accendono qui.
     coppa_italia: bool = False
-    supercoppa: bool = False
+    f1_rush: bool = False
     regole_coppa: RegoleCoppa = field(default_factory=RegoleCoppa)
-    regole_supercoppa: RegoleSupercoppa = field(default_factory=RegoleSupercoppa)
+    regole_f1_rush: RegoleF1Rush = field(default_factory=RegoleF1Rush)
 
     # Modificatori di reparto
     modificatore_difesa: bool = True
@@ -380,15 +380,6 @@ class OpzioniLega:
                 f"La coppa ammette {self.regole_coppa.squadre_ammesse} squadre "
                 f"ma la lega ne ha {self.partecipanti}"
             )
-        if (
-            self.supercoppa
-            and not self.coppa_italia
-            and self.regole_supercoppa.criterio is CriterioSupercoppa.CAMPIONE_E_COPPA
-        ):
-            raise LegaNonValida(
-                "La Supercoppa fra campione e vincitrice di coppa richiede che "
-                "la Coppa Italia sia attiva. Scegli un altro criterio."
-            )
         totale = self.rosa_totale
         if totale is not None and self.minimo_italiani > totale:
             raise LegaNonValida(
@@ -436,8 +427,8 @@ class OpzioniLega:
         attive = [TipoCompetizione.CAMPIONATO]
         if self.coppa_italia:
             attive.append(TipoCompetizione.COPPA_ITALIA)
-        if self.supercoppa:
-            attive.append(TipoCompetizione.SUPERCOPPA)
+        if self.f1_rush:
+            attive.append(TipoCompetizione.F1_RUSH)
         return tuple(attive)
 
     @property
@@ -491,9 +482,10 @@ def _serializza(opzioni: OpzioniLega) -> dict:
         **asdict(opzioni.regole_coppa),
         "formato": opzioni.regole_coppa.formato.name,
     }
-    dati["regole_supercoppa"] = {
-        **asdict(opzioni.regole_supercoppa),
-        "criterio": opzioni.regole_supercoppa.criterio.name,
+    dati["regole_f1_rush"] = {
+        **asdict(opzioni.regole_f1_rush),
+        "criterio": opzioni.regole_f1_rush.criterio.name,
+        "punti_per_posizione": list(opzioni.regole_f1_rush.punti_per_posizione),
     }
     for campo in ("fasce_difesa", "fasce_centrocampo", "fasce_attacco"):
         dati[campo] = [asdict(f) for f in getattr(opzioni, campo)]
@@ -525,6 +517,13 @@ def _ricostruisci(grezzo, classe, enumerazioni: dict):
 def _deserializza(grezzo: dict) -> dict:
     campi = set(OpzioniLega.__dataclass_fields__)
     valori = {k: v for k, v in grezzo.items() if k in campi}
+
+    # Leghe salvate prima del V3 hanno `supercoppa`, che il V3 ha sostituito
+    # con la F1 Rush Finale. Chi l'aveva accesa trova accesa la competizione
+    # che l'ha rimpiazzata: perderla in silenzio farebbe sparire una voce di
+    # menu senza che nessuno abbia deciso niente.
+    if "f1_rush" not in grezzo and "supercoppa" in grezzo:
+        valori["f1_rush"] = bool(grezzo["supercoppa"])
 
     for chiave, tipo in (
         ("modalita", Modalita),
@@ -559,7 +558,7 @@ def _deserializza(grezzo: dict) -> dict:
 
     for chiave, classe, enumerazioni in (
         ("regole_coppa", RegoleCoppa, {"formato": FormatoCoppa}),
-        ("regole_supercoppa", RegoleSupercoppa, {"criterio": CriterioSupercoppa}),
+        ("regole_f1_rush", RegoleF1Rush, {"criterio": CriterioF1Rush}),
     ):
         if chiave in valori:
             ricostruito = _ricostruisci(valori[chiave], classe, enumerazioni)
@@ -716,13 +715,13 @@ ETICHETTE_OPZIONI: dict[str, str] = {
     "passo_gol": "Punti per ogni gol successivo",
     "voto_minimo_senza_voto": "Voto d'ufficio a chi non gioca",
     "coppa_italia": "Coppa Italia",
-    "supercoppa": "Supercoppa",
+    "f1_rush": "F1 Rush Finale",
     "modificatore_difesa": "Modificatore difesa",
     "modificatore_centrocampo": "Modificatore centrocampo",
     "modificatore_attacco": "Modificatore attacco",
     "bonus": "Bonus e malus",
     "regole_coppa": "Regole della Coppa Italia",
-    "regole_supercoppa": "Regole della Supercoppa",
+    "regole_f1_rush": "Regole della F1 Rush Finale",
 }
 
 

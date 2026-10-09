@@ -5,7 +5,7 @@ titolo due volte non aggiunge una riga, sostituisce quella che c'era. La
 regola sta nel dominio (`competizioni.titolo_esistente`), qui si usa.
 
 Le competizioni che si possono premiare sono quelle che la lega gioca
-davvero: un albo che offre la Supercoppa a una lega che non la disputa
+davvero: un albo che offre la F1 Rush a una lega che non la disputa
 racconta una storia che non e' successa.
 """
 

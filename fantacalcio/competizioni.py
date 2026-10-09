@@ -1,11 +1,16 @@
-"""Le competizioni della lega: campionato, Coppa Italia, Supercoppa, albo d'oro.
+"""Le competizioni della lega: campionato, Coppa Italia, F1 Rush, albo d'oro.
 
 Una lega non e' solo il campionato. Qui stanno le regole di chi si affronta e
 quando, e il registro di chi ha vinto cosa.
 
-Il campionato c'e' sempre; coppa e supercoppa si accendono creando la lega.
-Non e' una preferenza estetica: una lega senza coppa non deve vedere pagine
-che parlano di una competizione che non gioca.
+Il campionato c'e' sempre; coppa e F1 Rush si accendono creando la lega. Non
+e' una preferenza estetica: una lega senza coppa non deve vedere pagine che
+parlano di una competizione che non gioca.
+
+La **Supercoppa non esiste piu'**: il V3 l'ha sostituita con la *F1 Rush
+Finale*, sulle ultime sei giornate di Serie A. Non e' un cambio di nome — la
+Supercoppa era una gara fra due squadre, la F1 Rush e' una classifica a tappe
+fra tutte.
 """
 
 from __future__ import annotations
@@ -22,6 +27,12 @@ from enum import Enum
 # E' una divergenza voluta dal testo, annotata in PUNTI_APERTI.md perche' alla
 # prossima revisione del regolamento venga scritta anche li'.
 GIORNO_RIFERIMENTO_U21 = (8, 31)
+
+# Quante giornate ha la Serie A. Non e' un numero del regolamento della lega —
+# e' il formato del campionato italiano — ma serve per sapere quali sono «le
+# ultime sei giornate» su cui si corre la F1 Rush. Sta qui e non sparso nelle
+# pagine: se la Serie A cambiasse formato, si corregge in un punto solo.
+GIORNATE_SERIE_A = 38
 
 
 def data_riferimento_u21(stagione: str) -> date:
@@ -43,7 +54,7 @@ def data_riferimento_u21(stagione: str) -> date:
 class TipoCompetizione(Enum):
     CAMPIONATO = "Campionato"
     COPPA_ITALIA = "Coppa Italia"
-    SUPERCOPPA = "Supercoppa"
+    F1_RUSH = "F1 Rush Finale"
 
     @property
     def etichetta(self) -> str:
@@ -51,7 +62,11 @@ class TipoCompetizione(Enum):
 
     @property
     def icona(self) -> str:
-        return {"Campionato": "🏆", "Coppa Italia": "🥇", "Supercoppa": "🏅"}[self.value]
+        return {
+            "Campionato": "🏆",
+            "Coppa Italia": "🥇",
+            "F1 Rush Finale": "🏁",
+        }[self.value]
 
 
 class FormatoCoppa(Enum):
@@ -64,12 +79,17 @@ class FormatoCoppa(Enum):
         return self.value
 
 
-class CriterioSupercoppa(Enum):
-    """Chi si affronta in Supercoppa."""
+class CriterioF1Rush(Enum):
+    """Come si assegnano i punti di ogni tappa della F1 Rush.
 
-    CAMPIONE_E_COPPA = "Vincitrice campionato contro vincitrice Coppa Italia"
-    CAMPIONE_E_SECONDA = "Vincitrice campionato contro seconda classificata"
-    MANUALE = "Le scelgo io"
+    Il V3 dice **solo** che la F1 Rush Finale si disputa nelle ultime sei
+    giornate di Serie A: il meccanismo non lo scrive (vedi PUNTI_APERTI.md).
+    Il default e' la lettura piu' vicina al nome e alla piattaforma, dove il
+    campionato «Formula 1» assegna punti per posizione in ogni giornata.
+    """
+
+    PUNTI_PER_POSIZIONE = "Punti per posizione in ogni giornata, come in F1"
+    SOMMA_FANTAPUNTI = "Somma dei fantapunti delle sei giornate"
 
     @property
     def etichetta(self) -> str:
@@ -141,11 +161,49 @@ class RegoleCoppa:
         )
 
 
+# Punti per posizione di tappa, dal 1o al 10o: e' la scala in vigore in
+# Formula 1, e con dieci squadre arriva esattamente in fondo alla griglia.
+# E' un'ipotesi, non il regolamento: il V3 non la scrive (PUNTI_APERTI.md).
+PUNTI_TAPPA_F1 = (25, 18, 15, 12, 10, 8, 6, 4, 2, 1)
+
+
 @dataclass(frozen=True)
-class RegoleSupercoppa:
-    criterio: CriterioSupercoppa = CriterioSupercoppa.CAMPIONE_E_COPPA
-    # Gara secca, prima dell'inizio del campionato: e' la norma.
-    prima_della_stagione: bool = True
+class RegoleF1Rush:
+    """Come si gioca la F1 Rush Finale (art. 1).
+
+    `giornate_serie_a` e' il numero di turni finali di Serie A su cui si
+    corre: sei, per il V3. Non e' il numero di giornate di lega — la F1 Rush
+    sta **sopra** il campionato, usa gli stessi fantapunti e non occupa
+    weekend suoi.
+    """
+
+    criterio: CriterioF1Rush = CriterioF1Rush.PUNTI_PER_POSIZIONE
+    giornate_serie_a: int = 6
+    punti_per_posizione: tuple[int, ...] = PUNTI_TAPPA_F1
+
+    def __post_init__(self) -> None:
+        # Da JSON la scala arriva come lista: una dataclass congelata con una
+        # lista dentro non e' piu' confrontabile ne' hashabile come le altre.
+        object.__setattr__(self, "punti_per_posizione", tuple(self.punti_per_posizione))
+        if self.giornate_serie_a < 1:
+            raise CompetizioneNonValida("La F1 Rush dura almeno una giornata")
+        if self.criterio is CriterioF1Rush.PUNTI_PER_POSIZIONE and not (
+            self.punti_per_posizione
+        ):
+            raise CompetizioneNonValida(
+                "Senza punti per posizione la F1 Rush non assegna niente: "
+                "scegli la somma dei fantapunti, o riempi la scala."
+            )
+
+    def punti_di_posizione(self, posizione: int) -> int:
+        """I punti di chi arriva in quella posizione di tappa (1 = primo).
+
+        Fuori dalla scala si prende zero, come in Formula 1: non si inventa
+        un punteggio per chi e' oltre l'ultima posizione premiata.
+        """
+        if 1 <= posizione <= len(self.punti_per_posizione):
+            return self.punti_per_posizione[posizione - 1]
+        return 0
 
 
 @dataclass(frozen=True)
@@ -175,7 +233,7 @@ class Titolo:
 
 
 def ordina_albo(titoli: list[Titolo]) -> list[Titolo]:
-    """Dalla stagione piu' recente, poi campionato, coppa, supercoppa."""
+    """Dalla stagione piu' recente, poi campionato, coppa, F1 Rush."""
     ordine = {t: i for i, t in enumerate(TipoCompetizione)}
     return sorted(
         titoli,
@@ -203,29 +261,88 @@ def titolo_esistente(
     return None
 
 
-def finaliste_supercoppa(
-    titoli: list[Titolo], regole: RegoleSupercoppa, stagione_precedente: str
-) -> tuple[str | None, str | None]:
-    """Chi gioca la Supercoppa, dedotto dall'albo d'oro.
+@dataclass(frozen=True)
+class RigaF1:
+    """Una squadra nella classifica della F1 Rush."""
 
-    Il primo anno l'albo e' vuoto e non si deduce niente: le due squadre le
-    sceglie l'amministratore a mano. Dall'anno dopo si ricavano da sole.
+    squadra: str
+    punti: int
+    fantapunti: float
+    tappe: int
+    # Quante volte ha vinto la tappa: e' il primo spareggio, come in F1.
+    vittorie_di_tappa: int = 0
+
+
+def classifica_f1(
+    tappe: list[dict[str, float]], regole: RegoleF1Rush | None = None
+) -> list[RigaF1]:
+    """La classifica della F1 Rush da una tappa per giornata.
+
+    Ogni tappa e' `{nome squadra: fantapunti}`: per ogni giornata si ordina
+    per fantapunti e si assegnano i punti della scala. A pari fantapunti
+    nella stessa tappa valgono i **pari merito**, e tutte prendono i punti
+    della posizione migliore — come in una griglia dove nessuno passa avanti
+    senza averlo fatto in campo.
+
+    L'ordine finale e' punti, poi vittorie di tappa, poi fantapunti totali:
+    sono i due spareggi della Formula 1, nell'ordine in cui li usa lei.
     """
-    if regole.criterio is CriterioSupercoppa.MANUALE:
-        return (None, None)
+    regole = regole or RegoleF1Rush()
+    punti: dict[str, int] = {}
+    fantapunti: dict[str, float] = {}
+    vittorie: dict[str, int] = {}
+    presenze: dict[str, int] = {}
 
-    campione = titolo_esistente(titoli, TipoCompetizione.CAMPIONATO, stagione_precedente)
-    if regole.criterio is CriterioSupercoppa.CAMPIONE_E_COPPA:
-        sfidante = titolo_esistente(
-            titoli, TipoCompetizione.COPPA_ITALIA, stagione_precedente
+    for tappa in tappe:
+        if not tappa:
+            continue
+        ordinata = sorted(tappa.items(), key=lambda voce: -voce[1])
+        # I pari merito prendono tutti i punti della posizione migliore, quindi
+        # la posizione si ricava dal punteggio e non dal posto nell'elenco.
+        prima_posizione = {}
+        for posto, (_, quanti) in enumerate(ordinata, start=1):
+            prima_posizione.setdefault(quanti, posto)
+
+        for squadra, suoi in ordinata:
+            posizione = prima_posizione[suoi]
+            assegnati = (
+                regole.punti_di_posizione(posizione)
+                if regole.criterio is CriterioF1Rush.PUNTI_PER_POSIZIONE
+                else 0
+            )
+            punti[squadra] = punti.get(squadra, 0) + assegnati
+            fantapunti[squadra] = fantapunti.get(squadra, 0.0) + suoi
+            presenze[squadra] = presenze.get(squadra, 0) + 1
+            if posizione == 1:
+                vittorie[squadra] = vittorie.get(squadra, 0) + 1
+
+    righe = [
+        RigaF1(
+            squadra=squadra,
+            punti=punti.get(squadra, 0),
+            fantapunti=round(fantapunti.get(squadra, 0.0), 2),
+            tappe=presenze.get(squadra, 0),
+            vittorie_di_tappa=vittorie.get(squadra, 0),
         )
-    else:
-        sfidante = None
+        for squadra in presenze
+    ]
+    righe.sort(key=lambda r: (r.punti, r.vittorie_di_tappa, r.fantapunti), reverse=True)
+    return righe
 
-    return (
-        campione.squadra_nome if campione else None,
-        sfidante.squadra_nome if sfidante else None,
-    )
+
+def giornate_f1_rush(
+    giornate_serie_a: int = GIORNATE_SERIE_A, regole: RegoleF1Rush | None = None
+) -> tuple[int, ...]:
+    """Su quali turni di Serie A si corre la F1 Rush: gli ultimi sei.
+
+    Con un campionato piu' corto della F1 Rush si prende quel che c'e',
+    invece di restituire giornate che non esistono.
+    """
+    regole = regole or RegoleF1Rush()
+    quante = min(regole.giornate_serie_a, max(giornate_serie_a, 0))
+    if quante <= 0:
+        return ()
+    return tuple(range(giornate_serie_a - quante + 1, giornate_serie_a + 1))
 
 
 def crea_titolo(
@@ -288,6 +405,7 @@ def costruisci_weekend(
     giornate_campionato: int,
     regole_coppa: RegoleCoppa | None = None,
     prima_giornata_serie_a: int = 1,
+    regole_f1_rush: RegoleF1Rush | None = None,
 ) -> list[Weekend]:
     """Distribuisce campionato e coppa sui turni di Serie A.
 
@@ -302,7 +420,19 @@ def costruisci_weekend(
     giornate di campionato: il primo turno «alla 5ª» significa al quinto
     weekend, che e' il modo in cui la domanda viene posta guardando un
     calendario.
+
+    La **F1 Rush** si comporta diversamente da tutto il resto: non occupa un
+    weekend suo e non fa slittare niente, perche' corre sugli stessi
+    fantapunti del campionato. Quindi si aggiunge agli impegni di quel
+    weekend, accanto alla giornata di lega, e si conta sulle giornate di
+    **Serie A** — «le ultime sei» del testo sono quelle, non quelle di lega.
     """
+    tappe_f1: dict[int, str] = {}
+    if regole_f1_rush is not None:
+        turni = giornate_f1_rush(giornate_serie_a, regole_f1_rush)
+        for numero, turno in enumerate(turni, start=1):
+            tappe_f1[turno] = f"{numero}ª tappa di {len(turni)}"
+
     turni_coppa: dict[int, str] = {}
     if regole_coppa is not None:
         for numero, weekend_di_coppa in enumerate(
@@ -322,6 +452,9 @@ def costruisci_weekend(
         elif giornata_fanta <= giornate_campionato:
             impegni.append((TipoCompetizione.CAMPIONATO, f"{giornata_fanta}ª giornata"))
             giornata_fanta += 1
+
+        if turno_a in tappe_f1:
+            impegni.append((TipoCompetizione.F1_RUSH, tappe_f1[turno_a]))
 
         weekend.append(Weekend(giornata_serie_a=turno_a, impegni=tuple(impegni)))
     return weekend

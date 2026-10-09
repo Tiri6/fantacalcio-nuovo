@@ -65,7 +65,7 @@ try:
 
     opzioni = lega.opzioni
     coppa_attiva = opzioni.coppa_italia
-    supercoppa_attiva = opzioni.supercoppa
+    f1_rush_attiva = opzioni.f1_rush
 except AttributeError as disallineamento:
     _spiega_e_fermati(disallineamento)
     raise  # non si arriva qui: `_spiega_e_fermati` chiama st.stop()
@@ -83,12 +83,12 @@ sezione_lega = [
     st.Page("viste/campionato.py", title="Campionato", icon="🏆"),
 ]
 
-# Coppa e Supercoppa compaiono solo se la lega le gioca: una voce di menu che
+# Coppa e F1 Rush compaiono solo se la lega le gioca: una voce di menu che
 # parla di una competizione inesistente e' peggio di una voce mancante.
 if coppa_attiva:
     sezione_lega.append(st.Page("viste/coppa.py", title="Coppa Italia", icon="🥇"))
-if supercoppa_attiva:
-    sezione_lega.append(st.Page("viste/supercoppa.py", title="Supercoppa", icon="🏅"))
+if f1_rush_attiva:
+    sezione_lega.append(st.Page("viste/f1_rush.py", title="F1 Rush", icon="🏁"))
 
 sezione_lega += [
     st.Page("viste/calendario.py", title="Calendario", icon="📅"),
