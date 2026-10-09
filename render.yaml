@@ -1,0 +1,41 @@
+# Il sito nuovo (React + API) pubblicato come **un servizio solo**.
+#
+# Render legge questo file e prepara il servizio da se'. Si puo' anche fare
+# tutto a mano dalla sua interfaccia: le istruzioni stanno in README.md, e
+# dicono le stesse cose che ci sono qui.
+#
+# Nessun segreto in questo file, e non ce ne deve finire mai: `sync: false`
+# vuol dire «questo valore lo chiedo a chi pubblica, non sta nel repository».
+
+services:
+  - type: web
+    name: fantacalcio-nuovo
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+
+    # Render chiede a questo indirizzo se il servizio e' vivo. Va bene una
+    # rotta che risponde senza credenziali e senza toccare il database.
+    healthCheckPath: /api/salute
+
+    envVars:
+      # Firma le sessioni. Almeno 32 caratteri: sotto, l'app non parte di
+      # proposito. Se ne genera uno con:
+      #   python -c "import secrets; print(secrets.token_urlsafe(48))"
+      - key: FANTA_SEGRETO_JWT
+        sync: false
+
+      # Senza questi due l'app parte lo stesso, ma sul database di DEMO:
+      # utenti finti e tutto cancellato a ogni riavvio. Sono gli stessi
+      # valori che stanno nei Secrets di Streamlit.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+
+      - key: NOME_LEGA
+        value: FantaCalcio NuoVo
+
+    # `FANTA_AMBIENTE` non si imposta: vale solo in sviluppo, dove toglie
+    # `Secure` dal cookie e apre il CORS verso Vite. In produzione quei due
+    # sconti non si fanno.

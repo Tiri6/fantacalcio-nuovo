@@ -1,0 +1,40 @@
+# Quello che non deve finire nell'immagine.
+#
+# Non e' solo questione di peso: tutto quello che si copia dentro un
+# contenitore e' leggibile da chi ci entra, quindi i segreti qui non entrano
+# **mai** — nemmeno per sbaglio, nemmeno in una fase intermedia.
+
+# Segreti, prima di tutto il resto.
+.streamlit/secrets.toml
+.env
+*.pem
+*.key
+
+# Il database di demo: in produzione si legge da Supabase. Portarselo dentro
+# vorrebbe dire rischiare che l'app ci cada sopra senza che nessuno se ne
+# accorga, mostrando squadre finte alla lega vera.
+data/
+
+# Si ricostruisce nella prima fase: copiarlo da qui vorrebbe dire pubblicare
+# la build del portatile di chi ha lanciato il comando.
+web/node_modules/
+web/dist/
+
+# Roba di sviluppo che sul server non serve.
+.venv/
+.git/
+.github/
+.claude/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+tests/
+viste/
+scripts/
+dati/
+db/
+app.py
+requirements.txt
+requirements-dev.txt
+*.md

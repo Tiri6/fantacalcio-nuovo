@@ -420,6 +420,57 @@ SUPABASE_KEY = "..."
 Esce un indirizzo tipo `https://fantacalcio-nuovo.streamlit.app`: **quello e'
 il link da dare ai partecipanti.** Ogni push su `main` ridispiega da solo.
 
+### Il sito nuovo in React
+
+Il passaggio a React si fa a pezzi, e **Streamlit resta in piedi finche' il
+nuovo non e' in pari**: i due convivono, su due indirizzi diversi, sullo
+stesso database Supabase. Finche' `app.py` c'e', la lega continua a usare
+quello e non si accorge di niente.
+
+Il sito nuovo e' **un servizio solo**: la stessa app serve le pagine React e
+l'API che le alimenta. Un indirizzo, una cosa da configurare, un posto dove
+guardare quando non va.
+
+**1. Il segreto delle sessioni.** Generane uno e tienilo da parte:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Sotto i 32 caratteri l'app **non parte di proposito**: un segreto corto si
+indovina, e chi lo indovina si fabbrica un token da presidente.
+
+**2. Il servizio.** Su [render.com](https://render.com), *New → Web Service*,
+collega il repository e scegli **Docker** come runtime (il `Dockerfile` in
+cima al repository fa tutto: costruisce le pagine e poi le serve). Piano
+**Free**. Poi, in *Environment*, tre variabili:
+
+| Variabile | Valore |
+|---|---|
+| `FANTA_SEGRETO_JWT` | quello generato al punto 1 |
+| `SUPABASE_URL` | lo stesso dei Secrets di Streamlit |
+| `SUPABASE_KEY` | lo stesso dei Secrets di Streamlit |
+
+`FANTA_AMBIENTE` **non si imposta**: serve solo in sviluppo, dove toglie
+`Secure` dal cookie e apre il CORS verso Vite.
+
+C'e' anche un `render.yaml` pronto: da *New → Blueprint* Render lo legge e
+prepara il servizio da se', chiedendoti solo i tre valori qui sopra — che
+restano fuori dal repository, come devono.
+
+**3. Il primo avvio.** Esce un indirizzo tipo
+`https://fantacalcio-nuovo.onrender.com`. Se `/api/salute` risponde
+`{"stato":"ok","backend":"supabase"}` sta leggendo i dati veri; se dice
+`demo (SQLite)` mancano le due variabili di Supabase, e nei log c'e' scritto
+a chiare lettere.
+
+> **Sul piano gratuito il servizio si addormenta** quando nessuno lo usa per
+> un po'. Il primo che entra dopo aspetta una cinquantina di secondi, poi
+> torna veloce per tutti. Per dieci persone e' un prezzo onesto; il giorno
+> che desse fastidio si passa a un piano a pagamento senza toccare il codice.
+
+Ogni push sul branch collegato ridispiega da solo, come fa Streamlit.
+
 Due cose da sapere sul piano gratuito: l'app **va in letargo** quando non la usa
 nessuno, e il primo che apre il link aspetta qualche decina di secondi; e
 l'indirizzo e' pubblico, quindi la pagina di accesso e' raggiungibile da

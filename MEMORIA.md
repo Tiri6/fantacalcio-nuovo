@@ -145,6 +145,59 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 Cose decise ma non ancora eseguibili: manca un dato o un permesso. Quando
 l'innesco scatta, si riprende da qui senza ricostruire il contesto.
 
+### Pubblicare il sito nuovo su Render
+
+**Innesco:** Marco davanti al PC di casa. Richiede un suo account: da qui non
+si puo' fare.
+
+Tutto il necessario e' gia' nel repository (PR #7): `Dockerfile`,
+`render.yaml`, e il racconto per esteso in README.md → *Pubblicare il sito* →
+*Il sito nuovo in React*. L'immagine e' gia' stata costruita e provata, sito
+servito e browser dentro: quello che resta sono passaggi di configurazione,
+non di codice.
+
+**1.** Generare il segreto delle sessioni e tenerlo da parte:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Sotto i 32 caratteri l'app non parte di proposito.
+
+**2.** Su [render.com](https://render.com): *New → Blueprint* se si vuole far
+leggere `render.yaml`, oppure *New → Web Service* a mano scegliendo **Docker**
+come runtime e piano **Free**. In entrambi i casi serve collegare il
+repository (e' privato: va autorizzato l'accesso a GitHub).
+
+**3.** Tre variabili d'ambiente:
+
+| Variabile | Valore |
+|---|---|
+| `FANTA_SEGRETO_JWT` | quello del punto 1 |
+| `SUPABASE_URL` | identico a quello nei Secrets di Streamlit |
+| `SUPABASE_KEY` | identico a quello nei Secrets di Streamlit |
+
+`FANTA_AMBIENTE` **non si imposta**: vale solo in sviluppo.
+
+**4.** A deploy finito, aprire `/api/salute`. Se risponde
+`{"stato":"ok","backend":"supabase"}` sta leggendo i dati veri. Se dice
+`demo (SQLite)` mancano le due variabili di Supabase — e lo dice anche nei
+log, a chiare lettere.
+
+Da sapere: sul piano gratuito il servizio **si addormenta** quando nessuno lo
+usa, e il primo che entra dopo aspetta ~50 secondi. Streamlit resta in piedi
+sullo stesso database: i due convivono, e il link da dare alla lega si cambia
+solo quando il nuovo e' in pari.
+
+### Far scorrere la pila di PR aperte
+
+**Innesco:** Marco davanti al PC di casa, prima di pubblicare.
+
+Sette PR impilate, ognuna basata sulla precedente. Vanno unite **in ordine**,
+dalla prima: #1 e #2 (documentazione), #3 (svincoli), poi la catena React
+#4 → #5 → #6 → #7. Piu' restano aperte piu' il rebase costa, perche' ogni
+merge fuori ordine obbliga a rifare la base di tutte quelle a valle.
+
 ### Eseguire `db/aggiornamento_giornata.sql` su Supabase
 
 **Innesco:** subito. E' l'unica cosa in sospeso che oggi **rompe una pagina**.
