@@ -139,10 +139,17 @@ class Squadra:
 
 @dataclass(frozen=True)
 class VoceDeadMoney:
-    """Debito salariale generato da uno svincolo (Lodo Origi).
+    """Quel che uno svincolo lascia a carico della squadra (art. 7).
 
-    Si addebita in un'unica soluzione alla prima sessione di mercato utile e
-    poi si estingue: non si trascina nelle stagioni successive.
+    Sono **due cose distinte**, e il V3 le tiene separate anche nel suo
+    esempio: la buonuscita del Lodo Origi (`importo`) e l'ingaggio del
+    giocatore andato via, che «continua a pesare sul Salary Cap fino al
+    termine della stagione in corso» (`ingaggio_a_carico`).
+
+    Tenerle in un numero solo sarebbe piu' comodo e direbbe una bugia: il
+    Dead Money mostrato in tabella diventerebbe piu' grande di quello che la
+    regola chiama Dead Money. Dalla stagione successiva non resta niente di
+    nessuna delle due.
     """
 
     giocatore_id: int
@@ -150,6 +157,12 @@ class VoceDeadMoney:
     importo: float
     stagione: str
     addebitato: bool = False
+    ingaggio_a_carico: float = 0.0
+
+    @property
+    def totale(self) -> float:
+        """Quanto pesa in tutto sul Salary Cap della stagione in corso."""
+        return self.importo + self.ingaggio_a_carico
 
 
 @dataclass
@@ -166,6 +179,10 @@ class Rosa:
     # cui si decide se l'emergenza spetta, quindi va conservata: senza, al
     # giro successivo sembrerebbero tornati tutti disponibili.
     portieri_indisponibili: tuple[int, ...] = ()
+    # Articolo 2: i posti rosa guadagnati dagli Under 21, **congelati** al
+    # ricalcolo annuale. None = non ancora ricalcolato, e allora si contano i
+    # giocatori in rosa, che e' quel che serve prima della prima asta.
+    slot_u21_congelato: int | None = None
 
     def __post_init__(self) -> None:
         self._indice: dict[int, Giocatore] = {}
@@ -212,18 +229,45 @@ class Rosa:
 
     @property
     def dead_money_totale(self) -> float:
-        """Dead Money ancora da addebitare."""
+        """Le buonuscite ancora da addebitare (art. 7, Lodo Origi)."""
         return sum(v.importo for v in self.dead_money if not v.addebitato)
 
     @property
+    def ingaggi_degli_svincolati(self) -> float:
+        """Gli ingaggi di chi e' stato svincolato in riparazione.
+
+        L'articolo 7 li lascia a carico «fino al termine della stagione in
+        corso»: tagliare un giocatore a stagione iniziata **non** restituisce
+        il suo ingaggio al Salary Cap, restituisce solo i suoi anni.
+        """
+        return sum(v.ingaggio_a_carico for v in self.dead_money if not v.addebitato)
+
+    @property
     def spesa_salariale(self) -> float:
-        """Quello che pesa sul Salary Cap: ingaggi in rosa + Dead Money."""
-        return self.monte_ingaggi + self.dead_money_totale
+        """Sul Salary Cap: ingaggi in rosa piu' cio' che lascia uno svincolo."""
+        return self.monte_ingaggi + self.dead_money_totale + self.ingaggi_degli_svincolati
+
+    def u21_in_rosa(self, data_draft: date, parametri: ParametriLega) -> int:
+        """Quanti Under 21 italiani ci sono **adesso** in rosa."""
+        return sum(1 for g in self.giocatori if g.under_21(data_draft, parametri))
 
     def slot_u21(self, data_draft: date, parametri: ParametriLega) -> int:
-        """Posti rosa aggiuntivi guadagnati dagli Under 21 italiani tesserati."""
-        u21 = sum(1 for g in self.giocatori if g.under_21(data_draft, parametri))
-        return min(u21, parametri.slot_u21_massimi)
+        """Posti rosa aggiuntivi guadagnati dagli Under 21 italiani (art. 2).
+
+        Il numero si «ricalcola una sola volta l'anno, prima dell'asta di
+        Settembre, e resta invariato per l'intera stagione: svincoli o
+        cessioni di Under 21 in corso d'anno non modificano il limite fino al
+        ricalcolo successivo».
+
+        Quindi se il valore e' stato congelato vale quello, anche quando in
+        rosa gli Under non ci sono piu': togliere un Under a dicembre non
+        restringe la rosa a gennaio, che e' esattamente cio' che il V3 vuole
+        evitare. Senza congelamento — prima della prima asta — si contano
+        quelli presenti.
+        """
+        if self.slot_u21_congelato is not None:
+            return max(0, min(self.slot_u21_congelato, parametri.slot_u21_massimi))
+        return min(self.u21_in_rosa(data_draft, parametri), parametri.slot_u21_massimi)
 
     def contratto_di(self, giocatore_id: int) -> Contratto | None:
         return next((c for c in self.contratti if c.giocatore_id == giocatore_id), None)
@@ -264,6 +308,7 @@ class Rosa:
             dead_money=list(self.dead_money),
             portiere_emergenza_id=self.portiere_emergenza_id,
             portieri_indisponibili=self.portieri_indisponibili,
+            slot_u21_congelato=self.slot_u21_congelato,
         ).collega(indice)
 
     def senza_giocatore(self, giocatore_id: int) -> Rosa:
@@ -274,4 +319,5 @@ class Rosa:
             dead_money=list(self.dead_money),
             portiere_emergenza_id=self.portiere_emergenza_id,
             portieri_indisponibili=self.portieri_indisponibili,
+            slot_u21_congelato=self.slot_u21_congelato,
         ).collega(self._indice)

@@ -14,6 +14,7 @@ from fantacalcio.competizioni import (
     conta_per_competizione,
     titoli_di,
 )
+from fantacalcio.conformita import Momento
 from fantacalcio.data import archivio, registra_svincolo
 
 ui.barra_laterale()
@@ -324,28 +325,50 @@ else:
                 residuo_contratto = contratto.valore_residuo(chi.ingaggio)
                 dovuto = mercato.calcola_dead_money(contratto, chi.ingaggio, parametri)
 
-                ARTICOLO = "articolo"
+                # Tre casi, e non due: il V3 distingue **quando** si svincola.
+                # Prima dell'asta di Settembre non c'e' nessun effetto sul
+                # Salary Cap; in riparazione c'e' la buonuscita e l'ingaggio
+                # resta a carico fino a fine stagione.
+                RIPARAZIONE = "riparazione"
+                PRE_ASTA = "pre-asta"
+                a_carico = dovuto + chi.ingaggio
                 motivo = st.radio(
-                    "Perche' lo togli",
-                    options=(ARTICOLO, "correzione"),
-                    format_func=lambda m: (
-                        f"Svincolo (art. 7) — addebita {dovuto / 1_000_000:.2f}M "
-                        "di Dead Money"
-                        if m == ARTICOLO
-                        else "Correzione di un'assegnazione sbagliata — nessun addebito"
-                    ),
+                    "Quando lo togli",
+                    options=(RIPARAZIONE, PRE_ASTA, "correzione"),
+                    format_func=lambda m: {
+                        RIPARAZIONE: (
+                            f"Svincolo in riparazione (art. 7) — "
+                            f"{a_carico / 1_000_000:.2f}M a carico quest'anno"
+                        ),
+                        PRE_ASTA: (
+                            "Svincolo prima dell'asta di Settembre — "
+                            "nessun effetto sul Salary Cap"
+                        ),
+                        "correzione": (
+                            "Correzione di un'assegnazione sbagliata — nessun addebito"
+                        ),
+                    }[m],
                     key="svincolo_motivo",
                 )
 
-                if motivo == ARTICOLO:
+                if motivo == RIPARAZIONE:
                     st.caption(
                         f"{chi.ingaggio / 1_000_000:.2f}M × "
-                        f"{contratto.anni_residui} = "
-                        f"{residuo_contratto / 1_000_000:.2f}M di valore residuo, "
-                        f"al {parametri.quota_dead_money:.0%} fanno "
-                        f"{dovuto / 1_000_000:.2f}M (Lodo Origi). Si addebitano "
-                        "alla prima sessione di mercato utile e non concorrono "
-                        "al Salary Floor."
+                        f"{contratto.anni_oltre_quello_in_corso} anni oltre "
+                        f"quello in corso = "
+                        f"{residuo_contratto / 1_000_000:.2f}M, al "
+                        f"{parametri.quota_dead_money:.0%} fanno "
+                        f"{dovuto / 1_000_000:.2f}M di buonuscita (Lodo Origi). "
+                        f"In piu' l'ingaggio di {chi.ingaggio / 1_000_000:.2f}M "
+                        f"continua a pesare fino a fine stagione: in tutto "
+                        f"{a_carico / 1_000_000:.2f}M quest'anno, zero dalla "
+                        f"prossima."
+                    )
+                elif motivo == PRE_ASTA:
+                    st.caption(
+                        "«Gli svincoli effettuati prima dell'asta di Settembre "
+                        "non hanno alcun effetto sul Salary Cap» (art. 7). Gli "
+                        "anni di contratto si liberano lo stesso."
                     )
                 else:
                     st.caption(
@@ -370,9 +393,17 @@ else:
                     voce = None
                     try:
                         mercato.verifica_svincolo(utente, rosa, contratto.giocatore_id)
-                        if motivo == ARTICOLO:
+                        if motivo != "correzione":
                             _, voce = mercato.svincola(
-                                rosa, contratto.giocatore_id, lega.stagione, parametri
+                                rosa,
+                                contratto.giocatore_id,
+                                lega.stagione,
+                                parametri,
+                                momento=(
+                                    Momento.RIPARAZIONE
+                                    if motivo == RIPARAZIONE
+                                    else Momento.ASTA_SETTEMBRE
+                                ),
                             )
                         registra_svincolo(
                             archivio(), squadra.id, contratto.giocatore_id, voce
@@ -389,8 +420,8 @@ else:
                             "warning",
                             f"{chi.nome} svincolato da {squadra.nome}"
                             + (
-                                f": {dovuto / 1_000_000:.2f}M di Dead Money "
-                                f"addebitati ({lega.stagione})."
+                                f": {voce.totale / 1_000_000:.2f}M a carico "
+                                f"quest'anno ({lega.stagione})."
                                 if voce is not None
                                 else ", senza addebito."
                             ),

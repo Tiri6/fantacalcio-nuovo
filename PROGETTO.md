@@ -150,9 +150,14 @@ attacco.
 Sempre attivo. Classifica, calendario e andamento.
 
 ### Coppa Italia
-Formato, squadre ammesse (**una potenza di due**, altrimenti il tabellone non
-si chiude), teste di serie dalla classifica, ogni quante giornate si gioca un
-turno, spareggio ai fantapunti in caso di parita'.
+Dal V3: **due gironi con andata e ritorno, a fine campionato, poi scontri
+diretti**. Entrano tutte e dieci; a dover essere una potenza di due sono le
+**qualificate** (2 per girone = 4, cioe' semifinali e finale), altrimenti il
+tabellone non si chiude. Resta scegliibile il formato di prima — eliminazione
+diretta intervallata al campionato — per una lega che lo preferisca.
+
+La classifica dei gironi il sito non la calcola ancora: i risultati di coppa
+si importano come quelli di campionato. Vedi PUNTI_APERTI.md.
 
 ### F1 Rush Finale
 Ha sostituito la Supercoppa nel V3, e non e' un cambio di nome: la Supercoppa

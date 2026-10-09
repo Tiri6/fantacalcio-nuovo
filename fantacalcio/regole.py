@@ -91,7 +91,17 @@ class ParametriLega:
     # Articolo 7 - Svincoli (Lodo Origi)
     quota_dead_money: float = 0.50
 
-    # Articolo 8 - Scambi (Lodo Longoni emendato, Lodo Corti)
+    # Articolo 8 - Scambi
+    #
+    # Il V3 ha chiuso la questione: «il contratto si trasferisce con ingaggio e
+    # anni residui invariati: non sono ammessi prolungamenti ne' riduzioni di
+    # durata, ne' in sede di scambio ne' con altra operazione». I prolungamenti
+    # non esistono piu', e con loro decadono i Lodi Bono, Corti e Longoni.
+    #
+    # Il meccanismo resta scritto e provato, spento da un parametro: se un
+    # lodo li reintroducesse, si riaccende senza riscrivere niente. I tre
+    # limiti qui sotto servono solo in quel caso.
+    prolungamenti_ammessi: bool = False
     prolungamenti_per_squadra_a_stagione: int = 2
     prolungamenti_per_giocatore_in_lega: int = 1
     ore_ratifica_scambio: int = 24

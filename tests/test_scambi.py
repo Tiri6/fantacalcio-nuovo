@@ -74,12 +74,13 @@ class TestProposta:
         assert creato.stato is StatoScambio.PROPOSTO
 
     def test_le_violazioni_arrivano_ma_non_bloccano_la_bozza(self, rose):
-        # Lodo Bono: la durata non puo' scendere.
+        """Art. 8: la durata non si tocca. La proposta nasce lo stesso, con
+        la violazione addosso — chi la legge deve vedere perche' non va."""
         proposta = PropostaScambio(da_squadra_a=(1029,), prolungamenti={1029: 1})
         creato, violazioni = proponi(1, *rose, proposta, ALLENATORE_A, STAGIONE)
 
         assert creato is not None
-        assert "lodo_bono" in {v.codice for v in violazioni}
+        assert "durata_invariata" in {v.codice for v in violazioni}
 
     def test_giocatore_non_in_rosa(self, rose):
         proposta = PropostaScambio(da_squadra_a=(999_999,))

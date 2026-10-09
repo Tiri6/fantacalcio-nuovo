@@ -676,7 +676,8 @@ create table if not exists squadre (
     anno_fondazione integer,
     lega_id integer,
     portiere_emergenza_id integer,
-    portieri_indisponibili text not null default ''
+    portieri_indisponibili text not null default '',
+    slot_u21_congelato integer
 );
 create table if not exists giocatori (
     id integer primary key,
@@ -734,7 +735,8 @@ create table if not exists dead_money (
     nome_giocatore text not null,
     importo real not null,
     stagione text not null,
-    addebitato integer not null default 0
+    addebitato integer not null default 0,
+    ingaggio_a_carico real not null default 0
 );
 create table if not exists utenti (
     id integer primary key,
@@ -839,9 +841,17 @@ def _schema_aggiornato(percorso: Path) -> bool:
             "inizio_previsto",
             "turno",
         },
-        "squadre": {"citta", "curva", "lega_id"},
+        "squadre": {
+            "citta",
+            "curva",
+            "lega_id",
+            "portiere_emergenza_id",
+            "portieri_indisponibili",
+            "slot_u21_congelato",
+        },
         "giocatori": {"ruolo_classic"},
-        "formazioni": {"squadra_id", "modulo", "titolari"},
+        "dead_money": {"importo", "ingaggio_a_carico"},
+        "formazioni": {"squadra_id", "modulo", "titolari", "portiere_emergenza"},
         "voti": {"giocatore_id", "voto"},
         "utenti": {
             "creato_il",

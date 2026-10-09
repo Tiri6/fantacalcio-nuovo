@@ -50,13 +50,21 @@ giornata) ma non per quanto resti aperta.
 dell'ultima finestra. Serve stabilire una durata esplicita: un numero di
 giorni, oppure "fino allo svolgimento del draft di riparazione".
 
-## 4. Lodo Longoni: chi conta i due prolungamenti?
+## 4. Lodo Longoni — ✅ SUPERATO dal V3
 
 *"non consentita per piu' di 2 giocatori per squadra per stagione sportiva"*.
+La domanda era: i due prolungamenti si contano su chi riceve o su chi cede?
 
-**Oggi il codice** li conta sulla **squadra che riceve** il giocatore, perche'
-e' lei a beneficiare del contratto piu' lungo. Se invece il limite va contato
-su chi cede, o sullo scambio nel suo complesso, e' una riga da cambiare.
+**Non si pone piu'.** L'articolo 8 del V3 dice che «il contratto si trasferisce
+con ingaggio e anni residui invariati: non sono ammessi prolungamenti ne'
+riduzioni di durata, ne' in sede di scambio ne' con altra operazione». Con i
+prolungamenti decadono i tre lodi che li regolavano — **Longoni**, **Corti**
+(uno per giocatore) e **Bono** (non si accorcia).
+
+Il meccanismo resta scritto e provato, spento da `prolungamenti_ammessi` in
+`ParametriLega`: se un lodo riaprisse la strada si riaccende da li', e questa
+domanda torna in piedi tale e quale. Finche' resta spento, uno scambio che
+cambia la durata produce una violazione bloccante `durata_invariata`.
 
 ## 5. Quante giornate ha il campionato?
 
@@ -148,7 +156,15 @@ selezionare» — ma e' un'autocertificazione, e nessuno la verifica.
 - **Sponsorship** (art. 10): regole da definire, con l'eccezione
   dell'espansione Under 21 di italiannextgen.it, che e' gia' implementata.
 - **Coppa e playoff**: proposta in appendice, da votare.
-- **Prestiti**: l'istituto non e' previsto, quindi il codice non li contempla.
+- **Prestiti**: «istituto non previsto in questa lega» (art. 8b): il codice non
+  li contempla, ed e' corretto cosi'.
+- **Principio di tassativita'** (art. 1): «e' consentito solo cio' che il
+  regolamento prevede espressamente». E' la ragione per cui il **Salary
+  Floor** e' spento (`salary_floor_attivo = False`): il V3 parla solo del
+  tetto massimo. Il vincolo resta scritto e provato, e un lodo lo riaccende.
+- **Montepremi**: 350 € per il campionato piu' la maglia del vincente, i
+  calzoncini per la coppa, i calzettoni per la F1 Rush. Il sito non gestisce
+  denaro e non c'e' ragione perche' cominci.
 
 ## 11. Registro dei lodi
 
@@ -226,6 +242,15 @@ programmata.
 cosi' l'articolo 2 dice quel che il sito fa. Finche' non succede, questa e' la
 differenza nota fra testo e codice. Cambiarla e' una riga:
 `GIORNO_RIFERIMENTO_U21` in `fantacalcio/competizioni.py`.
+
+**Il ricalcolo annuale invece e' implementato.** Il V3 ha aggiunto che il
+numero di Under 21 — e quindi il limite massimo di rosa — «viene ricalcolato
+una sola volta l'anno, prima dell'asta di Settembre, e resta invariato per
+l'intera stagione: svincoli o cessioni di Under 21 in corso d'anno non
+modificano il limite fino al ricalcolo successivo». Il valore si congela da
+**Impostazioni lega**, con un bottone che lo fissa per tutte le squadre
+insieme; finche' nessuno l'ha premuto si contano gli Under presenti, che e'
+la situazione prima della prima asta.
 
 ## 15. Appendice V2.1 — calendario 2026/27 (da votare)
 
@@ -368,3 +393,29 @@ quella che serve per sapere quali sono «le ultime sei». Quando l'import non
 l'ha compilata, la pagina usa le ultime sei **giornate di lega** disputate e
 **lo dice in chiaro**, invece di mostrare una classifica che sembra giusta e
 non lo e'.
+
+## 19. Coppa a gironi: il formato c'e', la classifica dei gironi no
+
+Il V3 ha cambiato anche la coppa: «due gironi con gare di andata e ritorno,
+disputati a fine campionato, seguiti da scontri diretti ad eliminazione».
+Prima era un'eliminazione diretta a gara secca intervallata al campionato,
+come su Leghe Fantacalcio.
+
+**Oggi il codice** conosce il formato nuovo e lo applica dove conta:
+`RegoleCoppa` ha `gironi`, `qualificate_per_girone` e `dopo_il_campionato`, il
+default e' due gironi da cinque con quattro qualificate (semifinali e finale),
+e il **calendario dei weekend** accoda la coppa al campionato invece di
+intervallarla. Le squadre ammesse non devono piu' essere una potenza di due —
+entrano tutte e dieci; a doverlo essere sono le qualificate.
+
+**Quello che manca** e' la classifica dei gironi: il sito non compone i
+gruppi, non somma i punti e non dice chi passa. I risultati di coppa si
+importano come quelli di campionato (punto 10), e la pagina lo scrive invece
+di mostrare un tabellone che non corrisponde a niente.
+
+**Da decidere**, e qui il problema e' di calendario, lo stesso del punto 18:
+con 18 giornate di campionato dalla 5ª di Serie A, piu' 10 giornate di girone
+e 2 di scontri diretti, la coppa finisce alla 34ª — e la F1 Rush occupa dalla
+33ª alla 38ª. **Le due competizioni si sovrappongono per due weekend.** La
+pagina Calendario lo mostra invece di nasconderlo, ma va sciolto: o la coppa
+parte prima, o la F1 Rush e' piu' corta, o il campionato si accorcia.

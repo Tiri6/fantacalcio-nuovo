@@ -44,41 +44,127 @@ class TestDataU21:
         assert data_riferimento_u21("2026/27").day == 31
 
 
+def coppa_secca(**extra) -> RegoleCoppa:
+    """La coppa com'era prima del V3: eliminazione diretta, intervallata al
+    campionato. Resta un formato scegliibile, quindi resta provato."""
+    return RegoleCoppa(
+        formato=FormatoCoppa.ELIMINAZIONE_SECCA,
+        dopo_il_campionato=False,
+        **extra,
+    )
+
+
 class TestRegoleCoppa:
     def test_turni_da_otto_squadre(self):
-        assert RegoleCoppa(squadre_ammesse=8).turni == 3
+        assert coppa_secca(squadre_ammesse=8).turni == 3
 
     @pytest.mark.parametrize("quante,turni", [(2, 1), (4, 2), (8, 3), (16, 4)])
     def test_turni_per_dimensione(self, quante, turni):
-        assert RegoleCoppa(squadre_ammesse=quante).turni == turni
+        assert coppa_secca(squadre_ammesse=quante).turni == turni
 
     @pytest.mark.parametrize("quante", [3, 5, 6, 7, 10, 12])
     def test_solo_potenze_di_due(self, quante):
         """Con un numero diverso il tabellone non si chiude."""
         with pytest.raises(CompetizioneNonValida, match="potenza di due"):
-            RegoleCoppa(squadre_ammesse=quante)
+            coppa_secca(squadre_ammesse=quante)
 
     def test_almeno_due_squadre(self):
         with pytest.raises(CompetizioneNonValida, match="due squadre"):
-            RegoleCoppa(squadre_ammesse=1)
+            coppa_secca(squadre_ammesse=1)
 
     def test_nomi_dei_turni(self):
-        regole = RegoleCoppa(squadre_ammesse=8)
+        regole = coppa_secca(squadre_ammesse=8)
         assert regole.nome_turno(1) == "Quarti di finale"
         assert regole.nome_turno(2) == "Semifinali"
         assert regole.nome_turno(3) == "Finale"
 
     def test_a_sedici_si_parte_dagli_ottavi(self):
-        assert RegoleCoppa(squadre_ammesse=16).nome_turno(1) == "Ottavi di finale"
+        assert coppa_secca(squadre_ammesse=16).nome_turno(1) == "Ottavi di finale"
 
     def test_giornate_dei_turni(self):
-        regole = RegoleCoppa(squadre_ammesse=8, prima_giornata=5, ogni_quante_giornate=4)
+        regole = coppa_secca(squadre_ammesse=8, prima_giornata=5, ogni_quante_giornate=4)
         assert regole.giornate_dei_turni() == (5, 9, 13)
 
     @pytest.mark.parametrize("campo", ["prima_giornata", "ogni_quante_giornate"])
     def test_valori_non_positivi(self, campo):
         with pytest.raises(CompetizioneNonValida):
-            RegoleCoppa(**{campo: 0})
+            coppa_secca(**{campo: 0})
+
+
+class TestCoppaAGironi:
+    """Il formato del V3: due gironi andata e ritorno, poi scontri diretti."""
+
+    def test_e_il_formato_predefinito(self):
+        assert RegoleCoppa().formato is FormatoCoppa.GIRONI_PIU_SCONTRI
+        assert RegoleCoppa().dopo_il_campionato
+
+    def test_due_gironi_da_cinque_per_una_lega_da_dieci(self):
+        regole = RegoleCoppa()
+        assert regole.squadre_ammesse == 10
+        assert regole.gironi == 2
+        assert regole.squadre_per_girone == 5
+
+    def test_quattro_qualificate_fanno_semifinali_e_finale(self):
+        regole = RegoleCoppa()
+        assert regole.squadre_a_eliminazione == 4
+        assert regole.turni == 2
+        assert regole.nome_turno(1) == "Semifinali"
+        assert regole.nome_turno(2) == "Finale"
+
+    def test_coi_gironi_le_ammesse_non_sono_una_potenza_di_due(self):
+        """Entrano tutte e dieci: a doverlo essere sono le qualificate."""
+        assert RegoleCoppa(squadre_ammesse=10).squadre_a_eliminazione == 4
+
+    def test_qualificate_che_non_chiudono_il_tabellone(self):
+        with pytest.raises(CompetizioneNonValida, match="potenza di due"):
+            RegoleCoppa(squadre_ammesse=12, gironi=3, qualificate_per_girone=1)
+
+    def test_gironi_disuguali_si_rifiutano(self):
+        with pytest.raises(CompetizioneNonValida, match="gironi uguali"):
+            RegoleCoppa(squadre_ammesse=10, gironi=3)
+
+    def test_non_si_qualificano_piu_squadre_di_quante_ce_ne_siano(self):
+        with pytest.raises(CompetizioneNonValida, match="Non possono qualificarsi"):
+            RegoleCoppa(squadre_ammesse=4, gironi=2, qualificate_per_girone=4)
+
+    def test_le_giornate_di_girone_sono_andata_e_ritorno(self):
+        """Cinque squadre per girone: cinque turni con un riposo, per due."""
+        assert RegoleCoppa().giornate_di_girone == 10
+        # Con un numero pari non c'e' riposo: quattro squadre, sei giornate.
+        assert RegoleCoppa(squadre_ammesse=8, gironi=2).giornate_di_girone == 6
+
+    def test_senza_gironi_non_ci_sono_giornate_di_girone(self):
+        assert coppa_secca(squadre_ammesse=8).giornate_di_girone == 0
+
+
+class TestLaCoppaInCalendario:
+    def test_a_gironi_si_accoda_al_campionato(self):
+        """«Disputati a fine campionato» (art. 1): non si intervalla piu'."""
+        turni = costruisci_weekend(38, 18, RegoleCoppa(), prima_giornata_serie_a=1)
+
+        def con(tipo):
+            return [t for t in turni if any(i[0] is tipo for i in t.impegni)]
+
+        campionato = con(TipoCompetizione.CAMPIONATO)
+        coppa = con(TipoCompetizione.COPPA_ITALIA)
+        assert len(campionato) == 18
+        assert campionato[-1].giornata_serie_a < coppa[0].giornata_serie_a
+
+    def test_prima_i_gironi_poi_gli_scontri(self):
+        turni = costruisci_weekend(38, 18, RegoleCoppa(), prima_giornata_serie_a=1)
+        impegni = [
+            i[1]
+            for t in turni
+            for i in t.impegni
+            if i[0] is TipoCompetizione.COPPA_ITALIA
+        ]
+        assert impegni[:2] == ["1ª giornata dei gironi", "2ª giornata dei gironi"]
+        assert impegni[-2:] == ["Semifinali", "Finale"]
+
+    def test_a_eliminazione_diretta_continua_a_slittare(self):
+        regole = coppa_secca(squadre_ammesse=8, prima_giornata=5, ogni_quante_giornate=4)
+        turni = costruisci_weekend(12, 27, regole, prima_giornata_serie_a=1)
+        assert turni[4].impegni[0][0] is TipoCompetizione.COPPA_ITALIA
 
 
 class TestWeekend:
@@ -94,7 +180,7 @@ class TestWeekend:
 
     def test_il_turno_di_coppa_fa_slittare_il_campionato(self):
         """La giornata di campionato non sparisce: si sposta di un weekend."""
-        regole = RegoleCoppa(squadre_ammesse=8, prima_giornata=5, ogni_quante_giornate=4)
+        regole = coppa_secca(squadre_ammesse=8, prima_giornata=5, ogni_quante_giornate=4)
         turni = costruisci_weekend(12, 27, regole, prima_giornata_serie_a=1)
         assert "4ª giornata" in turni[3].descrizione
         assert turni[4].impegni[0][0] is TipoCompetizione.COPPA_ITALIA
@@ -102,7 +188,7 @@ class TestWeekend:
         assert "5ª giornata" in turni[5].descrizione
 
     def test_nessuna_giornata_di_campionato_va_persa(self):
-        regole = RegoleCoppa(squadre_ammesse=8, prima_giornata=3, ogni_quante_giornate=3)
+        regole = coppa_secca(squadre_ammesse=8, prima_giornata=3, ogni_quante_giornate=3)
         turni = costruisci_weekend(20, 10, regole, prima_giornata_serie_a=1)
         giocate = [
             e[1] for t in turni for e in t.impegni if e[0] is TipoCompetizione.CAMPIONATO

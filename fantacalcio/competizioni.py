@@ -104,13 +104,25 @@ class CompetizioneNonValida(ValueError):
 class RegoleCoppa:
     """Come si gioca la Coppa Italia.
 
-    I default seguono la coppa di Leghe Fantacalcio: eliminazione diretta a
-    gara secca, teste di serie dalla classifica, e in caso di parita' passa
-    chi ha fatto piu' fantapunti.
+    I default sono quelli del V3: **due gironi all'italiana con andata e
+    ritorno, disputati a fine campionato, seguiti da scontri diretti**. Prima
+    la coppa seguiva il formato di Leghe Fantacalcio — eliminazione diretta a
+    gara secca intervallata al campionato — e quel formato resta disponibile,
+    perche' una lega diversa puo' sceglierlo.
+
+    Con i gironi, `squadre_ammesse` sono quelle che entrano in coppa (dieci,
+    cioe' tutte) e non devono essere una potenza di due: a doverlo essere sono
+    le **qualificate**, cioe' quelle che arrivano agli scontri diretti.
     """
 
-    formato: FormatoCoppa = FormatoCoppa.ELIMINAZIONE_SECCA
-    squadre_ammesse: int = 8
+    formato: FormatoCoppa = FormatoCoppa.GIRONI_PIU_SCONTRI
+    squadre_ammesse: int = 10
+    gironi: int = 2
+    qualificate_per_girone: int = 2
+    # Il V3 la mette in coda: «disputati a fine campionato». Con il formato a
+    # eliminazione diretta invece i turni si intervallano al campionato, ed e'
+    # li' che servono `prima_giornata` e `ogni_quante_giornate`.
+    dopo_il_campionato: bool = True
     prima_giornata: int = 5
     ogni_quante_giornate: int = 4
     teste_di_serie: bool = True
@@ -122,10 +134,27 @@ class RegoleCoppa:
     def __post_init__(self) -> None:
         if self.squadre_ammesse < 2:
             raise CompetizioneNonValida("La coppa vuole almeno due squadre")
-        if self.squadre_ammesse & (self.squadre_ammesse - 1):
+        if self.a_gironi:
+            if self.gironi < 1:
+                raise CompetizioneNonValida("Servono almeno un girone")
+            if self.squadre_ammesse % self.gironi:
+                raise CompetizioneNonValida(
+                    f"{self.squadre_ammesse} squadre non si dividono in "
+                    f"{self.gironi} gironi uguali"
+                )
+            if self.qualificate_per_girone < 1:
+                raise CompetizioneNonValida(
+                    "Da ogni girone deve passare almeno una squadra"
+                )
+            if self.qualificate_per_girone > self.squadre_per_girone:
+                raise CompetizioneNonValida(
+                    f"Non possono qualificarsi {self.qualificate_per_girone} "
+                    f"squadre da un girone di {self.squadre_per_girone}"
+                )
+        if self.squadre_a_eliminazione & (self.squadre_a_eliminazione - 1):
             raise CompetizioneNonValida(
-                f"Le squadre ammesse devono essere una potenza di due "
-                f"(2, 4, 8, 16): hai scelto {self.squadre_ammesse}"
+                f"Le squadre agli scontri diretti devono essere una potenza di "
+                f"due (2, 4, 8, 16): sono {self.squadre_a_eliminazione}"
             )
         if self.prima_giornata < 1:
             raise CompetizioneNonValida("La prima giornata di coppa parte da 1")
@@ -135,9 +164,37 @@ class RegoleCoppa:
             )
 
     @property
+    def a_gironi(self) -> bool:
+        return self.formato is FormatoCoppa.GIRONI_PIU_SCONTRI
+
+    @property
+    def squadre_per_girone(self) -> int:
+        return self.squadre_ammesse // max(self.gironi, 1)
+
+    @property
+    def squadre_a_eliminazione(self) -> int:
+        """Quante arrivano agli scontri diretti."""
+        if not self.a_gironi:
+            return self.squadre_ammesse
+        return self.gironi * self.qualificate_per_girone
+
+    @property
+    def giornate_di_girone(self) -> int:
+        """Quante giornate dura la fase a gironi: andata e ritorno.
+
+        Zero senza gironi. Con un girone di cinque, ognuno salta un turno e le
+        giornate restano quattro per girone — il calendario all'italiana con un
+        numero dispari di squadre prevede un riposo a testa.
+        """
+        if not self.a_gironi:
+            return 0
+        squadre = self.squadre_per_girone
+        return 2 * (squadre - 1 if squadre % 2 == 0 else squadre)
+
+    @property
     def turni(self) -> int:
-        """Quanti turni servono per arrivare alla finale."""
-        turni, squadre = 0, self.squadre_ammesse
+        """Quanti scontri diretti servono per arrivare alla finale."""
+        turni, squadre = 0, self.squadre_a_eliminazione
         while squadre > 1:
             squadre //= 2
             turni += 1
@@ -145,7 +202,7 @@ class RegoleCoppa:
 
     def nome_turno(self, numero: int) -> str:
         """«Ottavi», «Quarti», «Semifinale», «Finale» a seconda di quante restano."""
-        rimaste = self.squadre_ammesse // (2 ** (numero - 1))
+        rimaste = self.squadre_a_eliminazione // (2 ** (numero - 1))
         return {
             2: "Finale",
             4: "Semifinali",
@@ -427,6 +484,15 @@ def costruisci_weekend(
     weekend, accanto alla giornata di lega, e si conta sulle giornate di
     **Serie A** — «le ultime sei» del testo sono quelle, non quelle di lega.
     """
+
+    def turni_di_coppa(regole: RegoleCoppa) -> list[str]:
+        """I nomi degli impegni di coppa, in ordine: prima i gironi, poi gli scontri."""
+        gironi = [
+            f"{n}ª giornata dei gironi" for n in range(1, regole.giornate_di_girone + 1)
+        ]
+        scontri = [regole.nome_turno(n) for n in range(1, regole.turni + 1)]
+        return gironi + scontri
+
     tappe_f1: dict[int, str] = {}
     if regole_f1_rush is not None:
         turni = giornate_f1_rush(giornate_serie_a, regole_f1_rush)
@@ -434,11 +500,17 @@ def costruisci_weekend(
             tappe_f1[turno] = f"{numero}ª tappa di {len(turni)}"
 
     turni_coppa: dict[int, str] = {}
-    if regole_coppa is not None:
+    if regole_coppa is not None and not regole_coppa.dopo_il_campionato:
         for numero, weekend_di_coppa in enumerate(
             regole_coppa.giornate_dei_turni(), start=1
         ):
             turni_coppa[weekend_di_coppa] = regole_coppa.nome_turno(numero)
+    elif regole_coppa is not None:
+        # «Disputati a fine campionato» (art. 1): la coppa non si intervalla,
+        # si accoda. Il primo weekend di coppa e' quello dopo l'ultima
+        # giornata di lega, e da li' si va di fila.
+        for numero, nome in enumerate(turni_di_coppa(regole_coppa), start=1):
+            turni_coppa[giornate_campionato + numero] = nome
 
     weekend: list[Weekend] = []
     giornata_fanta = 1

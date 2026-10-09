@@ -171,12 +171,22 @@ st.dataframe(
         [
             ("Giornate per gironcino", p.giornate_per_gironcino),
             (
-                "Prolungamenti per squadra a stagione (Lodo Longoni)",
-                p.prolungamenti_per_squadra_a_stagione,
+                "Prolungamenti e riduzioni di durata",
+                "ammessi" if p.prolungamenti_ammessi else "non ammessi (art. 8)",
             ),
-            (
-                "Prolungamenti per giocatore in lega (Lodo Corti)",
-                p.prolungamenti_per_giocatore_in_lega,
+            *(
+                [
+                    (
+                        "Prolungamenti per squadra a stagione (Lodo Longoni)",
+                        p.prolungamenti_per_squadra_a_stagione,
+                    ),
+                    (
+                        "Prolungamenti per giocatore in lega (Lodo Corti)",
+                        p.prolungamenti_per_giocatore_in_lega,
+                    ),
+                ]
+                if p.prolungamenti_ammessi
+                else []
             ),
             ("Preavviso di ratifica di uno scambio", f"{p.ore_ratifica_scambio} ore"),
         ],

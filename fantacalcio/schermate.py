@@ -593,15 +593,17 @@ def _modulo_opzioni(
                 index=list(FormatoCoppa).index(base.regole_coppa.formato),
                 format_func=lambda f: f.etichetta,
             )
-            ammesse = riga[1].selectbox(
+            a_gironi = formato_coppa is FormatoCoppa.GIRONI_PIU_SCONTRI
+            ammesse = riga[1].number_input(
                 "Squadre ammesse",
-                [2, 4, 8, 16],
-                index=(
-                    [2, 4, 8, 16].index(base.regole_coppa.squadre_ammesse)
-                    if base.regole_coppa.squadre_ammesse in (2, 4, 8, 16)
-                    else 2
+                min_value=2,
+                max_value=20,
+                value=base.regole_coppa.squadre_ammesse,
+                help=(
+                    "Quante entrano in coppa. Coi gironi possono essere tutte; "
+                    "senza, dev'essere una potenza di due — altrimenti il "
+                    "tabellone non si chiude."
                 ),
-                help="Una potenza di due: altrimenti il tabellone non si chiude.",
             )
             teste = riga[2].toggle(
                 "Teste di serie dalla classifica",
@@ -609,15 +611,33 @@ def _modulo_opzioni(
             )
 
             riga = st.columns(3)
-            prima = riga[0].number_input(
-                "Primo turno alla giornata", 1, 40, base.regole_coppa.prima_giornata
-            )
-            passo = riga[1].number_input(
-                "Un turno ogni quante giornate",
-                1,
-                10,
-                base.regole_coppa.ogni_quante_giornate,
-            )
+            if a_gironi:
+                quanti_gironi = riga[0].number_input(
+                    "Gironi", 1, 8, base.regole_coppa.gironi
+                )
+                qualificate = riga[1].number_input(
+                    "Qualificate per girone",
+                    1,
+                    8,
+                    base.regole_coppa.qualificate_per_girone,
+                    help="Il totale dev'essere una potenza di due: 2 gironi x 2 = 4.",
+                )
+                prima, passo = (
+                    base.regole_coppa.prima_giornata,
+                    base.regole_coppa.ogni_quante_giornate,
+                )
+            else:
+                quanti_gironi = base.regole_coppa.gironi
+                qualificate = base.regole_coppa.qualificate_per_girone
+                prima = riga[0].number_input(
+                    "Primo turno alla giornata", 1, 40, base.regole_coppa.prima_giornata
+                )
+                passo = riga[1].number_input(
+                    "Un turno ogni quante giornate",
+                    1,
+                    10,
+                    base.regole_coppa.ogni_quante_giornate,
+                )
             spareggio = riga[2].toggle(
                 "Parita': passa chi ha piu' fantapunti",
                 value=base.regole_coppa.spareggio_ai_fantapunti,
@@ -627,6 +647,9 @@ def _modulo_opzioni(
                 regole_coppa = RegoleCoppa(
                     formato=formato_coppa,
                     squadre_ammesse=int(ammesse),
+                    gironi=int(quanti_gironi),
+                    qualificate_per_girone=int(qualificate),
+                    dopo_il_campionato=a_gironi,
                     prima_giornata=int(prima),
                     ogni_quante_giornate=int(passo),
                     teste_di_serie=bool(teste),
@@ -635,11 +658,23 @@ def _modulo_opzioni(
             except CompetizioneNonValida as errore:
                 st.error(str(errore), icon="⛔")
             else:
-                turni = ", ".join(
-                    f"{regole_coppa.nome_turno(n + 1)} (G{g})"
-                    for n, g in enumerate(regole_coppa.giornate_dei_turni())
+                scontri = ", ".join(
+                    regole_coppa.nome_turno(n) for n in range(1, regole_coppa.turni + 1)
                 )
-                st.caption(f"Tabellone: {turni}")
+                if regole_coppa.a_gironi:
+                    st.caption(
+                        f"{regole_coppa.gironi} gironi da "
+                        f"{regole_coppa.squadre_per_girone}, andata e ritorno "
+                        f"({regole_coppa.giornate_di_girone} giornate) a fine "
+                        f"campionato, poi {scontri.lower()} fra le "
+                        f"{regole_coppa.squadre_a_eliminazione} qualificate."
+                    )
+                else:
+                    turni = ", ".join(
+                        f"{regole_coppa.nome_turno(n + 1)} (G{g})"
+                        for n, g in enumerate(regole_coppa.giornate_dei_turni())
+                    )
+                    st.caption(f"Tabellone: {turni}")
 
     regole_f1_rush = base.regole_f1_rush
     if f1_rush:

@@ -53,32 +53,36 @@ if utente.squadra_id is not None:
     residui = scambi_residui(
         registro, utente.squadra_id, opzioni.scambi_per_stagione, lega.stagione
     )
+    parametri = ui.parametri()
     prolungati = mia_rosa.prolungamenti_stagione(lega.stagione) if mia_rosa else 0
-    massimi = ui.parametri().prolungamenti_per_squadra_a_stagione
+    massimi = parametri.prolungamenti_per_squadra_a_stagione
 
-    ui.griglia_dati(
-        [
-            {
-                "etichetta": "Scambi conclusi",
-                "valore": str(fatti),
-                "nota": (
-                    "senza limite" if residui is None else f"{residui} ancora disponibili"
-                ),
-                "stato": "male" if residui == 0 else "ok",
-                "quota": (
-                    None
-                    if residui is None
-                    else fatti / max(opzioni.scambi_per_stagione, 1)
-                ),
-            },
+    dati = [
+        {
+            "etichetta": "Scambi conclusi",
+            "valore": str(fatti),
+            "nota": (
+                "senza limite" if residui is None else f"{residui} ancora disponibili"
+            ),
+            "stato": "male" if residui == 0 else "ok",
+            "quota": (
+                None if residui is None else fatti / max(opzioni.scambi_per_stagione, 1)
+            ),
+        }
+    ]
+    # Il riquadro dei prolungamenti compare solo se la lega li ammette: col V3
+    # non li ammette, e un contatore fermo a 0/2 farebbe credere il contrario.
+    if parametri.prolungamenti_ammessi:
+        dati.append(
             {
                 "etichetta": "Prolungamenti usati",
                 "valore": f"{prolungati}/{massimi}",
                 "nota": "Lodo Longoni, per stagione",
                 "stato": "avviso" if prolungati >= massimi else "ok",
-            },
-        ]
-    )
+            }
+        )
+
+    ui.griglia_dati(dati)
 
     if residui == 0:
         st.warning(
@@ -87,9 +91,28 @@ if utente.squadra_id is not None:
             icon="🔒",
         )
 
-    with st.expander("Come funzionano i prolungamenti negli scambi"):
+    titolo = (
+        "Come funzionano i prolungamenti negli scambi"
+        if parametri.prolungamenti_ammessi
+        else "Perche' non si prolunga piu' un contratto"
+    )
+    testo_abolito = """
+**Il contratto passa com'e'.** L'articolo 8 del V3 dice che «il contratto si
+trasferisce con ingaggio e anni residui invariati: non sono ammessi
+prolungamenti ne' riduzioni di durata, ne' in sede di scambio ne' con altra
+operazione».
+
+Decadono quindi i tre lodi che regolavano la materia — **Longoni** (due
+prolungamenti per squadra a stagione), **Corti** (uno per giocatore) e
+**Bono** (non si accorcia). Il sito li conosce ancora e sa applicarli: se un
+giorno un lodo riaprisse la strada, si riaccendono da un parametro senza
+rifare niente.
+"""
+    with st.expander(titolo):
         st.markdown(
-            f"""
+            testo_abolito
+            if not parametri.prolungamenti_ammessi
+            else f"""
 **Lodo Longoni** — scambiando un giocatore, chi lo riceve puo' **allungargli
 il contratto**, se ha anni liberi nel monte anni. Dybala arriva con 1 anno
 residuo e puoi portarlo a 3: i due anni in piu' si scalano dal tuo monte.

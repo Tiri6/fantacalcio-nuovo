@@ -330,3 +330,15 @@ class TestErroriTradotti:
         client = ClientFinto(errore=ZeroDivisionError("difetto nostro"))
         with pytest.raises(ZeroDivisionError):
             list(rispondi("Domanda", [], scheda(), client))
+
+
+def test_il_dossier_dice_che_i_prolungamenti_non_si_fanno_piu():
+    """Art. 8 del V3: la chat non deve spiegare una regola abolita."""
+    testo = scheda()
+    assert "non sono ammessi" in testo
+    assert "Lodo Longoni" not in testo
+
+
+def test_col_lodo_che_li_riaccende_il_dossier_torna_a_spiegarli():
+    testo = scheda(ParametriLega(prolungamenti_ammessi=True))
+    assert "Lodo Longoni" in testo

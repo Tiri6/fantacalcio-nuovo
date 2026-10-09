@@ -233,10 +233,18 @@ def scheda_regolamento(
         "## Mercato e scambi (art. 5, 6 e 8)",
         f"- Finestre di mercato: gironcini da "
         f"{parametri.giornate_per_gironcino} giornate.",
-        f"- Prolungamenti: {parametri.prolungamenti_per_squadra_a_stagione} "
-        "per squadra a stagione (Lodo Longoni) e "
-        f"{parametri.prolungamenti_per_giocatore_in_lega} per giocatore in "
-        "lega (Lodo Corti).",
+        (
+            "- Il contratto si trasferisce con ingaggio e anni residui "
+            "invariati: prolungamenti e riduzioni di durata non sono ammessi, "
+            "ne' in sede di scambio ne' con altra operazione (art. 8). Sono "
+            "decaduti i Lodi Bono, Corti e Longoni."
+            if not parametri.prolungamenti_ammessi
+            else f"- Prolungamenti: "
+            f"{parametri.prolungamenti_per_squadra_a_stagione} per squadra a "
+            f"stagione (Lodo Longoni) e "
+            f"{parametri.prolungamenti_per_giocatore_in_lega} per giocatore in "
+            f"lega (Lodo Corti)."
+        ),
         f"- Uno scambio si ratifica con {parametri.ore_ratifica_scambio} ore "
         "di preavviso.",
         "- Scambi per stagione: "

@@ -1,6 +1,7 @@
 from dataclasses import replace
+from datetime import date
 
-from conftest import DATA_DRAFT, costruisci_rosa
+from conftest import DATA_DRAFT, costruisci_rosa, giocatore
 
 from fantacalcio.conformita import Gravita, Momento, verifica_rosa
 from fantacalcio.modelli import VoceDeadMoney
@@ -227,3 +228,72 @@ class TestDeadMoney:
         stato = verifica_rosa(rosa, DATA_DRAFT)
         assert stato.dead_money == 0
         assert stato.spesa_salariale == 90_000_000
+
+
+class TestSlotU21Congelati:
+    """Art. 2: il numero di Under 21 si ricalcola una volta l'anno.
+
+    «Svincoli o cessioni di Under 21 in corso d'anno non modificano il limite
+    fino al ricalcolo successivo»: e' quel che impedisce a una rosa da 35 di
+    diventare irregolare per una cessione fatta a mercato aperto.
+    """
+
+    def test_senza_congelamento_si_contano_quelli_in_rosa(self):
+        """Prima della prima asta non c'e' niente da congelare."""
+        rosa = costruisci_rosa(dimensione=34, u21=2)
+        stato = verifica_rosa(rosa, DATA_DRAFT)
+        assert stato.slot_u21 == 2
+        assert stato.limite_dimensione == 35
+
+    def test_il_valore_congelato_vince_sul_conteggio(self):
+        rosa = costruisci_rosa(dimensione=34, u21=0)
+        rosa.slot_u21_congelato = 2
+        stato = verifica_rosa(rosa, DATA_DRAFT)
+        assert stato.slot_u21 == 2
+        assert stato.limite_dimensione == 35
+        assert "rosa_massima" not in codici(stato)
+
+    def _scambia_l_under_con_un_veterano(self, rosa):
+        """Come uno scambio vero: entra uno, esce un Under, la rosa resta uguale."""
+        parametri = ParametriLega()
+        under = next(g for g in rosa.giocatori if g.under_21(DATA_DRAFT, parametri))
+        contratto = rosa.contratto_di(under.id)
+        # Stesso ruolo: cosi' l'unica cosa che cambia e' l'eta', ed e' l'unica
+        # cosa di cui parla la regola.
+        veterano = giocatore(99_001, ruoli=under.ruoli, data_nascita=date(1994, 1, 1))
+        senza = rosa.senza_giocatore(under.id)
+        return senza.con_contratto(replace(contratto, giocatore_id=veterano.id), veterano)
+
+    def test_cedere_un_u21_in_corso_d_anno_non_restringe_la_rosa(self):
+        """E' il caso che l'articolo 2 nomina espressamente."""
+        rosa = costruisci_rosa(dimensione=34, u21=1)
+        rosa.slot_u21_congelato = rosa.u21_in_rosa(DATA_DRAFT, ParametriLega())
+        assert rosa.slot_u21_congelato == 1
+
+        dopo = self._scambia_l_under_con_un_veterano(rosa)
+        stato = verifica_rosa(dopo, DATA_DRAFT)
+
+        assert dopo.dimensione == 34
+        assert dopo.u21_in_rosa(DATA_DRAFT, ParametriLega()) == 0
+        assert stato.limite_dimensione == 34
+        assert "rosa_massima" not in codici(stato)
+
+    def test_senza_congelamento_la_cessione_restringerebbe(self):
+        """Il comportamento di prima, che e' quello che il V3 vieta."""
+        rosa = costruisci_rosa(dimensione=34, u21=1)
+        dopo = self._scambia_l_under_con_un_veterano(rosa)
+        stato = verifica_rosa(dopo, DATA_DRAFT)
+
+        assert dopo.dimensione == 34
+        assert stato.limite_dimensione == 33
+        assert "rosa_massima" in codici(stato)
+
+    def test_non_si_superano_mai_i_tre_posti(self):
+        rosa = costruisci_rosa()
+        rosa.slot_u21_congelato = 9
+        assert rosa.slot_u21(DATA_DRAFT, ParametriLega()) == 3
+
+    def test_un_valore_negativo_non_toglie_posti(self):
+        rosa = costruisci_rosa()
+        rosa.slot_u21_congelato = -2
+        assert rosa.slot_u21(DATA_DRAFT, ParametriLega()) == 0

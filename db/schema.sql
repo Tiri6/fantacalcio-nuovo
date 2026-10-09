@@ -66,6 +66,10 @@ create table if not exists squadre (
     -- potrebbe nemmeno rileggere — ricaricando la pagina sembrerebbe che i
     -- portieri siano tornati tutti, e il sito chiederebbe di revocarla.
     portieri_indisponibili text not null default '',
+    -- Articolo 2: i posti rosa da espansione Under 21, congelati al ricalcolo
+    -- annuale di Settembre. Nullo = mai ricalcolato, e allora si contano gli
+    -- Under presenti in rosa.
+    slot_u21_congelato  integer,
     creata_il           timestamptz not null default now()
 );
 
@@ -101,8 +105,11 @@ create table if not exists contratti (
     stagione_prolungamento  text
 );
 
--- Lodo Origi: 50% del valore contrattuale residuo, addebitato in un'unica
--- soluzione alla prima sessione di mercato utile. Non concorre al Salary Floor.
+-- Quel che lascia dietro uno svincolo di riparazione (art. 7): la buonuscita
+-- del Lodo Origi (`importo`) e l'ingaggio del giocatore andato via, che resta
+-- a carico fino a fine stagione (`ingaggio_a_carico`). Due colonne e non una
+-- perche' sono due cose diverse: sommandole, il «Dead Money» mostrato in
+-- tabella sarebbe piu' grande di quello che la regola chiama cosi'.
 create table if not exists dead_money (
     id              bigserial primary key,
     squadra_id      bigint not null references squadre(id) on delete cascade,
@@ -110,7 +117,8 @@ create table if not exists dead_money (
     nome_giocatore  text not null,
     importo         numeric(12, 2) not null,
     stagione        text not null,
-    addebitato      boolean not null default false
+    addebitato      boolean not null default false,
+    ingaggio_a_carico numeric(14, 2) not null default 0
 );
 
 -- Albo d'oro: chi ha vinto cosa. Si scrive a fine competizione e resta.
@@ -288,7 +296,9 @@ alter table calendario add column if not exists inizio_previsto timestamptz;
 update albo set competizione = 'F1_RUSH' where competizione = 'SUPERCOPPA';
 
 alter table squadre    add column if not exists portiere_emergenza_id bigint;
+alter table dead_money add column if not exists ingaggio_a_carico numeric(14, 2) not null default 0;
 alter table squadre    add column if not exists portieri_indisponibili text not null default '';
+alter table squadre    add column if not exists slot_u21_congelato integer;
 
 -- ---------------------------------------------------------------------------
 -- Formazioni e voti

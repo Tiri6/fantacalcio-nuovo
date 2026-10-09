@@ -115,6 +115,7 @@ COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
         "lega_id",
         "portiere_emergenza_id",
         "portieri_indisponibili",
+        "slot_u21_congelato",
     ),
     "giocatori": (
         "id",
@@ -144,6 +145,7 @@ COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
         "importo",
         "stagione",
         "addebitato",
+        "ingaggio_a_carico",
     ),
     "calendario": (
         "id",
@@ -625,6 +627,7 @@ def carica_rose(arch: Archivio) -> dict[int, Rosa]:
                 importo=float(v["importo"]),
                 stagione=v["stagione"],
                 addebitato=bool(v.get("addebitato", False)),
+                ingaggio_a_carico=float(_numero(v.get("ingaggio_a_carico")) or 0.0),
             )
             for _, v in sue_voci.iterrows()
         ]
@@ -635,6 +638,7 @@ def carica_rose(arch: Archivio) -> dict[int, Rosa]:
             dead_money=dead_money,
             portiere_emergenza_id=_id_opzionale(riga.get("portiere_emergenza_id")),
             portieri_indisponibili=_lista_id(riga.get("portieri_indisponibili")),
+            slot_u21_congelato=_id_opzionale(riga.get("slot_u21_congelato")),
         ).collega(giocatori)
 
     return rose
@@ -654,32 +658,44 @@ def calendario_dettagliato(arch: Archivio) -> pd.DataFrame:
     return partite.sort_values(["giornata", "casa"]).reset_index(drop=True)
 
 
-def _emergenza_salvata(arch: Archivio, squadra_id: int) -> tuple[int | None, str]:
-    """Portiere d'emergenza e portieri dichiarati fuori, come stanno scritti."""
+def _stato_non_gestito(arch: Archivio, squadra_id: int) -> dict:
+    """Le colonne di `squadre` che `salva_squadra` non sa comporre da se'.
+
+    Portiere d'emergenza, portieri dichiarati fuori e slot Under 21
+    congelati: non stanno nell'identita' della squadra, ma su SQLite la
+    scrittura e' un `insert or replace`, che azzera le colonne non elencate.
+    Rileggerle e riscriverle uguali e' quel che impedisce a una correzione del
+    motto di cancellarle in silenzio.
+    """
+    vuoto = {
+        "portiere_emergenza_id": None,
+        "portieri_indisponibili": "",
+        "slot_u21_congelato": None,
+    }
     righe = arch.squadre()
     if righe.empty or "portiere_emergenza_id" not in righe.columns:
-        return (None, "")
+        return vuoto
     sua = righe[righe["id"].astype("Int64") == int(squadra_id)]
     if sua.empty:
-        return (None, "")
+        return vuoto
     riga = sua.iloc[0]
-    return (
-        _id_opzionale(riga.get("portiere_emergenza_id")),
-        _testo(riga.get("portieri_indisponibili")),
-    )
+    return {
+        "portiere_emergenza_id": _id_opzionale(riga.get("portiere_emergenza_id")),
+        "portieri_indisponibili": _testo(riga.get("portieri_indisponibili")),
+        "slot_u21_congelato": _id_opzionale(riga.get("slot_u21_congelato")),
+    }
 
 
 def salva_squadra(arch: Archivio, squadra: Squadra) -> None:
     """Persiste nome, presidente e identita' visiva di una squadra.
 
-    Riscrive anche `portiere_emergenza_id` **com'era**, e non e' un giro
-    inutile: su SQLite la scrittura e' un `insert or replace`, che azzera le
-    colonne non elencate. Senza questa riga, correggere il motto revocherebbe
-    in silenzio il portiere d'emergenza di quella squadra — un guasto che si
-    noterebbe soltanto a punteggi gia' calcolati.
+    Riscrive anche le colonne che non compone (vedi `_stato_non_gestito`):
+    su SQLite la scrittura e' un `insert or replace`, e senza rileggerle
+    correggere il motto revocherebbe in silenzio il portiere d'emergenza di
+    quella squadra — un guasto che si noterebbe a punteggi gia' calcolati.
     """
     identita = squadra.identita
-    emergenza, indisponibili = _emergenza_salvata(arch, squadra.id)
+    non_gestite = _stato_non_gestito(arch, squadra.id)
     arch.scrivi(
         "squadre",
         [
@@ -698,12 +714,31 @@ def salva_squadra(arch: Archivio, squadra: Squadra) -> None:
                 "maglia_caricata": identita.maglia_caricata,
                 "anno_fondazione": identita.anno_fondazione,
                 "lega_id": squadra.lega_id,
-                "portiere_emergenza_id": emergenza,
-                "portieri_indisponibili": indisponibili,
+                **non_gestite,
             }
         ],
         chiave="id",
     )
+
+
+def congela_slot_u21(arch: Archivio, squadra_id: int, slot: int | None) -> None:
+    """Fissa i posti rosa da espansione Under 21 per la stagione (art. 2).
+
+    Con `None` si torna al conteggio dal vivo, che e' la situazione prima del
+    primo ricalcolo. Update mirato, per la stessa ragione di
+    `imposta_portiere_emergenza`.
+    """
+    valore = None if slot is None else int(slot)
+    if isinstance(arch, ArchivioSQLite):
+        with sqlite3.connect(arch.percorso) as conn:
+            conn.execute(
+                "update squadre set slot_u21_congelato = ? where id = ?",
+                (valore, int(squadra_id)),
+            )
+        return
+    arch._client.table("squadre").update({"slot_u21_congelato": valore}).eq(
+        "id", int(squadra_id)
+    ).execute()
 
 
 def imposta_portiere_emergenza(
@@ -1377,6 +1412,7 @@ def registra_svincolo(
                     "importo": float(voce.importo),
                     "stagione": voce.stagione,
                     "addebitato": int(bool(voce.addebitato)),
+                    "ingaggio_a_carico": float(voce.ingaggio_a_carico),
                 }
             ],
             chiave="id",
