@@ -1,0 +1,9 @@
+# L'API React-facing. Tenuta separata da requirements.txt perche' non ha
+# bisogno di Streamlit: e' quello che la fa stare dentro i 250 MB delle
+# funzioni serverless (streamlit si porta dietro pyarrow, 156 MB da solo).
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+PyJWT>=2.8
+pandas>=2.0
+supabase>=2.4
