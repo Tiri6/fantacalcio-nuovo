@@ -356,6 +356,96 @@ def _data_nascita(rng: random.Random, under21: bool) -> date:
     return date(rng.randint(1990, 2003), rng.randint(1, 12), rng.randint(1, 28))
 
 
+def _annunci_demo() -> list[dict]:
+    """Qualche annuncio, perche' una bacheca vuota non mostra niente.
+
+    La bacheca e' la pagina d'ingresso: chi apre la demo deve vedere come si
+    presenta piena, non un riquadro che dice «non c'e' niente». Le date sono
+    fisse e non costruite da `datetime.now()`: la demo si rigenera spesso, e
+    date che si spostano a ogni rigenerazione farebbero cambiare l'ordine
+    degli annunci senza che nessuno abbia toccato niente.
+
+    L'ultimo e' una **bozza**: serve a far vedere che chi amministra prepara
+    il recap prima di pubblicarlo, e che gli altri non lo vedono.
+    """
+    autore = _utenti_demo()[0]
+    # Anche in un testo di demo il numero si legge dai parametri: una lega che
+    # vota un monte anni diverso non deve trovarsi un annuncio che la smentisce.
+    regole = ParametriLega()
+    righe = [
+        (
+            1,
+            "Benvenuti nella stagione 2026/27",
+            "La lega riparte. **Dieci squadre**, 27 giornate, Coppa Italia a "
+            "seguire.\n\n"
+            "Ricordatevi che:\n\n"
+            "- il *Salary Cap* vale a fine asta, in stagione lo sforamento da "
+            "scambio e' tollerato;\n"
+            f"- il monte anni non si tocca: {regole.monte_anni} e basta;\n"
+            "- gli Under 21 si contano al 31 agosto, non alla data del draft.",
+            "COMUNICAZIONE",
+            None,
+            1,
+            1,
+            "2026-09-01T10:00:00+00:00",
+        ),
+        (
+            2,
+            "Finestra invernale aperta",
+            "Con la nona giornata alle spalle si apre la **finestra "
+            "invernale** (art. 5).\n\n"
+            "Gli scambi si propongono dalla pagina Mercato e li ratifica il "
+            "presidente. La trade deadline resta a fine finestra primaverile.",
+            "MERCATO",
+            9,
+            0,
+            1,
+            "2026-11-12T18:30:00+00:00",
+        ),
+        (
+            3,
+            "Undicesima giornata: il Padel non si ferma",
+            "Padel United allunga in vetta, ma il **Tiri Team** resta "
+            "attaccato.\n\n"
+            "Sorpresa di giornata: Stura Athletic, che con la rosa piu' "
+            "giovane della lega si porta a meta' classifica.",
+            "RECAP",
+            11,
+            0,
+            1,
+            "2026-11-26T22:15:00+00:00",
+        ),
+        (
+            4,
+            "Recap dodicesima (da finire)",
+            "Appunti sparsi, non ancora pubblicabili.\n\n"
+            "Questa e' una **bozza**: la vede solo chi amministra la lega.",
+            "RECAP",
+            12,
+            0,
+            0,
+            "2026-12-03T09:00:00+00:00",
+        ),
+    ]
+    return [
+        {
+            "id": id_,
+            "lega_id": LEGA_DEMO_ID,
+            "titolo": titolo,
+            "testo": testo,
+            "tipo": tipo,
+            "autore_id": autore["id"],
+            "autore_nome": autore["nome"],
+            "giornata": giornata,
+            "in_evidenza": evidenza,
+            "pubblicato": pubblicato,
+            "creato_il": quando,
+            "aggiornato_il": quando,
+        }
+        for id_, titolo, testo, tipo, giornata, evidenza, pubblicato, quando in righe
+    ]
+
+
 def genera_lega(rng: random.Random | None = None) -> dict:
     """Costruisce squadre, giocatori, contratti, dead money e calendario."""
     rng = rng or random.Random(SEME)
@@ -462,6 +552,7 @@ def genera_lega(rng: random.Random | None = None) -> dict:
         "dead_money": dead_money,
         "calendario": calendario,
         "utenti": _utenti_demo(),
+        "annunci": _annunci_demo(),
     }
 
 
@@ -773,6 +864,7 @@ def costruisci_db(percorso: Path, forza: bool = False) -> Path:
             "contratti",
             "calendario",
             "utenti",
+            "annunci",
         ):
             inserisci(conn, tabella, lega[tabella])
         inserisci(conn, "dead_money", lega["dead_money"])

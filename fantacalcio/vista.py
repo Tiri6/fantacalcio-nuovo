@@ -117,7 +117,7 @@ def cruscotto_lega(stati: dict[int, StatoRosa]) -> pd.DataFrame:
                 "Rosa": f"{stato.dimensione}/{stato.limite_dimensione}",
                 "U21": stato.slot_u21,
                 "Portieri": stato.portieri,
-                "Anni": f"{stato.anni_impegnati}/66",
+                "Anni": f"{stato.anni_impegnati}/{stato.monte_anni}",
                 "Anni liberi": stato.anni_disponibili,
                 "Annuali": f"{stato.contratti_annuali}/{stato.annuali_richiesti}",
                 "Ingaggi": stato.monte_ingaggi,

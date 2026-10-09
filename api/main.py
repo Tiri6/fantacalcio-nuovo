@@ -20,7 +20,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .rotte import accesso, giocatori, identita, squadre
+from .rotte import accesso, bacheca, cruscotto, giocatori, identita, squadre
 from .statici import monta_sito
 
 registro = logging.getLogger("fantacalcio")
@@ -69,6 +69,8 @@ if os.environ.get("FANTA_AMBIENTE") == "sviluppo":
     )
 
 app.include_router(accesso.rotte, prefix="/api")
+app.include_router(bacheca.rotte, prefix="/api")
+app.include_router(cruscotto.rotte, prefix="/api")
 app.include_router(giocatori.rotte, prefix="/api")
 app.include_router(identita.rotte, prefix="/api")
 app.include_router(squadre.rotte, prefix="/api")

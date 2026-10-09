@@ -189,10 +189,20 @@ button:disabled {
 
 /* --- intelaiatura ------------------------------------------------------- */
 
+/* Testata sopra, menu a sinistra, contenuto a destra. La griglia tiene il
+   menu alto quanto la pagina senza che debba saperlo nessuno dei due. */
+.impianto {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+}
+
 .testata {
+  grid-column: 1 / -1;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 18px;
@@ -211,35 +221,18 @@ button:disabled {
   color: var(--verde);
 }
 
-.navigazione {
-  display: flex;
-  gap: 2px;
-  margin-left: auto;
-  align-items: center;
-}
-
-.navigazione a {
-  padding: 7px 13px;
-  border-radius: var(--raggio-piccolo);
+.apri-menu {
+  display: none;
+  padding: 5px 11px;
+  background: transparent;
+  border-color: var(--bordo);
   color: var(--testo-tenue);
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 540;
-  transition: background 0.15s var(--passo), color 0.15s var(--passo);
-}
-
-.navigazione a:hover {
-  background: var(--superficie);
-  color: var(--testo);
-}
-
-.navigazione a.attiva {
-  background: var(--superficie-viva);
-  color: var(--testo);
+  font-size: 17px;
+  line-height: 1;
 }
 
 .esci {
-  margin-left: 10px;
+  margin-left: auto;
   padding: 7px 13px;
   background: transparent;
   border-color: var(--bordo);
@@ -252,10 +245,96 @@ button:disabled {
   color: var(--testo);
 }
 
+.fianco {
+  border-right: 1px solid var(--bordo);
+  background: rgb(17 26 20 / 0.4);
+  padding: 20px 12px;
+  position: sticky;
+  top: 53px;
+  align-self: start;
+  /* Alto quanto lo schermo anche quando le voci sono poche: altrimenti la
+     riga di separazione si interrompe a meta' pagina e sembra un difetto. */
+  height: calc(100vh - 53px);
+  overflow-y: auto;
+}
+
+.navigazione .sezione + .sezione {
+  margin-top: 22px;
+}
+
+.navigazione h2 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--testo-fioco);
+  padding: 0 11px;
+  margin-bottom: 7px;
+}
+
+.navigazione .voce {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  border-radius: var(--raggio-piccolo);
+  color: var(--testo-tenue);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 540;
+  transition: background 0.15s var(--passo), color 0.15s var(--passo);
+}
+
+.navigazione .voce .icona {
+  font-size: 15px;
+  width: 19px;
+  text-align: center;
+}
+
+.navigazione .voce:hover {
+  background: var(--superficie);
+  color: var(--testo);
+}
+
+.navigazione .voce.attiva {
+  background: var(--superficie-viva);
+  color: var(--testo);
+  box-shadow: inset 2px 0 0 var(--verde);
+}
+
+/* Sotto gli 860px il menu diventa un cassetto: tenerlo fisso vorrebbe dire
+   togliere un terzo della larghezza alla pagina vera. */
+@media (max-width: 860px) {
+  .impianto {
+    grid-template-columns: 1fr;
+  }
+
+  .apri-menu {
+    display: block;
+  }
+
+  .fianco {
+    display: none;
+  }
+
+  .impianto.menu-aperto .fianco {
+    display: block;
+    position: fixed;
+    inset: 53px 0 auto 0;
+    z-index: 15;
+    max-height: calc(100vh - 53px);
+    background: var(--sfondo-alto);
+    border-right: none;
+    border-bottom: 1px solid var(--bordo);
+  }
+}
+
 main {
   max-width: 1120px;
+  width: 100%;
   margin: 0 auto;
   padding: 32px 24px 72px;
+  min-width: 0;
 }
 
 .intestazione-pagina {
@@ -942,4 +1021,367 @@ input[type="color"] {
   .terna {
     grid-template-columns: 1fr;
   }
+}
+
+/* --- bacheca ------------------------------------------------------------ */
+
+.annunci {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.annuncio {
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 20px 22px;
+}
+
+/* Una bozza deve distinguersi a colpo d'occhio da quello che vedono gli
+   altri: chi amministra le vede mescolate ai pubblicati. */
+.annuncio.bozza {
+  border-style: dashed;
+  background: rgb(22 33 26 / 0.5);
+}
+
+.annuncio h2 {
+  font-size: 20px;
+  margin: 9px 0 3px;
+}
+
+.annuncio .firma {
+  margin: 0 0 13px;
+  font-size: 12.5px;
+  color: var(--testo-fioco);
+}
+
+.pastiglie {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pastiglia {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  color: var(--testo-tenue);
+  white-space: nowrap;
+}
+
+.pastiglia.verde {
+  background: rgb(53 208 127 / 0.12);
+  border-color: rgb(53 208 127 / 0.3);
+  color: var(--verde);
+}
+
+.pastiglia.ambra {
+  background: rgb(240 180 41 / 0.12);
+  border-color: rgb(240 180 41 / 0.3);
+  color: var(--ambra);
+}
+
+.pastiglia.rossa {
+  background: rgb(229 72 77 / 0.12);
+  border-color: rgb(229 72 77 / 0.3);
+  color: var(--rosso);
+}
+
+.pastiglia.azzurra {
+  background: rgb(90 160 230 / 0.12);
+  border-color: rgb(90 160 230 / 0.3);
+  color: #7fb4ea;
+}
+
+/* Il Markdown lo rende `react-markdown`, che l'HTML non lo esegue: qui si
+   decide solo come stanno gli elementi che produce. */
+.prosa {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--testo);
+}
+
+.prosa > *:first-child {
+  margin-top: 0;
+}
+
+.prosa > *:last-child {
+  margin-bottom: 0;
+}
+
+.prosa p,
+.prosa ul,
+.prosa ol {
+  margin: 0 0 11px;
+}
+
+.prosa ul,
+.prosa ol {
+  padding-left: 22px;
+}
+
+.prosa li {
+  margin-bottom: 4px;
+}
+
+.prosa h1,
+.prosa h2,
+.prosa h3,
+.prosa h4 {
+  margin: 18px 0 8px;
+  font-size: 16px;
+}
+
+.prosa a {
+  color: var(--verde);
+}
+
+.prosa code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--sfondo-alto);
+  font-size: 13px;
+}
+
+.prosa blockquote {
+  margin: 0 0 11px;
+  padding-left: 13px;
+  border-left: 2px solid var(--bordo-vivo);
+  color: var(--testo-tenue);
+}
+
+.prosa hr {
+  border: none;
+  border-top: 1px solid var(--bordo);
+  margin: 16px 0;
+}
+
+.azioni {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.azioni button {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+button.secondario.pericolo {
+  color: var(--rosso);
+}
+
+button.secondario.pericolo:hover:not(:disabled) {
+  border-color: rgb(229 72 77 / 0.5);
+}
+
+button.pericoloso {
+  padding: 6px 12px;
+  font-size: 13px;
+  background: var(--rosso);
+  color: #fff;
+}
+
+.conferma-pericolo {
+  margin-top: 14px;
+  padding: 13px 15px;
+  border-radius: var(--raggio-piccolo);
+  background: rgb(229 72 77 / 0.08);
+  border: 1px solid rgb(229 72 77 / 0.3);
+}
+
+.conferma-pericolo p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.conferma-pericolo .azioni {
+  margin-top: 11px;
+}
+
+/* --- modulo della bacheca ----------------------------------------------- */
+
+textarea {
+  width: 100%;
+  padding: 11px 13px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  color: var(--testo);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color 0.15s var(--passo);
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--verde-cupo);
+}
+
+.interruttori {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.interruttori label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.interruttori input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--verde);
+}
+
+.anteprima {
+  margin-top: 20px;
+  padding: 16px 18px;
+  border-radius: var(--raggio-piccolo);
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+}
+
+.anteprima h4 {
+  margin: 0 0 11px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--testo-fioco);
+}
+
+.anteprima h3 {
+  margin: 0 0 9px;
+  font-size: 18px;
+}
+
+/* --- filtri a pastiglia -------------------------------------------------- */
+
+button.filtro {
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: transparent;
+  border-color: var(--bordo);
+  color: var(--testo-tenue);
+  font-size: 13px;
+}
+
+button.filtro:hover:not(:disabled) {
+  border-color: var(--bordo-vivo);
+  color: var(--testo);
+}
+
+button.filtro.attiva {
+  background: var(--superficie-viva);
+  border-color: var(--bordo-vivo);
+  color: var(--testo);
+}
+
+/* --- cruscotto ----------------------------------------------------------- */
+
+.riquadro.ok .valore {
+  color: var(--verde);
+}
+
+.riquadro.avviso .valore {
+  color: var(--ambra);
+}
+
+.riquadro.male .valore {
+  color: var(--rosso);
+}
+
+.lente {
+  margin: 26px 0 16px;
+}
+
+.lente > .etichetta {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--testo-fioco);
+}
+
+.lente p {
+  margin: 0;
+  font-size: 12.5px;
+  max-width: 76ch;
+}
+
+/* «Quanto su quanto»: il limite accanto al valore, non da indovinare. */
+.misura {
+  font-variant-numeric: tabular-nums;
+}
+
+.misura.sforata {
+  color: var(--ambra);
+  font-weight: 600;
+}
+
+.tabella td.nome a {
+  color: var(--testo);
+  text-decoration: none;
+  font-weight: 560;
+}
+
+.tabella td.nome a:hover {
+  color: var(--verde);
+}
+
+.tabella tr.da-sistemare td {
+  background: rgb(229 72 77 / 0.05);
+}
+
+.tabella .rosso {
+  color: var(--rosso);
+}
+
+.tabella tr.violazioni td {
+  padding-top: 0;
+  border-top: none;
+  white-space: normal;
+}
+
+.violazione {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12.5px;
+  color: var(--testo-tenue);
+}
+
+.violazione .articolo {
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--testo-fioco);
+  white-space: nowrap;
+}
+
+.violazione.blocca .articolo {
+  border-color: rgb(229 72 77 / 0.4);
+  color: var(--rosso);
 }

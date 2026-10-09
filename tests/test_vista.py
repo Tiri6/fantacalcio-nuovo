@@ -1,10 +1,13 @@
 """Le tabelle mostrate a schermo devono essere coerenti con il dominio."""
 
+from dataclasses import replace
+
 import pytest
 
 from fantacalcio.conformita import Momento
 from fantacalcio.data import carica_rose
 from fantacalcio.demo_data import DATA_DRAFT, GIORNATE_GIOCATE, SQUADRE
+from fantacalcio.regole import ParametriLega
 from fantacalcio.vista import (
     andamento_punti,
     classifica,
@@ -64,6 +67,19 @@ class TestCruscotto:
         tabella = cruscotto_lega(stati)
         atteso = tabella["Ingaggi"] + tabella["Dead money"]
         assert (tabella["Spesa"] - atteso).abs().max() < 0.01
+
+    def test_il_monte_anni_viene_dai_parametri_non_scritto_a_mano(self, rose):
+        """La colonna «Anni» dice «impegnati su totale»: il totale e' un parametro.
+
+        Era scritto a mano come `/66`, e questo test c'e' perche' un lodo che
+        sposti il monte anni deve cambiare la tabella da solo. Se il numero
+        torna a essere una costante, qui si vede subito.
+        """
+        regole = replace(ParametriLega(), monte_anni=70)
+        tabella = cruscotto_lega(
+            stati_rose(rose, DATA_DRAFT, regole, Momento.ASTA_SETTEMBRE)
+        )
+        assert all(valore.endswith("/70") for valore in tabella["Anni"])
 
     def test_nessuna_violazione_sulla_demo(self, stati):
         assert violazioni_lega(stati).empty
