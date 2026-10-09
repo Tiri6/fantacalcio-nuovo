@@ -1,15 +1,11 @@
-import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, type Squadra } from "../api";
-
-/** In milioni, come le legge la lega: 3_330_000 -> «3.3M». */
-function milioni(valore: number): string {
-  return `${(valore / 1_000_000).toFixed(1)}M`;
-}
+import { milioni, useCarica } from "../carica";
 
 function Scheda({ squadra }: { squadra: Squadra }) {
   const { colori } = squadra;
   return (
-    <article className={`scheda${squadra.e_mia ? " mia" : ""}`}>
+    <Link to={`/squadre/${squadra.id}`} className={`scheda${squadra.e_mia ? " mia" : ""}`}>
       <div
         className="striscia"
         style={{
@@ -37,24 +33,12 @@ function Scheda({ squadra }: { squadra: Squadra }) {
           <span className="valore">{milioni(squadra.monte_ingaggi)}</span>
         </div>
       </div>
-    </article>
+    </Link>
   );
 }
 
 export function Squadre() {
-  const [squadre, setSquadre] = useState<Squadra[] | null>(null);
-  const [errore, setErrore] = useState<string | null>(null);
-
-  useEffect(() => {
-    let vivo = true;
-    api
-      .squadre()
-      .then((elenco) => vivo && setSquadre(elenco))
-      .catch((guasto) => vivo && setErrore(String(guasto.message ?? guasto)));
-    return () => {
-      vivo = false;
-    };
-  }, []);
+  const { dato: squadre, errore } = useCarica(() => api.squadre(), []);
 
   return (
     <>
