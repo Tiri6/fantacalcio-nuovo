@@ -1,7 +1,8 @@
 # Punti aperti del regolamento
 
-Il regolamento V2.1 e' molto piu' dettagliato della media, ma per scrivere il
-codice ho dovuto prendere una posizione su alcuni punti che il testo non chiude.
+Il regolamento V3 (testo definitivo, Ottobre 2026) e' molto piu' dettagliato
+della media, ma per scrivere il codice ho dovuto prendere una posizione su
+alcuni punti che il testo non chiude.
 
 Qui c'e' **cosa il gestionale fa oggi** e **cosa serve decidere**. Ogni voce e'
 gia' un parametro: cambiare la decisione significa cambiare un valore in
@@ -12,13 +13,15 @@ gia' un parametro: cambiare la decisione significa cambiare un valore in
 ## 1. Fasce di gol — ✅ CHIUSO
 
 L'articolo 1 elenca *"Fasce di gol: di 6 in 6 – 60-66-72-78-84-90"*, che si
-prestava a due letture.
+prestava a due letture. Il V3 riporta la stessa frase identica, quindi la
+domanda non l'ha chiusa il testo.
 
-**Deciso dalla lega: il primo gol e' a 66**, poi uno ogni 6. E' quello che il
-codice applica (`soglia_primo_gol = 66`, `passo_gol = 6`), ed e' anche il
-comportamento di Leghe Fantacalcio. Conviene correggere la formulazione
-nell'articolo 1 alla prossima revisione del regolamento, togliendo il 60
-dall'elenco per evitare che la domanda si riapra fra un anno.
+**Deciso dalla lega: il primo gol e' a 66**, poi uno ogni 6 (confermato da
+Marco a ottobre 2026). E' quello che il codice applica
+(`soglia_primo_gol = 66`, `passo_gol = 6`), ed e' anche il comportamento di
+Leghe Fantacalcio. Conviene correggere la formulazione nell'articolo 1 alla
+prossima revisione del regolamento, togliendo il 60 dall'elenco per evitare
+che la domanda si riapra fra un anno.
 
 ## 2. Draft Lottery: come si assegnano le pick dalla 2ª alla 5ª?
 
@@ -114,14 +117,30 @@ dati**, che c'e', con la verifica di conformita' fatta *prima* di scrivere.
 Resta utile la sala draft come tabellone da proiettare durante l'asta, ma non
 e' piu' un requisito bloccante.
 
-## 9. Portiere d'emergenza (Lodo Messina)
+## 9. Portiere d'emergenza (Lodo Messina) — ✅ FATTO
 
-Il modello prevede gia' il campo (`Rosa.portiere_emergenza_id`) e la regola e'
-chiara: non firma contratto, non incide su monte anni ne' su Salary Cap, vota
-con malus di −1 (Lodo Messina bis).
+La regola dell'articolo 8 e' implementata in `fantacalcio/emergenza.py`: si
+apre solo con **tutti** i portieri di ruolo indisponibili, la scelta e' unica,
+si pesca fra gli svincolati, decade appena uno torna disponibile (anche solo
+in panchina), non firma contratto — rosa, monte anni e Salary Cap non si
+muovono — e vota col malus del fuori ruolo (Lodo Messina bis).
 
-**Non c'e' ancora il flusso** per attivarlo e disattivarlo, perche' dipende
-dalla disponibilita' dei portieri, che si legge su Leghe Fantacalcio.
+Il malus **non e' un numero a parte**: e' `malus_adattamento`, perche' il Lodo
+Messina bis lo definisce per rinvio («come un giocatore schierato fuori
+ruolo»). Se la lega cambia quello, questo segue.
+
+**Resta una cosa che il sito non sa fare da solo**: leggere chi e'
+indisponibile. Le indisponibilita' stanno su Leghe Fantacalcio, che da un
+server risponde 403 (vedi il punto 16). Quindi le **dichiara** chi attiva
+l'emergenza, spuntando i suoi tre portieri, e la dichiarazione resta scritta
+(`squadre.portieri_indisponibili`): senza conservarla, al giro successivo il
+sito crederebbe che i portieri siano tornati tutti e chiederebbe di revocare
+un'emergenza che invece serve ancora.
+
+**Da decidere**, se un giorno diventasse un problema: se la dichiarazione
+debba poterla fare solo il presidente invece del fantallenatore. Oggi la fa
+chi gestisce la squadra, perche' l'articolo 8 dice «il fantallenatore puo'
+selezionare» — ma e' un'autocertificazione, e nessuno la verifica.
 
 ## 10. Cose che il regolamento rimanda esplicitamente
 
@@ -190,10 +209,11 @@ tutti.
 
 ## 14. Under 21: il sito usa il 31 agosto, l'articolo 2 dice «data del draft»
 
-**Divergenza voluta, da regolarizzare nel testo.** L'articolo 2 della V2.1
-scrive che e' Under 21 l'italiano che non ha compiuto 21 anni *alla data del
-draft di Settembre*. Il sito guarda invece al **31 agosto**, uguale tutti gli
-anni, per decisione della lega.
+**Divergenza voluta e confermata, da regolarizzare nel testo.** L'articolo 2
+— nella V2.1 come nel V3 — scrive che e' Under 21 l'italiano che non ha
+compiuto 21 anni *alla data del draft di Settembre*. Il sito guarda invece al
+**31 agosto**, uguale tutti gli anni, per decisione della lega: il V3 non l'ha
+recepita, e a ottobre 2026 Marco ha confermato che vale il 31 agosto.
 
 Il motivo e' pratico: una data fissa si sa in anticipo e non si muove. Con la
 data del draft, spostare l'asta sposta anche l'insieme degli Under — e con

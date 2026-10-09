@@ -40,6 +40,8 @@ ATTESO: dict[str, tuple[str, ...]] = {
         "colore_secondario",
         "stile_maglia",
         "lega_id",
+        "portiere_emergenza_id",
+        "portieri_indisponibili",
     ),
     "utenti": (
         "id",
@@ -113,6 +115,8 @@ TIPI = {
     "in_evidenza": "boolean not null default false",
     "stagione": "text not null default '2026/27'",
     "opzioni": "text not null default '{}'",
+    "portiere_emergenza_id": "bigint",
+    "portieri_indisponibili": "text not null default ''",
 }
 
 

@@ -113,6 +113,8 @@ COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
         "maglia_caricata",
         "anno_fondazione",
         "lega_id",
+        "portiere_emergenza_id",
+        "portieri_indisponibili",
     ),
     "giocatori": (
         "id",
@@ -166,6 +168,7 @@ COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
         "modulo",
         "titolari",
         "panchina",
+        "portiere_emergenza",
         "aggiornata_il",
     ),
     "voti": (
@@ -522,6 +525,21 @@ def _numero(valore) -> float | None:
     return float(valore)
 
 
+def _id_opzionale(valore) -> int | None:
+    """Un id che puo' non esserci, da qualunque forma arrivi.
+
+    Su un database vecchio la colonna manca e `riga.get` torna None; su uno
+    nuovo senza valore arriva un NaN di pandas. Per chi legge sono la stessa
+    cosa, e un `int(NaN)` alzerebbe eccezione a pagina aperta.
+    """
+    if valore is None or pd.isna(valore):
+        return None
+    try:
+        return int(valore)
+    except (TypeError, ValueError):
+        return None
+
+
 def carica_giocatori(arch: Archivio) -> dict[int, Giocatore]:
     """Anagrafica di tutti i giocatori della lega, indicizzata per id."""
     ufficiale = None
@@ -545,6 +563,24 @@ def carica_giocatori(arch: Archivio) -> dict[int, Giocatore]:
         )
         for _, riga in arch.giocatori().iterrows()
     }
+
+
+def svincolati(arch: Archivio, giocatori: dict[int, Giocatore] | None = None) -> set[int]:
+    """Gli id dei giocatori senza contratto con nessuna squadra della lega.
+
+    Si ricava dai contratti invece di tenere una colonna «libero»: una
+    colonna avrebbe due versioni della verita', e dopo uno svincolo mal
+    riuscito sarebbero diverse.
+
+    `giocatori` si passa quando l'anagrafica e' gia' in mano: ricaricarla
+    costa come leggere tutto il listone, e in una sola richiesta HTTP
+    servirebbe tre volte.
+    """
+    tutti = set(carica_giocatori(arch) if giocatori is None else giocatori)
+    contratti = arch.contratti()
+    if contratti.empty:
+        return tutti
+    return tutti - {int(g) for g in contratti["giocatore_id"]}
 
 
 def carica_rose(arch: Archivio) -> dict[int, Rosa]:
@@ -594,7 +630,11 @@ def carica_rose(arch: Archivio) -> dict[int, Rosa]:
         ]
 
         rose[squadra_id] = Rosa(
-            squadra=squadra, contratti=suoi_contratti, dead_money=dead_money
+            squadra=squadra,
+            contratti=suoi_contratti,
+            dead_money=dead_money,
+            portiere_emergenza_id=_id_opzionale(riga.get("portiere_emergenza_id")),
+            portieri_indisponibili=_lista_id(riga.get("portieri_indisponibili")),
         ).collega(giocatori)
 
     return rose
@@ -614,9 +654,32 @@ def calendario_dettagliato(arch: Archivio) -> pd.DataFrame:
     return partite.sort_values(["giornata", "casa"]).reset_index(drop=True)
 
 
+def _emergenza_salvata(arch: Archivio, squadra_id: int) -> tuple[int | None, str]:
+    """Portiere d'emergenza e portieri dichiarati fuori, come stanno scritti."""
+    righe = arch.squadre()
+    if righe.empty or "portiere_emergenza_id" not in righe.columns:
+        return (None, "")
+    sua = righe[righe["id"].astype("Int64") == int(squadra_id)]
+    if sua.empty:
+        return (None, "")
+    riga = sua.iloc[0]
+    return (
+        _id_opzionale(riga.get("portiere_emergenza_id")),
+        _testo(riga.get("portieri_indisponibili")),
+    )
+
+
 def salva_squadra(arch: Archivio, squadra: Squadra) -> None:
-    """Persiste nome, presidente e identita' visiva di una squadra."""
+    """Persiste nome, presidente e identita' visiva di una squadra.
+
+    Riscrive anche `portiere_emergenza_id` **com'era**, e non e' un giro
+    inutile: su SQLite la scrittura e' un `insert or replace`, che azzera le
+    colonne non elencate. Senza questa riga, correggere il motto revocherebbe
+    in silenzio il portiere d'emergenza di quella squadra — un guasto che si
+    noterebbe soltanto a punteggi gia' calcolati.
+    """
     identita = squadra.identita
+    emergenza, indisponibili = _emergenza_salvata(arch, squadra.id)
     arch.scrivi(
         "squadre",
         [
@@ -635,10 +698,44 @@ def salva_squadra(arch: Archivio, squadra: Squadra) -> None:
                 "maglia_caricata": identita.maglia_caricata,
                 "anno_fondazione": identita.anno_fondazione,
                 "lega_id": squadra.lega_id,
+                "portiere_emergenza_id": emergenza,
+                "portieri_indisponibili": indisponibili,
             }
         ],
         chiave="id",
     )
+
+
+def imposta_portiere_emergenza(
+    arch: Archivio,
+    squadra_id: int,
+    giocatore_id: int | None,
+    indisponibili: Iterable[int] = (),
+) -> None:
+    """Attiva (o revoca, con None) il portiere d'emergenza di una squadra.
+
+    Scrive le due cose insieme perche' insieme hanno senso: chi e' in porta e
+    quali portieri di ruolo sono dichiarati fuori. Revocando si azzerano
+    entrambe — un'emergenza chiusa non lascia dietro una dichiarazione che
+    farebbe sembrare la porta ancora vuota.
+
+    E' un update mirato su due colonne, non l'upsert di `salva_squadra`:
+    riscrivere la riga intera per cambiare un campo e' il modo piu' facile di
+    cancellare per sbaglio il resto dell'identita'.
+    """
+    valore = None if giocatore_id is None else int(giocatore_id)
+    elenco = "" if valore is None else ",".join(str(int(g)) for g in indisponibili)
+    if isinstance(arch, ArchivioSQLite):
+        with sqlite3.connect(arch.percorso) as conn:
+            conn.execute(
+                "update squadre set portiere_emergenza_id = ?, "
+                "portieri_indisponibili = ? where id = ?",
+                (valore, elenco, int(squadra_id)),
+            )
+        return
+    arch._client.table("squadre").update(
+        {"portiere_emergenza_id": valore, "portieri_indisponibili": elenco}
+    ).eq("id", int(squadra_id)).execute()
 
 
 def prossimo_id(arch: Archivio, tabella: str, colonna: str = "id") -> int:
@@ -1026,6 +1123,7 @@ def carica_formazioni(
             panchina=_lista_id(riga.get("panchina")),
             competizione=str(riga.get("competizione") or "CAMPIONATO"),
             aggiornata_il=str(riga.get("aggiornata_il") or ""),
+            portiere_emergenza=_id_opzionale(riga.get("portiere_emergenza")),
         )
     return trovate
 
@@ -1059,6 +1157,7 @@ def salva_formazione(arch: Archivio, formazione: Formazione) -> None:
                 "modulo": formazione.modulo,
                 "titolari": ",".join(str(g) for g in formazione.titolari),
                 "panchina": ",".join(str(g) for g in formazione.panchina),
+                "portiere_emergenza": formazione.portiere_emergenza,
                 "aggiornata_il": formazione.aggiornata_il
                 or datetime.now(timezone.utc).isoformat(),
             }

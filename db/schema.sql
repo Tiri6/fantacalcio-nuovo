@@ -53,6 +53,19 @@ create table if not exists squadre (
     maglia_caricata     text,
     anno_fondazione     integer,
     lega_id             bigint references leghe(id) on delete cascade,
+    -- Portiere d'emergenza in carica (art. 8, Lodo Messina). Non e' un
+    -- contratto: sta qui e non in `contratti` proprio perche' non pesa su
+    -- monte anni ne' su Salary Cap, e deve restarne fuori per costruzione.
+    -- Senza `references giocatori(id)`: questa tabella si crea **prima** di
+    -- `giocatori`, e un vincolo verso una tabella che non c'e' ancora fa
+    -- fallire l'intero script. Lo svuota l'applicazione quando il portiere
+    -- non serve piu'.
+    portiere_emergenza_id bigint,
+    -- Quali dei suoi portieri la squadra dichiara indisponibili: lista di id
+    -- separati da virgola. Senza questa dichiarazione l'emergenza non si
+    -- potrebbe nemmeno rileggere — ricaricando la pagina sembrerebbe che i
+    -- portieri siano tornati tutti, e il sito chiederebbe di revocarla.
+    portieri_indisponibili text not null default '',
     creata_il           timestamptz not null default now()
 );
 
@@ -267,6 +280,10 @@ alter table giocatori add column if not exists ruolo_classic text not null defau
 
 alter table calendario add column if not exists inizio_previsto timestamptz;
 
+-- Portiere d'emergenza (art. 8, Lodo Messina).
+alter table squadre    add column if not exists portiere_emergenza_id bigint;
+alter table squadre    add column if not exists portieri_indisponibili text not null default '';
+
 -- ---------------------------------------------------------------------------
 -- Formazioni e voti
 -- ---------------------------------------------------------------------------
@@ -282,9 +299,17 @@ create table if not exists formazioni (
     modulo        text not null,
     titolari      text not null default '',
     panchina      text not null default '',
+    -- Chi ha giocato da portiere d'emergenza in **questa** giornata: il
+    -- punteggio non deve cambiare quando l'emergenza finisce.
+    portiere_emergenza bigint references giocatori(id) on delete set null,
     aggiornata_il text,
     unique (squadra_id, giornata, competizione)
 );
+
+-- Qui e non nel blocco degli ALTER piu' sopra: quello sta prima di questa
+-- `create table`, e alterare una tabella non ancora creata fallisce.
+alter table formazioni add column if not exists portiere_emergenza bigint
+    references giocatori(id) on delete set null;
 
 -- Un voto per giocatore per giornata. `voto` nullo = senza voto: e' diverso
 -- da zero, ed e' quel che fa scattare la sostituzione.

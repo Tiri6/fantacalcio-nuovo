@@ -7,7 +7,21 @@ from pydantic import BaseModel
 
 from fantacalcio.competizioni import titoli_di
 from fantacalcio.conformita import verifica_rosa
-from fantacalcio.data import archivio, carica_albo, carica_rose
+from fantacalcio.data import (
+    archivio,
+    carica_albo,
+    carica_giocatori,
+    carica_rose,
+    imposta_portiere_emergenza,
+    svincolati,
+)
+from fantacalcio.emergenza import (
+    EmergenzaNonAmmessa,
+    malus_emergenza,
+    stato_emergenza,
+    verifica_attivazione,
+    verifica_revoca,
+)
 
 from ..contesto import contesto_di
 from ..dipendenze import UtenteDentro
@@ -137,6 +151,43 @@ class Conti(BaseModel):
     u21: int
 
 
+class PortiereDellaRosa(BaseModel):
+    id: int
+    nome: str
+    disponibile: bool
+
+
+class PortiereLibero(BaseModel):
+    """Un candidato: portiere, svincolato, con il suo ingaggio per confronto."""
+
+    id: int
+    nome: str
+    club: str
+    ingaggio: float
+
+
+class Emergenza(BaseModel):
+    """Lo stato del Lodo Messina per questa squadra.
+
+    Arriva gia' deciso dal dominio: la pagina mostra `motivo` e abilita i
+    bottoni secondo `ammessa` e `attiva`, senza rifare il ragionamento. Se lo
+    rifacesse, la regola starebbe in due posti e il browser potrebbe dire una
+    cosa e il server un'altra.
+    """
+
+    portieri: list[PortiereDellaRosa]
+    attiva: bool
+    ammessa: bool
+    va_revocata: bool
+    motivo: str
+    in_carica_id: int | None
+    in_carica_nome: str
+    malus: float
+    # Solo per chi puo' gestire la squadra: a chi guarda non serve l'elenco
+    # dei portieri liberi della lega.
+    candidati: list[PortiereLibero]
+
+
 class SquadraInDettaglio(BaseModel):
     id: int
     nome: str
@@ -155,6 +206,132 @@ class SquadraInDettaglio(BaseModel):
     violazioni: list[Violazione]
     titoli: list[Titolo]
     riferimento_u21: str
+    emergenza: Emergenza
+
+
+def _emergenza(ctx, rosa, posso_gestirla: bool) -> Emergenza:
+    """Il blocco emergenza di una squadra, con i candidati solo a chi la gestisce."""
+    # L'anagrafica si legge **una volta**: e' tutto il listone, e qui servirebbe
+    # tre volte (il portiere in carica, i candidati, gli svincolati).
+    tutti = carica_giocatori(ctx.arch)
+
+    nome_in_carica = ""
+    if rosa.portiere_emergenza_id is not None:
+        anagrafica = tutti.get(rosa.portiere_emergenza_id)
+        nome_in_carica = anagrafica.nome if anagrafica else "?"
+
+    stato = stato_emergenza(rosa, in_carica_nome=nome_in_carica)
+
+    candidati: list[PortiereLibero] = []
+    if posso_gestirla:
+        candidati = sorted(
+            (
+                PortiereLibero(id=g.id, nome=g.nome, club=g.club, ingaggio=g.ingaggio)
+                for gid in svincolati(ctx.arch, tutti)
+                if (g := tutti.get(gid)) is not None and g.portiere
+            ),
+            key=lambda p: p.nome,
+        )
+
+    return Emergenza(
+        portieri=[
+            PortiereDellaRosa(id=p.id, nome=p.nome, disponibile=p.disponibile)
+            for p in stato.portieri
+        ],
+        attiva=stato.attiva,
+        ammessa=stato.ammessa,
+        va_revocata=stato.va_revocata,
+        motivo=stato.motivo,
+        in_carica_id=stato.in_carica_id,
+        in_carica_nome=stato.in_carica_nome,
+        malus=malus_emergenza(ctx.parametri),
+        candidati=candidati,
+    )
+
+
+def _rosa_gestibile(squadra_id: int, utente):
+    """La rosa di una squadra che questo utente puo' gestire, o un errore.
+
+    Il controllo sta qui e non nel browser: nascondere un bottone non e' un
+    controllo, ed e' la regola del progetto.
+    """
+    ctx = contesto_di(utente)
+    rosa = carica_rose(ctx.arch).get(squadra_id)
+    if rosa is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Squadra inesistente."
+        )
+    if utente.lega_id is not None and rosa.squadra.lega_id not in (
+        None,
+        utente.lega_id,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Squadra inesistente."
+        )
+    if not utente.puo_gestire(squadra_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Il portiere d'emergenza lo attiva chi gestisce la squadra.",
+        )
+    return ctx, rosa
+
+
+class Attivazione(BaseModel):
+    giocatore_id: int
+    # Quali portieri di ruolo la squadra dichiara indisponibili. Li dichiara
+    # chi attiva: le indisponibilita' stanno su Leghe Fantacalcio, e questo
+    # sito non le sa leggere da solo (vedi PUNTI_APERTI.md).
+    indisponibili: list[int] = []
+
+
+@rotte.post("/squadre/{squadra_id}/portiere-emergenza", response_model=Emergenza)
+def attiva_emergenza(
+    squadra_id: int, richiesta: Attivazione, utente: UtenteDentro
+) -> Emergenza:
+    """Attiva il portiere d'emergenza (art. 8, Lodo Messina)."""
+    ctx, rosa = _rosa_gestibile(squadra_id, utente)
+
+    tutti = carica_giocatori(ctx.arch)
+    candidato = tutti.get(richiesta.giocatore_id)
+    if candidato is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Giocatore inesistente."
+        )
+
+    # Lo stato si valuta sulla dichiarazione **appena** arrivata, non su quella
+    # salvata: e' quella che l'utente sta affermando adesso.
+    stato = stato_emergenza(rosa, indisponibili=richiesta.indisponibili)
+    try:
+        verifica_attivazione(stato, candidato, svincolati(ctx.arch, tutti))
+    except EmergenzaNonAmmessa as errore:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(errore)
+        ) from errore
+
+    imposta_portiere_emergenza(
+        ctx.arch, squadra_id, candidato.id, richiesta.indisponibili
+    )
+    rosa.portiere_emergenza_id = candidato.id
+    rosa.portieri_indisponibili = tuple(richiesta.indisponibili)
+    return _emergenza(ctx, rosa, posso_gestirla=True)
+
+
+@rotte.delete("/squadre/{squadra_id}/portiere-emergenza", response_model=Emergenza)
+def revoca_emergenza(squadra_id: int, utente: UtenteDentro) -> Emergenza:
+    """Revoca il portiere d'emergenza: torna disponibile uno di ruolo."""
+    ctx, rosa = _rosa_gestibile(squadra_id, utente)
+
+    try:
+        verifica_revoca(stato_emergenza(rosa))
+    except EmergenzaNonAmmessa as errore:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(errore)
+        ) from errore
+
+    imposta_portiere_emergenza(ctx.arch, squadra_id, None)
+    rosa.portiere_emergenza_id = None
+    rosa.portieri_indisponibili = ()
+    return _emergenza(ctx, rosa, posso_gestirla=True)
 
 
 @rotte.get("/squadre/{squadra_id}", response_model=SquadraInDettaglio)
@@ -267,4 +444,5 @@ def dettaglio(squadra_id: int, utente: UtenteDentro) -> SquadraInDettaglio:
             for t in titoli
         ],
         riferimento_u21=ctx.riferimento_u21.isoformat(),
+        emergenza=_emergenza(ctx, rosa, utente.puo_gestire(s.id)),
     )

@@ -85,10 +85,30 @@ class TestPortieri:
         stato = verifica_rosa(costruisci_rosa(portieri=4), DATA_DRAFT)
         assert "portieri" in codici(stato)
 
-    def test_meno_di_tre_portieri_e_consentito(self):
-        """La V2.1 ha sostituito "3 portieri obbligatori" con "massimo 3"."""
+    def test_meno_di_tre_portieri_e_una_violazione(self):
+        """Il V3 torna a «3 Portieri obbligatori»: non e' solo un tetto."""
         stato = verifica_rosa(costruisci_rosa(portieri=2), DATA_DRAFT)
+        assert "portieri_minimo" in codici(stato)
+
+    def test_tre_portieri_vanno_bene(self):
+        stato = verifica_rosa(costruisci_rosa(portieri=3), DATA_DRAFT)
+        assert "portieri_minimo" not in codici(stato)
         assert "portieri" not in codici(stato)
+
+    def test_portiere_in_meno_in_stagione_e_solo_un_avviso(self):
+        """Durante la stagione si rimpiazza al mercato, non si blocca tutto."""
+        stato = verifica_rosa(
+            costruisci_rosa(portieri=2), DATA_DRAFT, momento=Momento.STAGIONE
+        )
+        manca = next(v for v in stato.violazioni if v.codice == "portieri_minimo")
+        assert not manca.bloccante
+
+    def test_portiere_in_meno_blocca_la_chiusura_dell_asta(self):
+        stato = verifica_rosa(
+            costruisci_rosa(portieri=2), DATA_DRAFT, momento=Momento.ASTA_SETTEMBRE
+        )
+        manca = next(v for v in stato.violazioni if v.codice == "portieri_minimo")
+        assert manca.bloccante
 
 
 class TestMonteAnni:

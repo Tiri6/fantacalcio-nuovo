@@ -1,4 +1,4 @@
-"""Parametri del regolamento di FantaCalcio NuoVo (V2.1 - Agosto 2026).
+"""Parametri del regolamento di FantaCalcio NuoVo (V3 - Ottobre 2026).
 
 Ogni numero del regolamento sta qui e da nessun'altra parte: le regole della
 lega cambiano per votazione ("lodi"), quindi devono essere modificabili in un
@@ -45,7 +45,7 @@ class SogliaAnnuali:
 class ParametriLega:
     """Tutti i vincoli numerici del regolamento.
 
-    I default sono quelli della V2.1. Un lodo che cambia un valore si applica
+    I default sono quelli del V3. Un lodo che cambia un valore si applica
     costruendo un nuovo ParametriLega, senza toccare il codice delle regole.
     """
 
@@ -56,6 +56,10 @@ class ParametriLega:
     rosa_minimo: int = 30
     rosa_massimo_base: int = 33
     rosa_massimo_assoluto: int = 36
+    # Il V3 torna a scrivere «3 Portieri obbligatori»: sono insieme il minimo
+    # e il massimo, e le dieci rose vere del 2026/27 ne hanno esattamente tre
+    # a testa. La V2.1 post-redline aveva lasciato solo il tetto.
+    portieri_minimo: int = 3
     portieri_massimo: int = 3
 
     # Articolo 2 - Espansione Under 21 (sponsor italiannextgen.it)

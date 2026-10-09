@@ -20,7 +20,10 @@ export class ErroreApi extends Error {
   }
 }
 
-async function chiama<T>(percorso: string, opzioni: RequestInit = {}): Promise<T> {
+async function chiama<T>(
+  percorso: string,
+  opzioni: RequestInit = {},
+): Promise<T> {
   const risposta = await fetch(`/api${percorso}`, {
     credentials: "include",
     headers: { "Content-Type": "application/json", ...(opzioni.headers ?? {}) },
@@ -74,7 +77,6 @@ export type Squadra = {
   e_mia: boolean;
 };
 
-
 export type Violazione = {
   codice: string;
   articolo: string;
@@ -127,6 +129,38 @@ export type Conti = {
   u21: number;
 };
 
+export type PortiereDellaRosa = {
+  id: number;
+  nome: string;
+  disponibile: boolean;
+};
+
+export type PortiereLibero = {
+  id: number;
+  nome: string;
+  club: string;
+  ingaggio: number;
+};
+
+/**
+ * Lo stato del Lodo Messina, deciso dal server.
+ *
+ * `motivo` si mostra, non si ricostruisce: la regola di quando l'emergenza
+ * spetta sta nel dominio Python, e una seconda copia qui direbbe prima o poi
+ * una cosa diversa da quella che il server poi applica.
+ */
+export type Emergenza = {
+  portieri: PortiereDellaRosa[];
+  attiva: boolean;
+  ammessa: boolean;
+  va_revocata: boolean;
+  motivo: string;
+  in_carica_id: number | null;
+  in_carica_nome: string;
+  malus: number;
+  candidati: PortiereLibero[];
+};
+
 export type SquadraInDettaglio = Squadra & {
   posso_gestirla: boolean;
   conti: Conti;
@@ -134,6 +168,7 @@ export type SquadraInDettaglio = Squadra & {
   violazioni: Violazione[];
   titoli: Titolo[];
   riferimento_u21: string;
+  emergenza: Emergenza;
 };
 
 export type Giocatore = {
@@ -161,7 +196,6 @@ export type Listone = {
   con_data_nascita: number;
   riferimento_u21: string;
 };
-
 
 export type SquadraInGalleria = {
   id: number;
@@ -334,7 +368,11 @@ export type TitoloLetto = {
 
 export type Albo = {
   titoli: TitoloLetto[];
-  bacheche: { squadra: string; titoli: Record<string, number>; totale: number }[];
+  bacheche: {
+    squadra: string;
+    titoli: Record<string, number>;
+    totale: number;
+  }[];
   competizioni: { nome: string; etichetta: string; icona: string }[];
   squadre: string[];
   stagione_corrente: string;
@@ -413,6 +451,19 @@ export const api = {
   squadre: () => chiama<Squadra[]>("/squadre"),
   squadra: (id: number) => chiama<SquadraInDettaglio>(`/squadre/${id}`),
   listone: () => chiama<Listone>("/giocatori"),
+  attivaPortiereEmergenza: (
+    squadra: number,
+    giocatore_id: number,
+    indisponibili: number[],
+  ) =>
+    chiama<Emergenza>(`/squadre/${squadra}/portiere-emergenza`, {
+      method: "POST",
+      body: JSON.stringify({ giocatore_id, indisponibili }),
+    }),
+  revocaPortiereEmergenza: (squadra: number) =>
+    chiama<Emergenza>(`/squadre/${squadra}/portiere-emergenza`, {
+      method: "DELETE",
+    }),
   identita: () => chiama<Galleria>("/identita"),
   salvaIdentita: (id: number, corpo: ModificaIdentita) =>
     chiama<SquadraInGalleria>(`/squadre/${id}/identita`, {
@@ -466,7 +517,10 @@ export const api = {
   campionato: () => chiama<Campionato>("/campionato"),
   albo: () => chiama<Albo>("/albo"),
   registraTitolo: (corpo: Registrazione) =>
-    chiama<TitoloLetto>("/albo", { method: "POST", body: JSON.stringify(corpo) }),
+    chiama<TitoloLetto>("/albo", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
   cancellaTitolo: (id: number) =>
     chiama<void>(`/albo/${id}`, { method: "DELETE" }),
   cruscotto: (momento: string) =>

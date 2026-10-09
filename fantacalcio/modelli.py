@@ -162,6 +162,10 @@ class Rosa:
     # Articolo 8: portiere d'emergenza (Lodo Messina). Non firma contratto e
     # non incide ne' sul monte anni ne' sul Salary Cap.
     portiere_emergenza_id: int | None = None
+    # Quali dei suoi portieri la squadra dichiara indisponibili. E' la base su
+    # cui si decide se l'emergenza spetta, quindi va conservata: senza, al
+    # giro successivo sembrerebbero tornati tutti disponibili.
+    portieri_indisponibili: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         self._indice: dict[int, Giocatore] = {}
@@ -259,6 +263,7 @@ class Rosa:
             contratti=[*rimanenti, contratto],
             dead_money=list(self.dead_money),
             portiere_emergenza_id=self.portiere_emergenza_id,
+            portieri_indisponibili=self.portieri_indisponibili,
         ).collega(indice)
 
     def senza_giocatore(self, giocatore_id: int) -> Rosa:
@@ -268,4 +273,5 @@ class Rosa:
             contratti=[c for c in self.contratti if c.giocatore_id != giocatore_id],
             dead_money=list(self.dead_money),
             portiere_emergenza_id=self.portiere_emergenza_id,
+            portieri_indisponibili=self.portieri_indisponibili,
         ).collega(self._indice)

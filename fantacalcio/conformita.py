@@ -141,7 +141,22 @@ def verifica_rosa(
         )
 
     # --- Articolo 2: portieri ----------------------------------------------
+    # «3 Portieri obbligatori, inclusi nel totale della rosa»: il V3 fissa il
+    # numero, non un tetto. In corso di stagione resta un avviso come per la
+    # rosa corta — un portiere ceduto si rimpiazza al mercato, e nel frattempo
+    # c'e' il Lodo Messina (vedi `emergenza.py`), che pero' non lo sostituisce.
     portieri = len(rosa.portieri)
+    if portieri < parametri.portieri_minimo:
+        violazioni.append(
+            Violazione(
+                "portieri_minimo",
+                "Art. 2",
+                Gravita.BLOCCO if chiude_mercato else Gravita.AVVISO,
+                f"{portieri} portieri in rosa: ne servono {parametri.portieri_minimo}.",
+                portieri,
+                parametri.portieri_minimo,
+            )
+        )
     if portieri > parametri.portieri_massimo:
         violazioni.append(
             Violazione(

@@ -231,6 +231,20 @@ GIORNATE_GIOCATE = 11
 ROSE_AMPLIATE = {3: 34, 6: 35}
 SQUADRE_CON_DEAD_MONEY = (2, 5, 8)
 
+# Giocatori del listone che nessuno ha: tre portieri e qualche movimento. I
+# portieri sono il minimo indispensabile per provare il Lodo Messina, dove la
+# scelta si fa fra gli svincolati.
+SVINCOLATI_DEMO = (
+    ("Por",),
+    ("Por",),
+    ("Por",),
+    ("Dc",),
+    ("Dd", "E"),
+    ("M", "C"),
+    ("W", "T"),
+    ("A", "Pc"),
+)
+
 # Password degli utenti di demo. E' scritta qui apposta: vale SOLO per la lega
 # generata in locale, che non contiene dati veri. Su Supabase gli utenti si
 # creano dalla pagina Partecipanti e questa password non esiste.
@@ -543,6 +557,25 @@ def genera_lega(rng: random.Random | None = None) -> dict:
                 }
             )
 
+    # Il listone non e' la somma delle rose: sulla piattaforma vera ci sono
+    # svincolati, e senza di loro mezzo sito non si potrebbe nemmeno provare —
+    # il portiere d'emergenza del Lodo Messina si pesca proprio da qui, e con
+    # un listone chiuso non avrebbe mai un candidato.
+    for ruoli in SVINCOLATI_DEMO:
+        under21 = False
+        giocatori.append(
+            {
+                "id": id_giocatore,
+                "nome": f"{rng.choice(COGNOMI)} ({id_giocatore})",
+                "club": rng.choice(CLUB),
+                "ruoli": ";".join(ruoli),
+                "ingaggio": round(rng.uniform(0.4, 2.5) * 1_000_000, -4),
+                "nazionalita": rng.choice(NAZIONI),
+                "data_nascita": _data_nascita(rng, under21).isoformat(),
+            }
+        )
+        id_giocatore += 1
+
     calendario = _genera_calendario(squadre, rng)
     return {
         "leghe": _lega_demo(),
@@ -641,7 +674,9 @@ create table if not exists squadre (
     logo text,
     maglia_caricata text,
     anno_fondazione integer,
-    lega_id integer
+    lega_id integer,
+    portiere_emergenza_id integer,
+    portieri_indisponibili text not null default ''
 );
 create table if not exists giocatori (
     id integer primary key,
@@ -664,6 +699,7 @@ create table if not exists formazioni (
     modulo text not null,
     titolari text not null default '',
     panchina text not null default '',
+    portiere_emergenza integer,
     aggiornata_il text,
     unique (squadra_id, giornata, competizione)
 );

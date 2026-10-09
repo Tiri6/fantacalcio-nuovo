@@ -6,7 +6,7 @@
 
 Gestionale di FantaCalcio NuoVo. Il gioco sta su Leghe Fantacalcio: qui si
 gestiscono contratti, monte anni, Salary Cap/Floor, draft e scambi.
-Riferimento normativo: regolamento V2.1 (Agosto 2026), post-redline.
+Riferimento normativo: regolamento **V3** (testo definitivo, Ottobre 2026).
 
 ## Comandi
 
@@ -122,7 +122,8 @@ all'avvio: non ricrearlo a mano.
 | Toccare la bacheca o i permessi di scrittura | `bacheca.py` + `test_bacheca.py` |
 | Toccare i dati anagrafici o la squadra del cuore | `anagrafica.py` + `test_anagrafica.py` |
 | Aggiungere una tabella o colonna che l'app scrive | anche `ATTESO` in `diagnostica.py` |
-| Toccare coppa, supercoppa o albo d'oro | `competizioni.py` + `test_competizioni.py` |
+| Toccare coppa, F1 Rush o albo d'oro | `competizioni.py` + `test_competizioni.py` |
+| Toccare il portiere d'emergenza (Lodo Messina) | `emergenza.py` + `test_emergenza.py` |
 | Cambiare la corrispondenza Serie A ↔ giornate | `costruisci_weekend` in `competizioni.py` |
 | Cambiare le viste del calendario | `viste/calendario.py` |
 | Cambiare accesso, registrazione o onboarding | `schermate.py` + `ui.py` |
