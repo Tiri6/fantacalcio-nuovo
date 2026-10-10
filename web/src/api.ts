@@ -440,6 +440,40 @@ export type DatiLega = {
   sql_di_riparazione: string;
 };
 
+export type VoceModulo = {
+  nome: string;
+  etichetta: string;
+};
+
+/**
+ * Quel che serve a disegnare il modulo di registrazione.
+ *
+ * Le tendine arrivano dal server e non si scrivono qui: le squadre del cuore
+ * sono quelle vere della stagione quando il listone e' caricato, e i minimi
+ * (password, eta') sono gli stessi numeri che il dominio poi applica. Una
+ * copia nel front-end direbbe una cosa e il server ne farebbe un'altra.
+ */
+export type ModuloRegistrazione = {
+  primo_utente: boolean;
+  sessi: VoceModulo[];
+  squadre_preferite: string[];
+  password_minima: number;
+  eta_minima: number;
+};
+
+export type Iscrizione = {
+  nome: string;
+  cognome: string;
+  data_nascita: string;
+  sesso: string;
+  citta: string;
+  squadra_preferita: string;
+  nome_utente: string;
+  email: string;
+  password: string;
+  conferma: string;
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -447,6 +481,12 @@ export const api = {
       body: JSON.stringify({ nome_utente, password }),
     }),
   io: () => chiama<ChiSono>("/io"),
+  moduloRegistrazione: () => chiama<ModuloRegistrazione>("/registrazione"),
+  iscriviti: (corpo: Iscrizione) =>
+    chiama<ChiSono>("/registrazione", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
   esci: () => chiama<void>("/esci", { method: "POST" }),
   squadre: () => chiama<Squadra[]>("/squadre"),
   squadra: (id: number) => chiama<SquadraInDettaglio>(`/squadre/${id}`),
