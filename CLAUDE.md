@@ -64,6 +64,11 @@ all'avvio: non ricrearlo a mano.
   un oggetto in cache conserva la forma che aveva quando e' entrato, e dopo
   un aggiornamento del codice rompe l'app con un AttributeError. Si mette in
   cache la tabella grezza (`ui.dati()`) e si ricostruisce a ogni giro.
+- **Nel sito React i colori sono token, mai valori scritti nelle regole.**
+  Stanno in cima a `web/src/stile.css`, in due blocchi: tema scuro e tema
+  chiaro. Un `#1a2b20` dentro una regola resta scuro anche sul tema chiaro, e
+  si nota solo guardando — e' cosi' che testata e menu erano rimasti neri in
+  mezzo a una pagina bianca. La scelta sta in `web/src/tema.ts`.
 - **Le voci di menu delle competizioni sono condizionali.** Coppa e
   F1 Rush compaiono solo se la lega le gioca: una voce che parla di una
   competizione inesistente e' peggio di una voce mancante.
@@ -119,6 +124,7 @@ all'avvio: non ricrearlo a mano.
 | Cambiare il formato del CSV | `importazione.py` (i sinonimi stanno in `COLONNE_ROSE`) |
 | Aggiungere un'opzione di lega | `OpzioniLega` in `leghe.py` + il modulo in `schermate.py` |
 | Toccare colori, schede o testate | `tema.py` + `test_tema.py` |
+| Toccare i colori del sito React | i token in cima a `web/src/stile.css` |
 | Toccare la bacheca o i permessi di scrittura | `bacheca.py` + `test_bacheca.py` |
 | Toccare i dati anagrafici o la squadra del cuore | `anagrafica.py` + `test_anagrafica.py` |
 | Aggiungere una tabella o colonna che l'app scrive | anche `ATTESO` in `diagnostica.py` |
