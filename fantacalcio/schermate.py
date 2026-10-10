@@ -50,11 +50,12 @@ from .autenticazione import (
     reimposta_password,
 )
 from .competizioni import (
+    GIORNATE_SERIE_A,
     CompetizioneNonValida,
-    CriterioSupercoppa,
+    CriterioF1Rush,
     FormatoCoppa,
     RegoleCoppa,
-    RegoleSupercoppa,
+    RegoleF1Rush,
 )
 from .data import (
     archivio,
@@ -580,7 +581,7 @@ def _modulo_opzioni(
     )
     riga = st.columns(2)
     coppa = riga[0].toggle("Coppa Italia", value=base.coppa_italia)
-    supercoppa = riga[1].toggle("Supercoppa", value=base.supercoppa)
+    f1_rush = riga[1].toggle("F1 Rush Finale", value=base.f1_rush)
 
     regole_coppa = base.regole_coppa
     if coppa:
@@ -592,15 +593,17 @@ def _modulo_opzioni(
                 index=list(FormatoCoppa).index(base.regole_coppa.formato),
                 format_func=lambda f: f.etichetta,
             )
-            ammesse = riga[1].selectbox(
+            a_gironi = formato_coppa is FormatoCoppa.GIRONI_PIU_SCONTRI
+            ammesse = riga[1].number_input(
                 "Squadre ammesse",
-                [2, 4, 8, 16],
-                index=(
-                    [2, 4, 8, 16].index(base.regole_coppa.squadre_ammesse)
-                    if base.regole_coppa.squadre_ammesse in (2, 4, 8, 16)
-                    else 2
+                min_value=2,
+                max_value=20,
+                value=base.regole_coppa.squadre_ammesse,
+                help=(
+                    "Quante entrano in coppa. Coi gironi possono essere tutte; "
+                    "senza, dev'essere una potenza di due — altrimenti il "
+                    "tabellone non si chiude."
                 ),
-                help="Una potenza di due: altrimenti il tabellone non si chiude.",
             )
             teste = riga[2].toggle(
                 "Teste di serie dalla classifica",
@@ -608,15 +611,33 @@ def _modulo_opzioni(
             )
 
             riga = st.columns(3)
-            prima = riga[0].number_input(
-                "Primo turno alla giornata", 1, 40, base.regole_coppa.prima_giornata
-            )
-            passo = riga[1].number_input(
-                "Un turno ogni quante giornate",
-                1,
-                10,
-                base.regole_coppa.ogni_quante_giornate,
-            )
+            if a_gironi:
+                quanti_gironi = riga[0].number_input(
+                    "Gironi", 1, 8, base.regole_coppa.gironi
+                )
+                qualificate = riga[1].number_input(
+                    "Qualificate per girone",
+                    1,
+                    8,
+                    base.regole_coppa.qualificate_per_girone,
+                    help="Il totale dev'essere una potenza di due: 2 gironi x 2 = 4.",
+                )
+                prima, passo = (
+                    base.regole_coppa.prima_giornata,
+                    base.regole_coppa.ogni_quante_giornate,
+                )
+            else:
+                quanti_gironi = base.regole_coppa.gironi
+                qualificate = base.regole_coppa.qualificate_per_girone
+                prima = riga[0].number_input(
+                    "Primo turno alla giornata", 1, 40, base.regole_coppa.prima_giornata
+                )
+                passo = riga[1].number_input(
+                    "Un turno ogni quante giornate",
+                    1,
+                    10,
+                    base.regole_coppa.ogni_quante_giornate,
+                )
             spareggio = riga[2].toggle(
                 "Parita': passa chi ha piu' fantapunti",
                 value=base.regole_coppa.spareggio_ai_fantapunti,
@@ -626,6 +647,9 @@ def _modulo_opzioni(
                 regole_coppa = RegoleCoppa(
                     formato=formato_coppa,
                     squadre_ammesse=int(ammesse),
+                    gironi=int(quanti_gironi),
+                    qualificate_per_girone=int(qualificate),
+                    dopo_il_campionato=a_gironi,
                     prima_giornata=int(prima),
                     ogni_quante_giornate=int(passo),
                     teste_di_serie=bool(teste),
@@ -634,29 +658,65 @@ def _modulo_opzioni(
             except CompetizioneNonValida as errore:
                 st.error(str(errore), icon="⛔")
             else:
-                turni = ", ".join(
-                    f"{regole_coppa.nome_turno(n + 1)} (G{g})"
-                    for n, g in enumerate(regole_coppa.giornate_dei_turni())
+                scontri = ", ".join(
+                    regole_coppa.nome_turno(n) for n in range(1, regole_coppa.turni + 1)
                 )
-                st.caption(f"Tabellone: {turni}")
+                if regole_coppa.a_gironi:
+                    st.caption(
+                        f"{regole_coppa.gironi} gironi da "
+                        f"{regole_coppa.squadre_per_girone}, andata e ritorno "
+                        f"({regole_coppa.giornate_di_girone} giornate) a fine "
+                        f"campionato, poi {scontri.lower()} fra le "
+                        f"{regole_coppa.squadre_a_eliminazione} qualificate."
+                    )
+                else:
+                    turni = ", ".join(
+                        f"{regole_coppa.nome_turno(n + 1)} (G{g})"
+                        for n, g in enumerate(regole_coppa.giornate_dei_turni())
+                    )
+                    st.caption(f"Tabellone: {turni}")
 
-    regole_supercoppa = base.regole_supercoppa
-    if supercoppa:
-        with st.expander("Regole della Supercoppa", expanded=True):
-            criterio = st.selectbox(
-                "Chi si affronta",
-                list(CriterioSupercoppa),
-                index=list(CriterioSupercoppa).index(base.regole_supercoppa.criterio),
+    regole_f1_rush = base.regole_f1_rush
+    if f1_rush:
+        with st.expander("Regole della F1 Rush Finale", expanded=True):
+            riga = st.columns(2)
+            criterio = riga[0].selectbox(
+                "Come si assegnano i punti",
+                list(CriterioF1Rush),
+                index=list(CriterioF1Rush).index(base.regole_f1_rush.criterio),
                 format_func=lambda c: c.etichetta,
-                help="Il primo anno l'albo d'oro e' vuoto: le due squadre le "
-                "scegli a mano. Dall'anno dopo si ricavano da sole.",
+                help="L'articolo 1 dice soltanto che si corre sulle ultime sei "
+                "giornate di Serie A: il meccanismo non lo scrive, e questo e' "
+                "un punto da votare (vedi PUNTI_APERTI.md).",
             )
-            prima_stagione = st.toggle(
-                "Si gioca prima dell'inizio del campionato",
-                value=base.regole_supercoppa.prima_della_stagione,
+            quante = riga[1].number_input(
+                "Su quante giornate di Serie A",
+                min_value=1,
+                max_value=GIORNATE_SERIE_A,
+                value=base.regole_f1_rush.giornate_serie_a,
+                step=1,
             )
-            regole_supercoppa = RegoleSupercoppa(
-                criterio=criterio, prima_della_stagione=bool(prima_stagione)
+            scala = st.text_input(
+                "Punti di tappa, dal primo in giu'",
+                value=" ".join(str(p) for p in base.regole_f1_rush.punti_per_posizione),
+                help="Separati da spazi. Chi arriva oltre l'ultima posizione "
+                "elencata non prende niente, come in Formula 1.",
+                disabled=criterio is not CriterioF1Rush.PUNTI_PER_POSIZIONE,
+            )
+            try:
+                punti_tappa = tuple(int(p) for p in scala.split())
+            except ValueError:
+                st.warning(
+                    "I punti di tappa devono essere numeri interi separati da "
+                    "spazi: tengo la scala di prima.",
+                    icon="⚠️",
+                )
+                punti_tappa = base.regole_f1_rush.punti_per_posizione
+            regole_f1_rush = RegoleF1Rush(
+                criterio=criterio,
+                giornate_serie_a=int(quante),
+                punti_per_posizione=punti_tappa
+                or base.regole_f1_rush.punti_per_posizione,
             )
 
     st.markdown("#### Formazione")
@@ -775,9 +835,9 @@ def _modulo_opzioni(
             anni_contratto_massimi=int(anni_contratto),
             budget_cap=float(budget_milioni) * 1_000_000,
             coppa_italia=bool(coppa),
-            supercoppa=bool(supercoppa),
+            f1_rush=bool(f1_rush),
             regole_coppa=regole_coppa,
-            regole_supercoppa=regole_supercoppa,
+            regole_f1_rush=regole_f1_rush,
             rosa_portieri=portieri,
             rosa_difensori=difensori,
             rosa_centrocampisti=centrocampisti,

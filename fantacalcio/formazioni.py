@@ -189,6 +189,12 @@ class Formazione:
     panchina: tuple[int, ...] = ()
     competizione: str = "CAMPIONATO"
     aggiornata_il: str = ""
+    # Il portiere d'emergenza del Lodo Messina, se quella giornata ha giocato
+    # lui. Sta **sulla formazione** e non solo sulla rosa di proposito: lo
+    # stato della rosa cambia appena un portiere torna disponibile, e se il
+    # malus dipendesse da quello, ricalcolare una giornata vecchia darebbe un
+    # punteggio diverso da quello con cui la partita e' finita.
+    portiere_emergenza: int | None = None
 
 
 def esito_casella(casella: Casella, ruoli_giocatore, modulo: str = "") -> Esito:
@@ -476,6 +482,10 @@ class TabellinoSquadra:
     # punteggio lo dice gia', ma per spiegarlo serve saperlo a parte.
     adattati: list[int] = field(default_factory=list)
     malus_adattamento: float = 0.0
+    # Il malus del portiere d'emergenza (Lodo Messina bis), tenuto separato da
+    # quello di adattamento: chi legge il tabellino deve capire da dove arriva
+    # il punto in meno, e «fuori ruolo» su un portiere in porta sarebbe falso.
+    malus_emergenza: float = 0.0
     modificatore_difesa: float = 0.0
     totale: float = 0.0
     gol: int = 0
@@ -510,6 +520,7 @@ def calcola_squadra(
     tabellino = TabellinoSquadra(formazione.squadra_id, formazione.giornata)
     malus = abs(parametri.malus_adattamento)
     schema = formazione.modulo
+    emergenza = formazione.portiere_emergenza
 
     disponibili = [g for g in formazione.panchina if g in voti and voti[g].ha_giocato]
     usati: set[int] = set()
@@ -534,6 +545,13 @@ def calcola_squadra(
             punti = round(punti - malus, 2)
             tabellino.adattati.append(giocatore)
             tabellino.malus_adattamento = round(tabellino.malus_adattamento - malus, 2)
+        # Lodo Messina bis: il portiere d'emergenza paga lo stesso malus di
+        # chi gioca fuori ruolo, pur essendo in porta e portiere di ruolo.
+        # Si somma a quello di adattamento invece di sostituirlo: sono due
+        # cose diverse, e nessuna delle due esclude l'altra.
+        if giocatore == emergenza:
+            punti = round(punti - malus, 2)
+            tabellino.malus_emergenza = round(tabellino.malus_emergenza - malus, 2)
         tabellino.schierati.append((casella.reparto, giocatore, punti))
         return esito is Esito.MALUS
 

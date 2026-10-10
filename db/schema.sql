@@ -53,6 +53,23 @@ create table if not exists squadre (
     maglia_caricata     text,
     anno_fondazione     integer,
     lega_id             bigint references leghe(id) on delete cascade,
+    -- Portiere d'emergenza in carica (art. 8, Lodo Messina). Non e' un
+    -- contratto: sta qui e non in `contratti` proprio perche' non pesa su
+    -- monte anni ne' su Salary Cap, e deve restarne fuori per costruzione.
+    -- Senza `references giocatori(id)`: questa tabella si crea **prima** di
+    -- `giocatori`, e un vincolo verso una tabella che non c'e' ancora fa
+    -- fallire l'intero script. Lo svuota l'applicazione quando il portiere
+    -- non serve piu'.
+    portiere_emergenza_id bigint,
+    -- Quali dei suoi portieri la squadra dichiara indisponibili: lista di id
+    -- separati da virgola. Senza questa dichiarazione l'emergenza non si
+    -- potrebbe nemmeno rileggere — ricaricando la pagina sembrerebbe che i
+    -- portieri siano tornati tutti, e il sito chiederebbe di revocarla.
+    portieri_indisponibili text not null default '',
+    -- Articolo 2: i posti rosa da espansione Under 21, congelati al ricalcolo
+    -- annuale di Settembre. Nullo = mai ricalcolato, e allora si contano gli
+    -- Under presenti in rosa.
+    slot_u21_congelato  integer,
     creata_il           timestamptz not null default now()
 );
 
@@ -88,8 +105,11 @@ create table if not exists contratti (
     stagione_prolungamento  text
 );
 
--- Lodo Origi: 50% del valore contrattuale residuo, addebitato in un'unica
--- soluzione alla prima sessione di mercato utile. Non concorre al Salary Floor.
+-- Quel che lascia dietro uno svincolo di riparazione (art. 7): la buonuscita
+-- del Lodo Origi (`importo`) e l'ingaggio del giocatore andato via, che resta
+-- a carico fino a fine stagione (`ingaggio_a_carico`). Due colonne e non una
+-- perche' sono due cose diverse: sommandole, il «Dead Money» mostrato in
+-- tabella sarebbe piu' grande di quello che la regola chiama cosi'.
 create table if not exists dead_money (
     id              bigserial primary key,
     squadra_id      bigint not null references squadre(id) on delete cascade,
@@ -97,14 +117,15 @@ create table if not exists dead_money (
     nome_giocatore  text not null,
     importo         numeric(12, 2) not null,
     stagione        text not null,
-    addebitato      boolean not null default false
+    addebitato      boolean not null default false,
+    ingaggio_a_carico numeric(14, 2) not null default 0
 );
 
 -- Albo d'oro: chi ha vinto cosa. Si scrive a fine competizione e resta.
 create table if not exists albo (
     id             bigserial primary key,
     lega_id        bigint not null references leghe(id) on delete cascade,
-    -- Nome del membro di TipoCompetizione (CAMPIONATO, COPPA_ITALIA, SUPERCOPPA).
+    -- Nome del membro di TipoCompetizione (CAMPIONATO, COPPA_ITALIA, F1_RUSH).
     competizione   text not null,
     stagione       text not null,
     squadra_id     bigint references squadre(id) on delete set null,
@@ -267,6 +288,18 @@ alter table giocatori add column if not exists ruolo_classic text not null defau
 
 alter table calendario add column if not exists inizio_previsto timestamptz;
 
+-- Portiere d'emergenza (art. 8, Lodo Messina).
+-- Il V3 ha sostituito la Supercoppa con la F1 Rush Finale. I titoli vecchi
+-- portano ancora il nome di prima: senza questa riga `carica_albo` non li
+-- riconoscerebbe piu' e li salterebbe in silenzio, cioe' una squadra
+-- perderebbe un trofeo dalla sua bacheca.
+update albo set competizione = 'F1_RUSH' where competizione = 'SUPERCOPPA';
+
+alter table squadre    add column if not exists portiere_emergenza_id bigint;
+alter table dead_money add column if not exists ingaggio_a_carico numeric(14, 2) not null default 0;
+alter table squadre    add column if not exists portieri_indisponibili text not null default '';
+alter table squadre    add column if not exists slot_u21_congelato integer;
+
 -- ---------------------------------------------------------------------------
 -- Formazioni e voti
 -- ---------------------------------------------------------------------------
@@ -282,9 +315,17 @@ create table if not exists formazioni (
     modulo        text not null,
     titolari      text not null default '',
     panchina      text not null default '',
+    -- Chi ha giocato da portiere d'emergenza in **questa** giornata: il
+    -- punteggio non deve cambiare quando l'emergenza finisce.
+    portiere_emergenza bigint references giocatori(id) on delete set null,
     aggiornata_il text,
     unique (squadra_id, giornata, competizione)
 );
+
+-- Qui e non nel blocco degli ALTER piu' sopra: quello sta prima di questa
+-- `create table`, e alterare una tabella non ancora creata fallisce.
+alter table formazioni add column if not exists portiere_emergenza bigint
+    references giocatori(id) on delete set null;
 
 -- Un voto per giocatore per giornata. `voto` nullo = senza voto: e' diverso
 -- da zero, ed e' quel che fa scattare la sostituzione.

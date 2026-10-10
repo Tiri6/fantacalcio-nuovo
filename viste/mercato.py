@@ -92,9 +92,18 @@ with scambi:
     da_b = tuple(etichette_b[e] for e in scelti_b)
 
     prolungamenti: dict[int, int] = {}
-    if da_a or da_b:
+    regole = ui.parametri()
+    if (da_a or da_b) and not regole.prolungamenti_ammessi:
+        # Il V3 li ha aboliti: «non sono ammessi prolungamenti ne' riduzioni
+        # di durata, ne' in sede di scambio ne' con altra operazione». I
+        # cursori non si mostrano proprio — un comando che produce sempre un
+        # errore e' peggio di un comando che non c'e'.
+        st.caption(
+            "Il contratto passa com'e', con ingaggio e anni residui invariati "
+            "(art. 8). Prolungamenti e riduzioni di durata non sono ammessi."
+        )
+    elif da_a or da_b:
         st.subheader("Prolungamenti (facoltativi)")
-        regole = ui.parametri()
         st.caption(
             "In sede di scambio il contratto puo' essere prolungato, restando nei "
             f"{regole.monte_anni} anni. Lodo Bono: non si puo' accorciare. Lodo "
@@ -109,7 +118,7 @@ with scambi:
             nuovi = st.slider(
                 f"{giocatore.nome} — anni di contratto",
                 min_value=1,
-                max_value=ui.parametri().contratto_anni_massimo,
+                max_value=regole.contratto_anni_massimo,
                 value=contratto.anni_residui,
                 key=f"anni_{giocatore_id}",
             )
@@ -225,13 +234,20 @@ with svincoli:
     giocatore = rosa.giocatore(giocatore_id)
 
     dead_money = calcola_dead_money(contratto, giocatore.ingaggio, ui.parametri())
+    # Si simula lo svincolo di riparazione, che e' l'unico con effetti sul
+    # Salary Cap: prima dell'asta di Settembre non succede niente (art. 7).
     dopo, _ = svincola(rosa, giocatore_id, STAGIONE, ui.parametri())
 
     colonne = st.columns(4)
     colonne[0].metric(
         "Valore residuo", ui.milioni(contratto.valore_residuo(giocatore.ingaggio))
     )
-    colonne[1].metric("Dead money", ui.milioni(dead_money))
+    colonne[1].metric(
+        "Dead money",
+        ui.milioni(dead_money),
+        f"+ {ui.milioni(giocatore.ingaggio)} di ingaggio fino a fine stagione",
+        delta_color="off",
+    )
     colonne[2].metric(
         "Anni liberati",
         contratto.anni_residui,

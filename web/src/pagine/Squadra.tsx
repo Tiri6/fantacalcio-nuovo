@@ -1,5 +1,12 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, type GiocatoreInRosa, type Violazione } from "../api";
+import {
+  api,
+  ErroreApi,
+  type Emergenza as DatiEmergenza,
+  type GiocatoreInRosa,
+  type Violazione,
+} from "../api";
 import { milioni, useCarica } from "../carica";
 
 function Numero({
@@ -115,10 +122,183 @@ function Rosa({
   );
 }
 
+/**
+ * Portiere d'emergenza: il Lodo Messina dell'articolo 8.
+ *
+ * Il sito non sa da solo chi è indisponibile — le indisponibilità stanno su
+ * Leghe Fantacalcio, e da un server quel sito non si legge (vedi
+ * PUNTI_APERTI.md). Quindi li dichiara chi attiva, spuntando i suoi portieri:
+ * è una dichiarazione, e resta scritta col nome di chi l'ha fatta.
+ *
+ * Non si tiene nessuna regola qui: `ammessa`, `va_revocata` e `motivo`
+ * arrivano dal dominio. Il server ricontrolla tutto comunque — un bottone
+ * nascosto non è un controllo.
+ */
+function Emergenza({
+  squadra,
+  dati,
+  posso,
+  onCambiata,
+}: {
+  squadra: number;
+  dati: DatiEmergenza;
+  posso: boolean;
+  onCambiata: (messaggio: string) => void;
+}) {
+  const [fuori, setFuori] = useState<number[]>(
+    dati.portieri.filter((p) => !p.disponibile).map((p) => p.id),
+  );
+  const [scelto, setScelto] = useState<number | null>(
+    dati.candidati[0]?.id ?? null,
+  );
+  const [errore, setErrore] = useState<string | null>(null);
+  const [inCorso, setInCorso] = useState(false);
+
+  // Niente portieri in rosa: non è un'emergenza, è una rosa da completare.
+  // Mostrare qui un pannello sull'emergenza porterebbe fuori strada.
+  if (dati.portieri.length === 0) return null;
+
+  // A chi guarda la squadra di un altro si dice soltanto com'è la porta: il
+  // pannello con le spunte e i candidati non gli serve a niente.
+  if (!posso) {
+    if (!dati.attiva) return null;
+    return (
+      <section>
+        <h2 className="sezione">🧤 Portiere d'emergenza</h2>
+        <p className="avviso">
+          {dati.in_carica_nome} copre la porta come portiere d'emergenza (art.
+          8, Lodo Messina): vota con {dati.malus} punto di malus.
+        </p>
+      </section>
+    );
+  }
+
+  const tuttiFuori = fuori.length === dati.portieri.length;
+
+  function spunta(id: number) {
+    setFuori((precedenti) =>
+      precedenti.includes(id)
+        ? precedenti.filter((p) => p !== id)
+        : [...precedenti, id],
+    );
+  }
+
+  async function prova(azione: () => Promise<unknown>, riuscito: string) {
+    setErrore(null);
+    setInCorso(true);
+    try {
+      await azione();
+      onCambiata(riuscito);
+    } catch (guasto) {
+      setErrore(guasto instanceof ErroreApi ? guasto.message : "Non riesco.");
+    } finally {
+      setInCorso(false);
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="sezione">🧤 Portiere d'emergenza</h2>
+
+      <p className={dati.va_revocata ? "avviso" : "tenue"}>{dati.motivo}</p>
+
+      {dati.attiva ? (
+        <div className="riquadro-modulo">
+          <h3>{dati.in_carica_nome}</h3>
+          <p className="tenue">
+            Non ha contratto: non pesa su monte anni né su Salary Cap, e vota
+            con {dati.malus} punto di malus (Lodo Messina bis). Si tiene finché
+            uno dei portieri di ruolo non torna disponibile, anche solo in
+            panchina.
+          </p>
+          {errore && <div className="errore">{errore}</div>}
+          <button
+            className={dati.va_revocata ? "principale" : "secondario"}
+            disabled={inCorso}
+            onClick={() =>
+              prova(
+                () => api.revocaPortiereEmergenza(squadra),
+                "Portiere d'emergenza revocato.",
+              )
+            }
+          >
+            {inCorso ? "Revoco…" : "Revoca il portiere d'emergenza"}
+          </button>
+        </div>
+      ) : (
+        <div className="riquadro-modulo">
+          <h3>I tuoi portieri</h3>
+          <p className="tenue">
+            Spunta quelli indisponibili — infortunati e nemmeno in panchina.
+            L'emergenza spetta solo se lo sono <strong>tutti</strong>.
+          </p>
+          <div className="interruttori">
+            {dati.portieri.map((p) => (
+              <label key={p.id}>
+                <input
+                  type="checkbox"
+                  checked={fuori.includes(p.id)}
+                  onChange={() => spunta(p.id)}
+                />
+                {p.nome} <span className="tenue">indisponibile</span>
+              </label>
+            ))}
+          </div>
+
+          {tuttiFuori && (
+            <div className="campo">
+              <label htmlFor="e-portiere">
+                Portiere da pescare fra gli svincolati
+              </label>
+              <select
+                id="e-portiere"
+                value={scelto ?? ""}
+                onChange={(e) => setScelto(Number(e.target.value))}
+              >
+                {dati.candidati.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome} — {c.club} ({milioni(c.ingaggio, 2)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {tuttiFuori && dati.candidati.length === 0 && (
+            <div className="errore">
+              Non c'è nessun portiere svincolato nel listone: senza candidati
+              l'emergenza non si può aprire.
+            </div>
+          )}
+          {errore && <div className="errore">{errore}</div>}
+
+          <button
+            className="principale"
+            disabled={inCorso || !tuttiFuori || scelto === null}
+            onClick={() =>
+              prova(
+                () => api.attivaPortiereEmergenza(squadra, scelto!, fuori),
+                "Portiere d'emergenza attivato.",
+              )
+            }
+          >
+            {inCorso ? "Attivo…" : "Attiva il portiere d'emergenza"}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function Squadra() {
   const { id } = useParams();
   const numero = Number(id);
-  const { dato, errore, inCorso } = useCarica(() => api.squadra(numero), [numero]);
+  const [giro, setGiro] = useState(0);
+  const { dato, errore, inCorso } = useCarica(
+    () => api.squadra(numero),
+    [numero, giro],
+  );
+  const [conferma, setConferma] = useState<string | null>(null);
 
   if (inCorso) return <div className="fantasma alto" />;
   if (errore) return <div className="errore">{errore}</div>;
@@ -132,6 +312,8 @@ export function Squadra() {
       <Link to="/squadre" className="indietro">
         ← Tutte le squadre
       </Link>
+
+      {conferma && <div className="conferma">{conferma}</div>}
 
       <header className="testata-squadra">
         <div
@@ -227,6 +409,16 @@ export function Squadra() {
         <h2 className="sezione">Rosa</h2>
         <Rosa rosa={dato.rosa} riferimento={dato.riferimento_u21} />
       </section>
+
+      <Emergenza
+        squadra={numero}
+        dati={dato.emergenza}
+        posso={dato.posso_gestirla}
+        onCambiata={(messaggio) => {
+          setConferma(messaggio);
+          setGiro((g) => g + 1);
+        }}
+      />
 
       <section>
         <h2 className="sezione">Conformità al regolamento</h2>

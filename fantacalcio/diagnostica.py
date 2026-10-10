@@ -40,6 +40,9 @@ ATTESO: dict[str, tuple[str, ...]] = {
         "colore_secondario",
         "stile_maglia",
         "lega_id",
+        "portiere_emergenza_id",
+        "portieri_indisponibili",
+        "slot_u21_congelato",
     ),
     "utenti": (
         "id",
@@ -68,7 +71,7 @@ ATTESO: dict[str, tuple[str, ...]] = {
     "formazioni": ("id", "squadra_id", "giornata", "competizione", "modulo"),
     "voti": ("id", "giocatore_id", "giornata", "voto"),
     "albo": ("id", "lega_id", "competizione", "stagione", "squadra_nome"),
-    "dead_money": ("id", "squadra_id", "importo"),
+    "dead_money": ("id", "squadra_id", "importo", "ingaggio_a_carico"),
     "scambi": ("id", "squadra_a_id", "squadra_b_id", "stato"),
     "scambi_movimenti": ("id", "scambio_id", "giocatore_id"),
 }
@@ -113,6 +116,10 @@ TIPI = {
     "in_evidenza": "boolean not null default false",
     "stagione": "text not null default '2026/27'",
     "opzioni": "text not null default '{}'",
+    "portiere_emergenza_id": "bigint",
+    "portieri_indisponibili": "text not null default ''",
+    "ingaggio_a_carico": "numeric(14, 2) not null default 0",
+    "slot_u21_congelato": "integer",
 }
 
 

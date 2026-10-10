@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from fantacalcio import schermate, tema, ui
-from fantacalcio.data import archivio, carica_inviti
+from fantacalcio.data import archivio, carica_inviti, congela_slot_u21
 from fantacalcio.diagnostica import sql_di_riparazione
 from fantacalcio.leghe import moduli_disponibili
 
@@ -326,6 +326,71 @@ with punteggio:
         hide_index=True,
         use_container_width=False,
     )
+
+# --- ricalcolo annuale degli Under 21 (art. 2) ------------------------------
+
+st.divider()
+st.subheader("Under 21: il ricalcolo dell'anno")
+
+st.caption(
+    "L'articolo 2 dice che il numero di Under 21 — e quindi il limite massimo "
+    "di rosa — si ricalcola **una sola volta l'anno, prima dell'asta di "
+    "Settembre**, e resta fermo per tutta la stagione: svincoli o cessioni di "
+    f"Under in corso d'anno non lo cambiano. Si guarda al "
+    f"{ui.data_u21().strftime('%d/%m/%Y')}."
+)
+
+rose_lega = ui.rose()
+parametri = ui.parametri()
+riferimento = ui.data_u21()
+
+righe_u21 = []
+for rosa_squadra in sorted(rose_lega.values(), key=lambda r: r.squadra.nome):
+    adesso = rosa_squadra.u21_in_rosa(riferimento, parametri)
+    righe_u21.append(
+        {
+            "Squadra": rosa_squadra.squadra.nome,
+            "Under 21 in rosa": adesso,
+            "Posti congelati": (
+                "— mai ricalcolato —"
+                if rosa_squadra.slot_u21_congelato is None
+                else rosa_squadra.slot_u21_congelato
+            ),
+            "Limite rosa": parametri.rosa_massimo(
+                rosa_squadra.slot_u21(riferimento, parametri)
+            ),
+        }
+    )
+
+st.dataframe(pd.DataFrame(righe_u21), hide_index=True, width="stretch")
+
+if amministra:
+    st.caption(
+        "Da fare **una volta sola**, prima dell'asta di Settembre. Rifarlo a "
+        "stagione in corso riscriverebbe i limiti con la fotografia di oggi, "
+        "che e' esattamente quello che la regola vuole evitare."
+    )
+    if st.button("Ricalcola e congela per la stagione", key="_u21_congela"):
+        try:
+            for id_squadra, rosa_squadra in rose_lega.items():
+                congela_slot_u21(
+                    archivio(),
+                    id_squadra,
+                    min(
+                        rosa_squadra.u21_in_rosa(riferimento, parametri),
+                        parametri.slot_u21_massimi,
+                    ),
+                )
+        except Exception as errore:  # noqa: BLE001 - backend diversi
+            st.error(f"Non riesco a congelare: {errore}", icon="⛔")
+        else:
+            ui.invalida_dati()
+            st.session_state[schermate.CHIAVE_MESSAGGIO] = (
+                "success",
+                f"Under 21 ricalcolati per {len(rose_lega)} squadre: i limiti "
+                f"di rosa restano questi per tutta la stagione {lega.stagione}.",
+            )
+            st.rerun()
 
 if not amministra:
     st.caption("Solo chi amministra la lega puo' cambiare queste impostazioni.")

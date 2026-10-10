@@ -96,9 +96,10 @@ class TestRosaDettagliata:
         atteso = tabella["Valore residuo"] * 0.5
         assert (tabella["Dead money se tagliato"] - atteso).abs().max() < 0.01
 
-    def test_il_valore_residuo_e_ingaggio_per_anni(self, rose):
+    def test_il_valore_residuo_esclude_l_anno_in_corso(self, rose):
+        """Art. 7 del V3: l'anno in corso si paga comunque, non e' buonuscita."""
         tabella = rosa_dettagliata(rose[1], DATA_DRAFT)
-        atteso = tabella["Ingaggio"] * tabella["Anni residui"]
+        atteso = tabella["Ingaggio"] * (tabella["Anni residui"] - 1)
         assert (tabella["Valore residuo"] - atteso).abs().max() < 0.01
 
     def test_le_scadenze_sono_marcate(self, rose):

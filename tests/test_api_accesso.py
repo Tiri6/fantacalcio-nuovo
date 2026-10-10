@@ -252,9 +252,10 @@ class TestDettaglioSquadra:
         self.entra(client)
         d = client.get("/api/squadre/1").json()
         g = d["rosa"][0]
-        atteso = round(0.50 * g["anni_residui"] * g["ingaggio"], 2)
-        assert g["valore_residuo"] == g["anni_residui"] * g["ingaggio"]
-        assert g["dead_money_se_tagliato"] == atteso
+        # Il V3 conta solo gli anni oltre quello in corso (art. 7).
+        oltre = max(g["anni_residui"] - 1, 0)
+        assert g["valore_residuo"] == oltre * g["ingaggio"]
+        assert g["dead_money_se_tagliato"] == round(0.50 * oltre * g["ingaggio"], 2)
 
     def test_i_permessi_vengono_dal_dominio(self, client):
         """`posso_gestirla` e' `Utente.puo_gestire`, non una deduzione del

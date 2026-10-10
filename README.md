@@ -12,7 +12,7 @@ che rende "gestionale" la vostra lega:
 - **draft con lottery** a due fasce e ordine di chiamata variabile per round;
 - **scambi** validati contro i lodi Bono, Corti e Longoni.
 
-Base: regolamento **V2.1 di Agosto 2026**, versione post-redline.
+Base: regolamento **V3**, testo definitivo di Ottobre 2026.
 
 > I punti del regolamento che ho dovuto interpretare sono elencati in
 > [PUNTI_APERTI.md](PUNTI_APERTI.md), con l'ipotesi che il codice applica oggi.

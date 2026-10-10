@@ -1,7 +1,8 @@
 # Punti aperti del regolamento
 
-Il regolamento V2.1 e' molto piu' dettagliato della media, ma per scrivere il
-codice ho dovuto prendere una posizione su alcuni punti che il testo non chiude.
+Il regolamento V3 (testo definitivo, Ottobre 2026) e' molto piu' dettagliato
+della media, ma per scrivere il codice ho dovuto prendere una posizione su
+alcuni punti che il testo non chiude.
 
 Qui c'e' **cosa il gestionale fa oggi** e **cosa serve decidere**. Ogni voce e'
 gia' un parametro: cambiare la decisione significa cambiare un valore in
@@ -12,13 +13,15 @@ gia' un parametro: cambiare la decisione significa cambiare un valore in
 ## 1. Fasce di gol — ✅ CHIUSO
 
 L'articolo 1 elenca *"Fasce di gol: di 6 in 6 – 60-66-72-78-84-90"*, che si
-prestava a due letture.
+prestava a due letture. Il V3 riporta la stessa frase identica, quindi la
+domanda non l'ha chiusa il testo.
 
-**Deciso dalla lega: il primo gol e' a 66**, poi uno ogni 6. E' quello che il
-codice applica (`soglia_primo_gol = 66`, `passo_gol = 6`), ed e' anche il
-comportamento di Leghe Fantacalcio. Conviene correggere la formulazione
-nell'articolo 1 alla prossima revisione del regolamento, togliendo il 60
-dall'elenco per evitare che la domanda si riapra fra un anno.
+**Deciso dalla lega: il primo gol e' a 66**, poi uno ogni 6 (confermato da
+Marco a ottobre 2026). E' quello che il codice applica
+(`soglia_primo_gol = 66`, `passo_gol = 6`), ed e' anche il comportamento di
+Leghe Fantacalcio. Conviene correggere la formulazione nell'articolo 1 alla
+prossima revisione del regolamento, togliendo il 60 dall'elenco per evitare
+che la domanda si riapra fra un anno.
 
 ## 2. Draft Lottery: come si assegnano le pick dalla 2ª alla 5ª?
 
@@ -47,13 +50,21 @@ giornata) ma non per quanto resti aperta.
 dell'ultima finestra. Serve stabilire una durata esplicita: un numero di
 giorni, oppure "fino allo svolgimento del draft di riparazione".
 
-## 4. Lodo Longoni: chi conta i due prolungamenti?
+## 4. Lodo Longoni — ✅ SUPERATO dal V3
 
 *"non consentita per piu' di 2 giocatori per squadra per stagione sportiva"*.
+La domanda era: i due prolungamenti si contano su chi riceve o su chi cede?
 
-**Oggi il codice** li conta sulla **squadra che riceve** il giocatore, perche'
-e' lei a beneficiare del contratto piu' lungo. Se invece il limite va contato
-su chi cede, o sullo scambio nel suo complesso, e' una riga da cambiare.
+**Non si pone piu'.** L'articolo 8 del V3 dice che «il contratto si trasferisce
+con ingaggio e anni residui invariati: non sono ammessi prolungamenti ne'
+riduzioni di durata, ne' in sede di scambio ne' con altra operazione». Con i
+prolungamenti decadono i tre lodi che li regolavano — **Longoni**, **Corti**
+(uno per giocatore) e **Bono** (non si accorcia).
+
+Il meccanismo resta scritto e provato, spento da `prolungamenti_ammessi` in
+`ParametriLega`: se un lodo riaprisse la strada si riaccende da li', e questa
+domanda torna in piedi tale e quale. Finche' resta spento, uno scambio che
+cambia la durata produce una violazione bloccante `durata_invariata`.
 
 ## 5. Quante giornate ha il campionato?
 
@@ -114,14 +125,30 @@ dati**, che c'e', con la verifica di conformita' fatta *prima* di scrivere.
 Resta utile la sala draft come tabellone da proiettare durante l'asta, ma non
 e' piu' un requisito bloccante.
 
-## 9. Portiere d'emergenza (Lodo Messina)
+## 9. Portiere d'emergenza (Lodo Messina) — ✅ FATTO
 
-Il modello prevede gia' il campo (`Rosa.portiere_emergenza_id`) e la regola e'
-chiara: non firma contratto, non incide su monte anni ne' su Salary Cap, vota
-con malus di −1 (Lodo Messina bis).
+La regola dell'articolo 8 e' implementata in `fantacalcio/emergenza.py`: si
+apre solo con **tutti** i portieri di ruolo indisponibili, la scelta e' unica,
+si pesca fra gli svincolati, decade appena uno torna disponibile (anche solo
+in panchina), non firma contratto — rosa, monte anni e Salary Cap non si
+muovono — e vota col malus del fuori ruolo (Lodo Messina bis).
 
-**Non c'e' ancora il flusso** per attivarlo e disattivarlo, perche' dipende
-dalla disponibilita' dei portieri, che si legge su Leghe Fantacalcio.
+Il malus **non e' un numero a parte**: e' `malus_adattamento`, perche' il Lodo
+Messina bis lo definisce per rinvio («come un giocatore schierato fuori
+ruolo»). Se la lega cambia quello, questo segue.
+
+**Resta una cosa che il sito non sa fare da solo**: leggere chi e'
+indisponibile. Le indisponibilita' stanno su Leghe Fantacalcio, che da un
+server risponde 403 (vedi il punto 16). Quindi le **dichiara** chi attiva
+l'emergenza, spuntando i suoi tre portieri, e la dichiarazione resta scritta
+(`squadre.portieri_indisponibili`): senza conservarla, al giro successivo il
+sito crederebbe che i portieri siano tornati tutti e chiederebbe di revocare
+un'emergenza che invece serve ancora.
+
+**Da decidere**, se un giorno diventasse un problema: se la dichiarazione
+debba poterla fare solo il presidente invece del fantallenatore. Oggi la fa
+chi gestisce la squadra, perche' l'articolo 8 dice «il fantallenatore puo'
+selezionare» — ma e' un'autocertificazione, e nessuno la verifica.
 
 ## 10. Cose che il regolamento rimanda esplicitamente
 
@@ -129,7 +156,15 @@ dalla disponibilita' dei portieri, che si legge su Leghe Fantacalcio.
 - **Sponsorship** (art. 10): regole da definire, con l'eccezione
   dell'espansione Under 21 di italiannextgen.it, che e' gia' implementata.
 - **Coppa e playoff**: proposta in appendice, da votare.
-- **Prestiti**: l'istituto non e' previsto, quindi il codice non li contempla.
+- **Prestiti**: «istituto non previsto in questa lega» (art. 8b): il codice non
+  li contempla, ed e' corretto cosi'.
+- **Principio di tassativita'** (art. 1): «e' consentito solo cio' che il
+  regolamento prevede espressamente». E' la ragione per cui il **Salary
+  Floor** e' spento (`salary_floor_attivo = False`): il V3 parla solo del
+  tetto massimo. Il vincolo resta scritto e provato, e un lodo lo riaccende.
+- **Montepremi**: 350 € per il campionato piu' la maglia del vincente, i
+  calzoncini per la coppa, i calzettoni per la F1 Rush. Il sito non gestisce
+  denaro e non c'e' ragione perche' cominci.
 
 ## 11. Registro dei lodi
 
@@ -190,10 +225,11 @@ tutti.
 
 ## 14. Under 21: il sito usa il 31 agosto, l'articolo 2 dice «data del draft»
 
-**Divergenza voluta, da regolarizzare nel testo.** L'articolo 2 della V2.1
-scrive che e' Under 21 l'italiano che non ha compiuto 21 anni *alla data del
-draft di Settembre*. Il sito guarda invece al **31 agosto**, uguale tutti gli
-anni, per decisione della lega.
+**Divergenza voluta e confermata, da regolarizzare nel testo.** L'articolo 2
+— nella V2.1 come nel V3 — scrive che e' Under 21 l'italiano che non ha
+compiuto 21 anni *alla data del draft di Settembre*. Il sito guarda invece al
+**31 agosto**, uguale tutti gli anni, per decisione della lega: il V3 non l'ha
+recepita, e a ottobre 2026 Marco ha confermato che vale il 31 agosto.
 
 Il motivo e' pratico: una data fissa si sa in anticipo e non si muove. Con la
 data del draft, spostare l'asta sposta anche l'insieme degli Under — e con
@@ -206,6 +242,15 @@ programmata.
 cosi' l'articolo 2 dice quel che il sito fa. Finche' non succede, questa e' la
 differenza nota fra testo e codice. Cambiarla e' una riga:
 `GIORNO_RIFERIMENTO_U21` in `fantacalcio/competizioni.py`.
+
+**Il ricalcolo annuale invece e' implementato.** Il V3 ha aggiunto che il
+numero di Under 21 — e quindi il limite massimo di rosa — «viene ricalcolato
+una sola volta l'anno, prima dell'asta di Settembre, e resta invariato per
+l'intera stagione: svincoli o cessioni di Under 21 in corso d'anno non
+modificano il limite fino al ricalcolo successivo». Il valore si congela da
+**Impostazioni lega**, con un bottone che lo fissa per tutte le squadre
+insieme; finche' nessuno l'ha premuto si contano gli Under presenti, che e'
+la situazione prima della prima asta.
 
 ## 15. Appendice V2.1 — calendario 2026/27 (da votare)
 
@@ -300,4 +345,77 @@ entra, se paga, e il portiere che non si adatta mai — ma due cose no.
 - **Basic**, per la stessa ragione, non tenta la ricostruzione dello schema su
   un modulo diverso: prova la casella giusta, poi adatta su quella che c'e'.
 
+## 18. F1 Rush Finale: si sa quando, non si sa come
 
+Il V3 ha abolito la Supercoppa e messo al suo posto la *F1 Rush Finale*. Di
+lei l'articolo 1 dice **due cose sole**: che si disputa «nelle ultime 6
+giornate di Serie A», e che il montepremi e' un paio di calzettoni. Il
+meccanismo non c'e'.
+
+**Oggi il codice** applica la lettura piu' vicina al nome e alla piattaforma,
+dove il campionato «Formula 1» assegna punti per posizione in ogni giornata:
+ogni tappa si ordina per fantapunti e si danno **25-18-15-12-10-8-6-4-2-1** —
+la scala in vigore in F1, che con dieci squadre arriva esattamente in fondo
+alla griglia, cosi' nessuno corre per nulla. A pari fantapunti nella stessa
+tappa valgono i pari merito. L'ordine finale e' punti, poi vittorie di tappa,
+poi fantapunti totali: i due spareggi della Formula 1, nel suo stesso ordine.
+
+Sono tutti parametri (`RegoleF1Rush`), e si cambiano dalla creazione lega
+senza toccare il codice. C'e' anche il criterio alternativo «somma dei
+fantapunti delle sei giornate», che e' l'altra lettura possibile.
+
+**Da decidere e votare:**
+
+1. **La scala dei punti**, se non e' quella della Formula 1.
+2. **Cosa si gioca in quelle sei giornate.** Qui c'e' un problema di
+   calendario che vale la pena vedere adesso: con dieci squadre, andata e
+   ritorno fanno 18 giornate, e partendo dalla 5ª di Serie A il campionato
+   finisce intorno alla 22ª-26ª (dipende da quanti turni di coppa slittano).
+   Le ultime sei giornate di Serie A — dalla 33ª alla 38ª — **cadono quindi a
+   campionato finito**. Due letture:
+   - la F1 Rush e' quello che si gioca in quelle sei giornate altrimenti
+     vuote, cioe' la coda della stagione (e allora i fantapunti sono i suoi,
+     non quelli del campionato);
+   - oppure il campionato arriva fin la' (le 27 giornate dell'appendice, o un
+     terzo girone), e la F1 Rush gli corre sopra usando gli stessi fantapunti.
+
+   Il codice fa la **seconda**: la F1 Rush non occupa un weekend suo, non fa
+   slittare niente e legge i fantapunti delle giornate in quella finestra. E'
+   l'ipotesi che non rompe niente se poi si decide l'altra — ma va deciso,
+   perche' nella prima lettura servono sei giornate in piu' in calendario.
+3. **Chi vince, se nessuno carica i risultati di quelle giornate.** Oggi la
+   pagina propone la prima della classifica e il presidente conferma: il
+   titolo nell'albo d'oro si registra a mano, come per il campionato e la
+   coppa.
+
+Nota tecnica: il calendario porta una colonna `giornata_serie_a`, che e'
+quella che serve per sapere quali sono «le ultime sei». Quando l'import non
+l'ha compilata, la pagina usa le ultime sei **giornate di lega** disputate e
+**lo dice in chiaro**, invece di mostrare una classifica che sembra giusta e
+non lo e'.
+
+## 19. Coppa a gironi: il formato c'e', la classifica dei gironi no
+
+Il V3 ha cambiato anche la coppa: «due gironi con gare di andata e ritorno,
+disputati a fine campionato, seguiti da scontri diretti ad eliminazione».
+Prima era un'eliminazione diretta a gara secca intervallata al campionato,
+come su Leghe Fantacalcio.
+
+**Oggi il codice** conosce il formato nuovo e lo applica dove conta:
+`RegoleCoppa` ha `gironi`, `qualificate_per_girone` e `dopo_il_campionato`, il
+default e' due gironi da cinque con quattro qualificate (semifinali e finale),
+e il **calendario dei weekend** accoda la coppa al campionato invece di
+intervallarla. Le squadre ammesse non devono piu' essere una potenza di due —
+entrano tutte e dieci; a doverlo essere sono le qualificate.
+
+**Quello che manca** e' la classifica dei gironi: il sito non compone i
+gruppi, non somma i punti e non dice chi passa. I risultati di coppa si
+importano come quelli di campionato (punto 10), e la pagina lo scrive invece
+di mostrare un tabellone che non corrisponde a niente.
+
+**Da decidere**, e qui il problema e' di calendario, lo stesso del punto 18:
+con 18 giornate di campionato dalla 5ª di Serie A, piu' 10 giornate di girone
+e 2 di scontri diretti, la coppa finisce alla 34ª — e la F1 Rush occupa dalla
+33ª alla 38ª. **Le due competizioni si sovrappongono per due weekend.** La
+pagina Calendario lo mostra invece di nasconderlo, ma va sciolto: o la coppa
+parte prima, o la F1 Rush e' piu' corta, o il campionato si accorcia.

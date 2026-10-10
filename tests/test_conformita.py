@@ -1,9 +1,11 @@
 from dataclasses import replace
+from datetime import date
 
-from conftest import DATA_DRAFT, costruisci_rosa
+from conftest import DATA_DRAFT, costruisci_rosa, giocatore
 
 from fantacalcio.conformita import Gravita, Momento, verifica_rosa
 from fantacalcio.modelli import VoceDeadMoney
+from fantacalcio.regole import ParametriLega
 
 
 def codici(stato) -> set[str]:
@@ -84,10 +86,30 @@ class TestPortieri:
         stato = verifica_rosa(costruisci_rosa(portieri=4), DATA_DRAFT)
         assert "portieri" in codici(stato)
 
-    def test_meno_di_tre_portieri_e_consentito(self):
-        """La V2.1 ha sostituito "3 portieri obbligatori" con "massimo 3"."""
+    def test_meno_di_tre_portieri_e_una_violazione(self):
+        """Il V3 torna a «3 Portieri obbligatori»: non e' solo un tetto."""
         stato = verifica_rosa(costruisci_rosa(portieri=2), DATA_DRAFT)
+        assert "portieri_minimo" in codici(stato)
+
+    def test_tre_portieri_vanno_bene(self):
+        stato = verifica_rosa(costruisci_rosa(portieri=3), DATA_DRAFT)
+        assert "portieri_minimo" not in codici(stato)
         assert "portieri" not in codici(stato)
+
+    def test_portiere_in_meno_in_stagione_e_solo_un_avviso(self):
+        """Durante la stagione si rimpiazza al mercato, non si blocca tutto."""
+        stato = verifica_rosa(
+            costruisci_rosa(portieri=2), DATA_DRAFT, momento=Momento.STAGIONE
+        )
+        manca = next(v for v in stato.violazioni if v.codice == "portieri_minimo")
+        assert not manca.bloccante
+
+    def test_portiere_in_meno_blocca_la_chiusura_dell_asta(self):
+        stato = verifica_rosa(
+            costruisci_rosa(portieri=2), DATA_DRAFT, momento=Momento.ASTA_SETTEMBRE
+        )
+        manca = next(v for v in stato.violazioni if v.codice == "portieri_minimo")
+        assert manca.bloccante
 
 
 class TestMonteAnni:
@@ -149,14 +171,28 @@ class TestEconomia:
         assert violazione.gravita is Gravita.AVVISO
         assert stato.conforme
 
-    def test_sotto_il_floor_blocca_a_fine_asta(self):
-        rosa = costruisci_rosa(ingaggio=2_000_000)  # 60M
+    def test_col_v3_il_floor_non_esiste(self):
+        """Il regolamento V3 non prevede nessuna soglia minima di spesa.
+
+        L'articolo 4 parla solo del tetto massimo, e vale il principio di
+        tassativita': «e' consentito solo cio' che il regolamento prevede
+        espressamente». Una squadra che spende poco non sta violando niente.
+        """
+        rosa = costruisci_rosa(ingaggio=2_000_000)  # 60M, sotto i vecchi 80M
         stato = verifica_rosa(rosa, DATA_DRAFT, momento=Momento.RIPARAZIONE)
+        assert "salary_floor" not in codici(stato)
+
+    def test_sotto_il_floor_blocca_a_fine_asta_se_la_lega_lo_riaccende(self):
+        """Il meccanismo resta: basta un lodo per rimetterlo in funzione."""
+        con_floor = ParametriLega(salary_floor_attivo=True)
+        rosa = costruisci_rosa(ingaggio=2_000_000)  # 60M
+        stato = verifica_rosa(rosa, DATA_DRAFT, con_floor, momento=Momento.RIPARAZIONE)
         assert "salary_floor" in codici(stato)
 
     def test_il_floor_non_si_verifica_in_stagione(self):
+        con_floor = ParametriLega(salary_floor_attivo=True)
         rosa = costruisci_rosa(ingaggio=2_000_000)
-        stato = verifica_rosa(rosa, DATA_DRAFT, momento=Momento.STAGIONE)
+        stato = verifica_rosa(rosa, DATA_DRAFT, con_floor, momento=Momento.STAGIONE)
         assert "salary_floor" not in codici(stato)
 
 
@@ -170,11 +206,17 @@ class TestDeadMoney:
         assert "salary_cap" in codici(stato)
 
     def test_non_conta_per_il_floor(self):
-        """Articolo 4: la soglia minima va raggiunta con gli ingaggi in rosa."""
+        """La soglia minima, dove la lega la usi, va raggiunta con gli ingaggi.
+
+        Il V3 il floor non ce l'ha, quindi il caso si prova accendendolo:
+        la buonuscita non deve poter far figurare una rosa come se spendesse
+        piu' di quanto spende davvero.
+        """
+        con_floor = ParametriLega(salary_floor_attivo=True)
         rosa = costruisci_rosa(ingaggio=2_500_000)  # 75M, sotto gli 80M
         rosa.dead_money = [VoceDeadMoney(1, "Tagliato", 20_000_000, "2026/27")]
 
-        stato = verifica_rosa(rosa, DATA_DRAFT, momento=Momento.ASTA_SETTEMBRE)
+        stato = verifica_rosa(rosa, DATA_DRAFT, con_floor, momento=Momento.ASTA_SETTEMBRE)
         assert stato.monte_ingaggi == 75_000_000
         assert "salary_floor" in codici(stato)
 
@@ -186,3 +228,72 @@ class TestDeadMoney:
         stato = verifica_rosa(rosa, DATA_DRAFT)
         assert stato.dead_money == 0
         assert stato.spesa_salariale == 90_000_000
+
+
+class TestSlotU21Congelati:
+    """Art. 2: il numero di Under 21 si ricalcola una volta l'anno.
+
+    «Svincoli o cessioni di Under 21 in corso d'anno non modificano il limite
+    fino al ricalcolo successivo»: e' quel che impedisce a una rosa da 35 di
+    diventare irregolare per una cessione fatta a mercato aperto.
+    """
+
+    def test_senza_congelamento_si_contano_quelli_in_rosa(self):
+        """Prima della prima asta non c'e' niente da congelare."""
+        rosa = costruisci_rosa(dimensione=34, u21=2)
+        stato = verifica_rosa(rosa, DATA_DRAFT)
+        assert stato.slot_u21 == 2
+        assert stato.limite_dimensione == 35
+
+    def test_il_valore_congelato_vince_sul_conteggio(self):
+        rosa = costruisci_rosa(dimensione=34, u21=0)
+        rosa.slot_u21_congelato = 2
+        stato = verifica_rosa(rosa, DATA_DRAFT)
+        assert stato.slot_u21 == 2
+        assert stato.limite_dimensione == 35
+        assert "rosa_massima" not in codici(stato)
+
+    def _scambia_l_under_con_un_veterano(self, rosa):
+        """Come uno scambio vero: entra uno, esce un Under, la rosa resta uguale."""
+        parametri = ParametriLega()
+        under = next(g for g in rosa.giocatori if g.under_21(DATA_DRAFT, parametri))
+        contratto = rosa.contratto_di(under.id)
+        # Stesso ruolo: cosi' l'unica cosa che cambia e' l'eta', ed e' l'unica
+        # cosa di cui parla la regola.
+        veterano = giocatore(99_001, ruoli=under.ruoli, data_nascita=date(1994, 1, 1))
+        senza = rosa.senza_giocatore(under.id)
+        return senza.con_contratto(replace(contratto, giocatore_id=veterano.id), veterano)
+
+    def test_cedere_un_u21_in_corso_d_anno_non_restringe_la_rosa(self):
+        """E' il caso che l'articolo 2 nomina espressamente."""
+        rosa = costruisci_rosa(dimensione=34, u21=1)
+        rosa.slot_u21_congelato = rosa.u21_in_rosa(DATA_DRAFT, ParametriLega())
+        assert rosa.slot_u21_congelato == 1
+
+        dopo = self._scambia_l_under_con_un_veterano(rosa)
+        stato = verifica_rosa(dopo, DATA_DRAFT)
+
+        assert dopo.dimensione == 34
+        assert dopo.u21_in_rosa(DATA_DRAFT, ParametriLega()) == 0
+        assert stato.limite_dimensione == 34
+        assert "rosa_massima" not in codici(stato)
+
+    def test_senza_congelamento_la_cessione_restringerebbe(self):
+        """Il comportamento di prima, che e' quello che il V3 vieta."""
+        rosa = costruisci_rosa(dimensione=34, u21=1)
+        dopo = self._scambia_l_under_con_un_veterano(rosa)
+        stato = verifica_rosa(dopo, DATA_DRAFT)
+
+        assert dopo.dimensione == 34
+        assert stato.limite_dimensione == 33
+        assert "rosa_massima" in codici(stato)
+
+    def test_non_si_superano_mai_i_tre_posti(self):
+        rosa = costruisci_rosa()
+        rosa.slot_u21_congelato = 9
+        assert rosa.slot_u21(DATA_DRAFT, ParametriLega()) == 3
+
+    def test_un_valore_negativo_non_toglie_posti(self):
+        rosa = costruisci_rosa()
+        rosa.slot_u21_congelato = -2
+        assert rosa.slot_u21(DATA_DRAFT, ParametriLega()) == 0

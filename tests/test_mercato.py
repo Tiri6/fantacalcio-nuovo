@@ -5,7 +5,7 @@ import pytest
 from conftest import STAGIONE, costruisci_rosa
 
 from fantacalcio.autenticazione import Ruolo, Utente
-from fantacalcio.conformita import Gravita
+from fantacalcio.conformita import Gravita, Momento
 from fantacalcio.mercato import (
     Finestra,
     PropostaScambio,
@@ -18,12 +18,18 @@ from fantacalcio.mercato import (
     valida_scambio,
     verifica_svincolo,
 )
-from fantacalcio.modelli import Contratto
+from fantacalcio.modelli import Contratto, Giocatore, Rosa, Squadra
 from fantacalcio.regole import CalendarioStagione, ParametriLega
 
 CALENDARIO = CalendarioStagione(
     data_draft_settembre=__import__("datetime").date(2026, 9, 15)
 )
+
+
+# Il V3 vieta di toccare la durata in uno scambio. I lodi Bono, Corti e
+# Longoni regolavano **come** si prolunga: restano provati, ma solo nel mondo
+# in cui un lodo li riaccende.
+CON_PROLUNGAMENTI = ParametriLega(prolungamenti_ammessi=True)
 
 
 def codici(violazioni) -> set[str]:
@@ -56,17 +62,34 @@ class TestFinestreDiMercato:
 
 
 class TestDeadMoney:
-    def test_meta_del_valore_residuo(self):
-        contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=3)
-        # 4M di ingaggio x 3 anni = 12M di residuo, il 50% fa 6M.
-        assert calcola_dead_money(contratto, 4_000_000) == 6_000_000
+    """Art. 7 del V3: conta solo quel che resta **oltre** l'anno in corso.
 
-    def test_contratto_annuale(self):
+    L'anno in corso si paga comunque — «i salari vengono pagati in anticipo,
+    anche se il giocatore viene successivamente venduto» — quindi non entra
+    nella buonuscita.
+    """
+
+    def test_l_esempio_del_regolamento(self):
+        """Il caso scritto nel V3, parola per parola.
+
+        «Ingaggio 10M, contratto di 5 anni, svincolo durante il primo anno;
+        anni residui oltre quello in corso: 4; buonuscita: 4 x 10M / 2 = 20M.»
+        """
+        contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=5)
+        assert calcola_dead_money(contratto, 10_000_000) == 20_000_000
+
+    def test_meta_degli_anni_oltre_quello_in_corso(self):
+        contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=3)
+        # 4M x 2 anni oltre quello in corso = 8M, la meta' fa 4M.
+        assert calcola_dead_money(contratto, 4_000_000) == 4_000_000
+
+    def test_un_annuale_non_costa_buonuscita(self):
+        """Chi scade a fine stagione non lascia niente dietro di se'."""
         contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=1)
-        assert calcola_dead_money(contratto, 5_000_000) == 2_500_000
+        assert calcola_dead_money(contratto, 5_000_000) == 0
 
     def test_quota_configurabile(self):
-        contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=2)
+        contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=3)
         parametri = ParametriLega(quota_dead_money=1.0)
         assert calcola_dead_money(contratto, 3_000_000, parametri) == 6_000_000
 
@@ -103,19 +126,75 @@ class TestSvincolo:
         bersaglio = rosa.contratti[-1]  # contratto da 2 anni, ingaggio 3M
         nuova, voce = svincola(rosa, bersaglio.giocatore_id, STAGIONE)
 
-        assert voce.importo == 3_000_000  # 50% di (3M x 2 anni)
+        # 3M x 1 anno oltre quello in corso = 3M, la meta' fa 1,5M.
+        assert voce.importo == 1_500_000
         assert not voce.addebitato
-        assert nuova.dead_money_totale == 3_000_000
+        assert nuova.dead_money_totale == 1_500_000
 
-    def test_il_taglio_non_libera_spazio_salariale_pieno(self, rosa):
-        """Lodo Origi: il 50% del residuo resta a carico del bilancio."""
+    def test_il_taglio_in_riparazione_non_libera_niente_sul_cap(self, rosa):
+        """Art. 7: l'ingaggio «continua a pesare fino al termine della stagione».
+
+        Tagliare a stagione iniziata restituisce gli **anni**, non i soldi: il
+        Salary Cap anzi peggiora, perche' alla buonuscita si somma l'ingaggio
+        di chi se n'e' andato.
+        """
         spesa_prima = rosa.spesa_salariale
         bersaglio = rosa.contratti[-1]
 
         nuova, voce = svincola(rosa, bersaglio.giocatore_id, STAGIONE)
 
         assert nuova.monte_ingaggi == rosa.monte_ingaggi - 3_000_000
-        assert nuova.spesa_salariale == spesa_prima - 3_000_000 + voce.importo
+        assert voce.ingaggio_a_carico == 3_000_000
+        assert nuova.spesa_salariale == spesa_prima + voce.importo
+        assert nuova.ingaggi_degli_svincolati == 3_000_000
+
+    def test_l_esempio_del_regolamento_sul_cap(self):
+        """«10M di ingaggio piu' 20M di buonuscita: 30M in totale.»"""
+        squadra = Squadra(id=1, nome="Tiri Team", presidente="Mister")
+        giocatore = Giocatore(
+            id=1, nome="Origi", club="Milan", ruoli=("A",), ingaggio=10_000_000
+        )
+        contratto = Contratto(giocatore_id=1, squadra_id=1, anni_residui=5)
+        rosa = Rosa(squadra=squadra, contratti=[contratto]).collega({1: giocatore})
+
+        _, voce = svincola(rosa, 1, STAGIONE)
+
+        assert voce.importo == 20_000_000
+        assert voce.ingaggio_a_carico == 10_000_000
+        assert voce.totale == 30_000_000
+
+    def test_prima_dell_asta_lo_svincolo_non_tocca_il_cap(self, rosa):
+        """«Gli svincoli effettuati prima dell'asta di Settembre non hanno
+        alcun effetto sul Salary Cap»: ne' buonuscita ne' ingaggio a carico."""
+        bersaglio = rosa.contratti[-1]
+
+        nuova, voce = svincola(
+            rosa, bersaglio.giocatore_id, STAGIONE, momento=Momento.ASTA_SETTEMBRE
+        )
+
+        assert voce is None
+        assert nuova.dead_money == []
+        assert nuova.spesa_salariale == rosa.spesa_salariale - 3_000_000
+
+    def test_prima_dell_asta_gli_anni_si_liberano_lo_stesso(self, rosa):
+        """L'effetto sul monte anni non e' legato a nessuna sessione."""
+        anni_prima = rosa.anni_impegnati
+        bersaglio = rosa.contratti[-1]
+
+        nuova, _ = svincola(
+            rosa, bersaglio.giocatore_id, STAGIONE, momento=Momento.ASTA_SETTEMBRE
+        )
+
+        assert nuova.anni_impegnati == anni_prima - bersaglio.anni_residui
+
+    def test_una_voce_addebitata_non_pesa_piu(self, rosa):
+        """Dalla stagione successiva non resta niente, ne' debito ne' ingaggio."""
+        bersaglio = rosa.contratti[-1]
+        nuova, _ = svincola(rosa, bersaglio.giocatore_id, STAGIONE)
+        nuova.dead_money = [replace(v, addebitato=True) for v in nuova.dead_money]
+        assert nuova.dead_money_totale == 0
+        assert nuova.ingaggi_degli_svincolati == 0
+        assert nuova.spesa_salariale == nuova.monte_ingaggi
 
     def test_la_rosa_originale_non_viene_toccata(self, rosa):
         prima = rosa.dimensione
@@ -181,10 +260,42 @@ class TestValidaScambio:
         proposta = PropostaScambio(da_squadra_a=(2000,))
         assert codici(valida_scambio(a, b, proposta, STAGIONE)) == {"scambio_impossibile"}
 
+    def test_il_v3_vieta_di_cambiare_la_durata(self):
+        """«Il contratto si trasferisce con ingaggio e anni residui invariati»."""
+        a, b = due_rose()
+        for nuova_durata in (1, 4):
+            proposta = PropostaScambio(
+                da_squadra_a=(1029,), prolungamenti={1029: nuova_durata}
+            )
+            violazioni = valida_scambio(a, b, proposta, STAGIONE)
+            assert "durata_invariata" in codici(violazioni)
+            assert all(v.bloccante for v in violazioni)
+
+    def test_la_stessa_durata_non_e_un_cambio(self):
+        """Riscrivere il numero che c'e' gia' non viola niente."""
+        a, b = due_rose()
+        attuale = a.contratto_di(1029).anni_residui
+        proposta = PropostaScambio(da_squadra_a=(1029,), prolungamenti={1029: attuale})
+        assert valida_scambio(a, b, proposta, STAGIONE) == []
+
+    def test_uno_scambio_senza_tocchi_alla_durata_passa(self):
+        a, b = due_rose()
+        proposta = PropostaScambio(da_squadra_a=(1029,), da_squadra_b=(2029,))
+        assert valida_scambio(a, b, proposta, STAGIONE) == []
+
+    def test_col_divieto_i_lodi_non_si_contano_nemmeno(self):
+        """Se cambiare durata non si puo', non serve dire quante volte."""
+        a, b = due_rose()
+        a = a.con_contratto(replace(a.contratto_di(1029), prolungato=True))
+        proposta = PropostaScambio(da_squadra_a=(1029,), prolungamenti={1029: 4})
+        trovati = codici(valida_scambio(a, b, proposta, STAGIONE))
+        assert trovati == {"durata_invariata"}
+
     def test_lodo_bono_vieta_di_ridurre_la_durata(self):
+        """Vale solo se un lodo riaccende i prolungamenti (`prolungamenti_ammessi`)."""
         a, b = due_rose()
         proposta = PropostaScambio(da_squadra_a=(1029,), prolungamenti={1029: 1})
-        violazioni = valida_scambio(a, b, proposta, STAGIONE)
+        violazioni = valida_scambio(a, b, proposta, STAGIONE, CON_PROLUNGAMENTI)
         assert "lodo_bono" in codici(violazioni)
 
     def test_lodo_corti_un_solo_prolungamento_per_giocatore(self):
@@ -195,7 +306,8 @@ class TestValidaScambio:
         a = a.con_contratto(gia_prolungato)
 
         proposta = PropostaScambio(da_squadra_a=(1029,), prolungamenti={1029: 4})
-        assert "lodo_corti" in codici(valida_scambio(a, b, proposta, STAGIONE))
+        trovate = valida_scambio(a, b, proposta, STAGIONE, CON_PROLUNGAMENTI)
+        assert "lodo_corti" in codici(trovate)
 
     def test_lodo_corti_non_impedisce_lo_scambio_senza_prolungamento(self):
         a, b = due_rose()
@@ -216,7 +328,7 @@ class TestValidaScambio:
             )
 
         proposta = PropostaScambio(da_squadra_a=(1029,), prolungamenti={1029: 4})
-        violazioni = valida_scambio(a, b, proposta, STAGIONE)
+        violazioni = valida_scambio(a, b, proposta, STAGIONE, CON_PROLUNGAMENTI)
 
         assert "lodo_longoni" in codici(violazioni)
         assert "Padel United" in next(
@@ -234,12 +346,14 @@ class TestValidaScambio:
                 )
             )
         proposta = PropostaScambio(da_squadra_a=(1029,), prolungamenti={1029: 4})
-        assert "lodo_longoni" not in codici(valida_scambio(a, b, proposta, STAGIONE))
+        trovate = valida_scambio(a, b, proposta, STAGIONE, CON_PROLUNGAMENTI)
+        assert "lodo_longoni" not in codici(trovate)
 
     def test_durata_oltre_cinque_anni(self):
         a, b = due_rose()
         proposta = PropostaScambio(da_squadra_a=(1029,), prolungamenti={1029: 6})
-        assert "durata_contratto" in codici(valida_scambio(a, b, proposta, STAGIONE))
+        trovate = valida_scambio(a, b, proposta, STAGIONE, CON_PROLUNGAMENTI)
+        assert "durata_contratto" in codici(trovate)
 
     def test_prolungamento_di_un_giocatore_estraneo(self):
         a, b = due_rose()
@@ -256,7 +370,7 @@ class TestValidaScambio:
         proposta = PropostaScambio(
             da_squadra_a=(1029,), da_squadra_b=(2029,), prolungamenti={2029: 5}
         )
-        violazioni = valida_scambio(a, b, proposta, STAGIONE)
+        violazioni = valida_scambio(a, b, proposta, STAGIONE, CON_PROLUNGAMENTI)
 
         assert "monte_anni" in codici(violazioni)
         assert "Tiri Team" in next(

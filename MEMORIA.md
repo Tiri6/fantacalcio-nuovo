@@ -72,8 +72,9 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 - **Calendario**: tutti gli incroci in tre viste — per giornata, griglia
   degli scontri diretti squadra per squadra, e la stagione di una singola
   squadra con il bilancio.
-- **Competizioni**: campionato sempre, Coppa Italia e Supercoppa a scelta
-  creando la lega. Tabellone della coppa, finaliste di supercoppa dedotte
+- **Competizioni**: campionato sempre, Coppa Italia e **F1 Rush Finale** a
+  scelta creando la lega. Tabellone della coppa, classifica a tappe della F1
+  Rush sulle ultime sei giornate di Serie A, vincitrici dedotte
   dall'albo d'oro (a mano il primo anno), albo d'oro storicizzato.
 - **Calendario dei weekend**: la corrispondenza fra giornata di Serie A e
   giornata di lega. Un turno di coppa occupa un weekend e fa **slittare**
@@ -137,7 +138,7 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 6. **I vincoli dichiarati ma non imposti**: minimo di italiani, minimo di
    Under 21 italiani e numero di scambi a stagione si scelgono creando la
    lega, si mostrano nel Regolamento, ma nessun controllo li fa rispettare.
-7. **Coppa e supercoppa si importano insieme al campionato**: servirebbero
+7. **La coppa si importa insieme al campionato**: servirebbero
    import separati per competizione.
 
 ## In sospeso, con l'innesco

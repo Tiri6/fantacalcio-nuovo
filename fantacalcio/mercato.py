@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 from .autenticazione import Utente
-from .conformita import Gravita, Violazione
+from .conformita import Gravita, Momento, Violazione
 from .modelli import Contratto, Rosa, VoceDeadMoney
 from .regole import CalendarioStagione, ParametriLega
 
@@ -96,7 +96,11 @@ def verifica_svincolo(utente: Utente, rosa: Rosa, giocatore_id: int) -> None:
 def calcola_dead_money(
     contratto: Contratto, ingaggio: float, parametri: ParametriLega | None = None
 ) -> float:
-    """Lodo Origi: 50% del valore contrattuale residuo (ingaggio x anni residui)."""
+    """Lodo Origi: meta' degli anni residui **oltre quello in corso**, per ingaggio.
+
+    Non comprende l'ingaggio della stagione in corso, che resta a carico a
+    parte: vedi `VoceDeadMoney` e l'esempio dell'articolo 7.
+    """
     parametri = parametri or ParametriLega()
     return round(parametri.quota_dead_money * contratto.valore_residuo(ingaggio), 2)
 
@@ -106,11 +110,25 @@ def svincola(
     giocatore_id: int,
     stagione: str,
     parametri: ParametriLega | None = None,
-) -> tuple[Rosa, VoceDeadMoney]:
-    """Taglia un giocatore: libera subito gli anni, genera Dead Money.
+    momento: Momento = Momento.RIPARAZIONE,
+) -> tuple[Rosa, VoceDeadMoney | None]:
+    """Taglia un giocatore. Cosa lascia dietro dipende da **quando** lo tagli.
 
-    Il Dead Money si addebita in un'unica soluzione alla prima sessione di
-    mercato utile e li' si estingue: non si trascina alla stagione dopo.
+    Gli anni si liberano sempre e subito: e' l'effetto sul monte anni, e
+    l'articolo 7 non lo lega a nessuna sessione.
+
+    Sul Salary Cap invece il V3 e' netto: «gli effetti sul Salary Cap si
+    producono esclusivamente per gli svincoli effettuati nei mercati di
+    riparazione in corso di stagione; gli svincoli effettuati prima dell'asta
+    di Settembre non hanno alcun effetto sul Salary Cap».
+
+    - **Prima dell'asta di Settembre** (`Momento.ASTA_SETTEMBRE`): niente
+      buonuscita e niente ingaggio a carico. Si torna `None` invece di una
+      voce da zero, cosi' chi scrive sul database non registra un debito
+      inesistente.
+    - **In riparazione** (il caso normale): buonuscita del Lodo Origi **piu'**
+      l'ingaggio, che resta a carico fino a fine stagione. Dalla stagione
+      successiva non pesa piu' niente.
     """
     parametri = parametri or ParametriLega()
     contratto = rosa.contratto_di(giocatore_id)
@@ -120,14 +138,19 @@ def svincola(
         )
 
     giocatore = rosa.giocatore(giocatore_id)
+    nuova = rosa.senza_giocatore(giocatore_id)
+
+    if momento is Momento.ASTA_SETTEMBRE:
+        nuova.dead_money = list(rosa.dead_money)
+        return nuova, None
+
     voce = VoceDeadMoney(
         giocatore_id=giocatore_id,
         nome_giocatore=giocatore.nome,
         importo=calcola_dead_money(contratto, giocatore.ingaggio, parametri),
         stagione=stagione,
+        ingaggio_a_carico=giocatore.ingaggio,
     )
-
-    nuova = rosa.senza_giocatore(giocatore_id)
     nuova.dead_money = [*rosa.dead_money, voce]
     return nuova, voce
 
@@ -268,6 +291,27 @@ def valida_scambio(
     violazioni: list[Violazione] = []
     coinvolti = {m.giocatore_id for m in movimenti}
 
+    # Articolo 8, V3: «il contratto si trasferisce con ingaggio e anni residui
+    # invariati: non sono ammessi prolungamenti ne' riduzioni di durata, ne' in
+    # sede di scambio ne' con altra operazione». Il divieto viene prima di
+    # tutto il resto: se cambiare durata non si puo', non ha senso controllare
+    # quante volte si puo' farlo.
+    if not parametri.prolungamenti_ammessi:
+        for movimento in movimenti:
+            if movimento.prolungato or movimento.durata_ridotta:
+                violazioni.append(
+                    Violazione(
+                        "durata_invariata",
+                        "Art. 8",
+                        Gravita.BLOCCO,
+                        f"{movimento.nome}: il contratto si trasferisce com'e', "
+                        f"{movimento.anni_attuali} anni. Prolungamenti e "
+                        f"riduzioni di durata non sono ammessi.",
+                        movimento.nuovi_anni,
+                        movimento.anni_attuali,
+                    )
+                )
+
     for giocatore_id in proposta.prolungamenti:
         if giocatore_id not in coinvolti:
             violazioni.append(
@@ -280,7 +324,12 @@ def valida_scambio(
                 )
             )
 
-    for movimento in movimenti:
+    # I lodi Bono, Corti e Longoni regolavano **come** si prolunga: col V3 non
+    # si prolunga affatto, e il divieto qui sopra li assorbe tutti. Restano
+    # scritti e provati per il giorno in cui un lodo riaprisse la strada.
+    con_durata_variabile = movimenti if parametri.prolungamenti_ammessi else []
+
+    for movimento in con_durata_variabile:
         # Lodo Bono: mai ridurre la durata contrattuale.
         if movimento.durata_ridotta:
             violazioni.append(
@@ -329,7 +378,8 @@ def valida_scambio(
     # Il prolungamento e' un beneficio di chi riceve il giocatore, quindi si
     # conta sulla squadra di destinazione.
     limite = parametri.prolungamenti_per_squadra_a_stagione
-    for rosa in (rosa_a, rosa_b):
+    squadre_da_contare = (rosa_a, rosa_b) if parametri.prolungamenti_ammessi else ()
+    for rosa in squadre_da_contare:
         nuovi = sum(
             1
             for m in movimenti

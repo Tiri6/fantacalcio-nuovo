@@ -105,18 +105,19 @@ def ordine_round(
 ) -> tuple[str, ...]:
     """Chi chiama, e in che ordine, in un dato round del draft di Settembre.
 
-    - round 1: ordine della Lottery;
-    - round 2: ordine invertito (i due turni a serpente);
     - round multipli di 3: ordine di arrivo della stagione precedente, dalla 1a;
-    - tutti gli altri: ordine della Lottery.
+    - tutti gli altri, round 2 compreso: ordine della Lottery.
+
+    Il regolamento V3 e' esplicito: l'ordine della Lottery «vale per tutti i
+    giri di chiamata del draft di Settembre, con l'eccezione dei round
+    multipli di 3». Non c'e' nessun giro a serpente — e infatti nel draft
+    2026/27 il secondo giro ha ripetuto il primo identico.
     """
     if numero_round < 1:
         raise ValueError(f"Il round deve partire da 1, ricevuto {numero_round}")
 
     if numero_round % PERIODO_ROUND_CLASSIFICA == 0:
         return tuple(classifica_precedente)
-    if numero_round == 2:
-        return tuple(reversed(ordine_lottery))
     return tuple(ordine_lottery)
 
 

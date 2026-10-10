@@ -91,8 +91,10 @@ with weekend:
     st.markdown("**A cosa corrisponde questo weekend**")
     st.caption(
         "Le due numerazioni non coincidono: la lega parte a stagione gia' "
-        "iniziata, e ogni turno di coppa fa slittare il campionato di una "
-        "settimana. Qui si vede weekend per weekend cosa si gioca."
+        "iniziata, e un turno di coppa a eliminazione diretta fa slittare il "
+        "campionato di una settimana. La coppa a gironi invece si accoda a "
+        "fine campionato, e la F1 Rush corre sulle ultime giornate di Serie A "
+        "senza spostare niente. Qui si vede weekend per weekend cosa si gioca."
     )
 
     riga = st.columns(3)
@@ -114,6 +116,7 @@ with weekend:
         giornate_campionato=opzioni.giornate_totali,
         regole_coppa=opzioni.regole_coppa if opzioni.coppa_italia else None,
         prima_giornata_serie_a=int(prima_serie_a),
+        regole_f1_rush=opzioni.regole_f1_rush if opzioni.f1_rush else None,
     )
 
     st.dataframe(

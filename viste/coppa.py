@@ -16,6 +16,15 @@ ui.intestazione(
     f"{regole.formato.etichetta} · {regole.squadre_ammesse} squadre ammesse.",
 )
 
+if regole.a_gironi:
+    st.caption(
+        f"Formato del V3: **{regole.gironi} gironi da "
+        f"{regole.squadre_per_girone}** con andata e ritorno "
+        f"({regole.giornate_di_girone} giornate), disputati **a fine "
+        f"campionato**, poi scontri diretti fra le "
+        f"{regole.squadre_a_eliminazione} qualificate."
+    )
+
 partite = ui.calendario()
 classifica = ui.classifica()
 disputate = ui.giornate_disputate(partite) if not partite.empty else 0
@@ -26,15 +35,25 @@ ui.griglia_dati(
     [
         {"etichetta": "Squadre ammesse", "valore": str(regole.squadre_ammesse)},
         {
-            "etichetta": "Turni",
+            "etichetta": "Scontri diretti",
             "valore": str(regole.turni),
-            "nota": f"dal {regole.nome_turno(1).lower()} alla finale",
+            # L'elenco invece di «dal ... alla finale»: con due soli turni
+            # quella frase diventava «dal semifinali alla finale».
+            "nota": ", ".join(regole.nome_turno(n) for n in range(1, regole.turni + 1)),
         },
-        {
-            "etichetta": "Primo turno",
-            "valore": f"G{regole.prima_giornata}",
-            "nota": f"poi ogni {regole.ogni_quante_giornate} giornate",
-        },
+        (
+            {
+                "etichetta": "Fase a gironi",
+                "valore": f"{regole.giornate_di_girone} giornate",
+                "nota": "a fine campionato, andata e ritorno",
+            }
+            if regole.a_gironi
+            else {
+                "etichetta": "Primo turno",
+                "valore": f"G{regole.prima_giornata}",
+                "nota": f"poi ogni {regole.ogni_quante_giornate} giornate",
+            }
+        ),
     ]
 )
 
@@ -44,22 +63,55 @@ st.divider()
 
 st.subheader("Tabellone")
 
-turni = []
-for numero, giornata in enumerate(giornate_turni, start=1):
-    turni.append(
-        {
-            "Turno": regole.nome_turno(numero),
-            "Giornata": f"G{giornata}",
-            "Stato": "Disputato" if disputate >= giornata else "Da giocare",
-        }
+if regole.a_gironi:
+    # Coi gironi i turni non cadono a giornate fisse di campionato: vengono
+    # dopo, di fila. Mostrare «G5, G9, G13» sarebbe un calendario inventato.
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Fase": f"Girone — {n}ª giornata",
+                    "Quando": "dopo il campionato",
+                }
+                for n in range(1, regole.giornate_di_girone + 1)
+            ]
+            + [
+                {"Fase": regole.nome_turno(n), "Quando": "dopo i gironi"}
+                for n in range(1, regole.turni + 1)
+            ]
+        ),
+        hide_index=True,
+        use_container_width=True,
     )
-st.dataframe(pd.DataFrame(turni), hide_index=True, use_container_width=True)
+    st.caption(
+        "La **classifica dei gironi** non e' ancora calcolata dal sito: la "
+        "composizione dei gruppi e i risultati si caricano dalla pagina "
+        "«Importa dati». La pagina Calendario mostra su quali weekend cadono."
+    )
+else:
+    turni = []
+    for numero, giornata in enumerate(giornate_turni, start=1):
+        turni.append(
+            {
+                "Turno": regole.nome_turno(numero),
+                "Giornata": f"G{giornata}",
+                "Stato": "Disputato" if disputate >= giornata else "Da giocare",
+            }
+        )
+    st.dataframe(pd.DataFrame(turni), hide_index=True, use_container_width=True)
 
 # --- ammesse ----------------------------------------------------------------
 
 st.subheader("Chi si qualifica")
 
-if regole.teste_di_serie and not classifica.empty:
+if regole.a_gironi:
+    st.info(
+        f"Entrano tutte e {regole.squadre_ammesse}: agli scontri diretti passano "
+        f"le prime {regole.qualificate_per_girone} di ogni girone, "
+        f"{regole.squadre_a_eliminazione} in tutto.",
+        icon="🥇",
+    )
+elif regole.teste_di_serie and not classifica.empty:
     ammesse = classifica.head(regole.squadre_ammesse)
     st.caption(
         f"Teste di serie dalla classifica: passano le prime "
@@ -108,8 +160,13 @@ st.markdown(
         if regole.spareggio_ai_fantapunti
         else "si ripete la sfida"
     }
-- **Calendario**: primo turno alla {regole.prima_giornata}ª giornata, poi uno
-  ogni {regole.ogni_quante_giornate}
+- **Calendario**: {
+        f"gironi e scontri diretti a fine campionato, {regole.giornate_di_girone} "
+        f"giornate di girone piu' {regole.turni} turni"
+        if regole.a_gironi
+        else f"primo turno alla {regole.prima_giornata}ª giornata, poi uno ogni "
+        f"{regole.ogni_quante_giornate}"
+    }
 """
 )
 

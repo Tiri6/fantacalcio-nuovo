@@ -132,8 +132,8 @@ scambi permessi a stagione. Zero significa nessun vincolo. I due minimi si
 controllano a vicenda: non si possono chiedere piu' Under 21 italiani che
 italiani, perche' un Under 21 italiano e' gia' un italiano.
 
-**Competizioni** — il campionato c'e' sempre; **Coppa Italia** e
-**Supercoppa** si accendono qui, e solo allora compaiono nel menu.
+**Competizioni** — il campionato c'e' sempre; **Coppa Italia** e **F1 Rush
+Finale** si accendono qui, e solo allora compaiono nel menu.
 
 **Formazione** — moduli ammessi (16 in Mantra, 7 in Classic), panchinari,
 sostituzioni automatiche, capitano.
@@ -150,14 +150,31 @@ attacco.
 Sempre attivo. Classifica, calendario e andamento.
 
 ### Coppa Italia
-Formato, squadre ammesse (**una potenza di due**, altrimenti il tabellone non
-si chiude), teste di serie dalla classifica, ogni quante giornate si gioca un
-turno, spareggio ai fantapunti in caso di parita'.
+Dal V3: **due gironi con andata e ritorno, a fine campionato, poi scontri
+diretti**. Entrano tutte e dieci; a dover essere una potenza di due sono le
+**qualificate** (2 per girone = 4, cioe' semifinali e finale), altrimenti il
+tabellone non si chiude. Resta scegliibile il formato di prima — eliminazione
+diretta intervallata al campionato — per una lega che lo preferisca.
 
-### Supercoppa
-Vincitrice campionato contro vincitrice di coppa, oppure contro la seconda,
-oppure a scelta. **Il primo anno le due squadre si scelgono a mano** perche'
-l'albo d'oro e' vuoto; dall'anno dopo si ricavano da sole.
+La classifica dei gironi il sito non la calcola ancora: i risultati di coppa
+si importano come quelli di campionato. Vedi PUNTI_APERTI.md.
+
+### F1 Rush Finale
+Ha sostituito la Supercoppa nel V3, e non e' un cambio di nome: la Supercoppa
+era una gara fra due squadre, la F1 Rush e' una classifica a tappe fra tutte,
+sulle **ultime sei giornate di Serie A**.
+
+Ogni tappa e' una giornata: si ordina per fantapunti e si assegnano i punti
+della scala (25-18-15-12-10-8-6-4-2-1, dieci posizioni per dieci squadre). A
+pari fantapunti nella stessa tappa valgono i pari merito. L'ordine finale e'
+punti, poi vittorie di tappa, poi fantapunti totali.
+
+**Il meccanismo e' un'ipotesi, non il regolamento**: l'articolo 1 dice solo su
+quante giornate si corre. E' un punto aperto (PUNTI_APERTI.md), e la scala e il
+numero di tappe sono parametri che si cambiano dalla creazione lega.
+
+La F1 Rush **non occupa un weekend suo** e non fa slittare il campionato: usa
+gli stessi fantapunti, quindi si aggiunge agli impegni di quel weekend.
 
 ### Albo d'oro
 Storicizza i vincitori. Il nome della squadra si **copia** nella riga invece di
@@ -182,7 +199,7 @@ numerazioni, ed e' cio' che la pagina esiste per mostrare.
 
 **Lega · <nome della lega>**
 Bacheca · Cruscotto · Formazione · Giornata · Campionato · *Coppa Italia* ·
-*Supercoppa* · Calendario · Albo d'oro · Regolamento · Chat sul regolamento
+*F1 Rush* · Calendario · Albo d'oro · Regolamento · Chat sul regolamento
 
 **Squadre e giocatori**
 Squadre · Listone giocatori · Identita' squadre
@@ -499,7 +516,8 @@ In ordine di utilita'.
 3. **I voti non arrivano da soli.** Li carica il presidente, con un file o un
    copia-incolla, perche' le fonti rispondono 403 a un server (vedi
    PUNTI_APERTI.md). Il calcolo della giornata, invece, e' automatico.
-4. **Risultati di coppa e supercoppa** non si importano separatamente.
+4. **Risultati di coppa** non si importano separatamente. La F1 Rush invece
+   si calcola da sola: usa i fantapunti del campionato.
 5. **Svincoli registrati**: il Dead Money si calcola ma non si scrive.
 6. **Dati anagrafici non modificabili** dopo l'iscrizione (quelli della squadra si modificano dalla pagina Squadre).
 7. **Registro dei lodi**: la tabella c'e', manca la pagina.
