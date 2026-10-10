@@ -7,6 +7,16 @@
  * ricaricamenti.
  */
 
+/* I colori stanno tutti qui, in due gruppi: il tema scuro (quello di
+ * partenza) e quello chiaro. Nessuna regola piu' sotto scrive un colore
+ * suo — se lo facesse, cambiando tema resterebbe quello di prima e si
+ * vedrebbe solo su una delle due versioni.
+ *
+ * La scelta la fa la persona da Impostazioni, e `main.tsx` la scrive su
+ * `<html data-tema>` prima del primo disegno. Senza scelta si segue il
+ * sistema operativo, che e' quel che si aspetta chi non ha mai aperto le
+ * impostazioni.
+ */
 :root {
   --sfondo: #0a0f0c;
   --sfondo-alto: #111a14;
@@ -27,16 +37,106 @@
      valori scritti dentro le regole. */
   --su-verde: #06120b;
   --rosso-tenue: #ff9ca0;
+  --azzurro-tenue: #7fb4ea;
+  --su-rosso: #ffffff;
   --ambra: #f0b429;
   --rosso: #e5484d;
+
+  /* L'alone verde in cima alla pagina e le righe del campo nella vetrina:
+     su fondo chiaro una velatura bianca non si vede, serve il nero. */
+  --alone: #12241a;
+  --righe-campo: rgb(255 255 255 / 0.016);
+  /* Testata e menu non usano `--superficie` ma una velatura, perche' sotto
+     ci scorre il contenuto e il `backdrop-filter` deve vederlo. */
+  --velo-testata: rgb(10 15 12 / 0.82);
+  --velo-fianco: rgb(17 26 20 / 0.4);
+  --velo-riquadro: rgb(22 33 26 / 0.5);
 
   --raggio: 14px;
   --raggio-piccolo: 9px;
   --ombra: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --ombra-piccola: 0 1px 2px rgb(0 0 0 / 0.3);
 
   --passo: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   color-scheme: dark;
+}
+
+/* Il tema chiaro. Non e' lo scuro schiarito: i verdi scendono di luminosita'
+   perche' il verde acceso su bianco non si legge, e le ombre diventano
+   grigie invece che nere. */
+:root[data-tema="chiaro"] {
+  --sfondo: #f4f7f4;
+  --sfondo-alto: #ffffff;
+  --superficie: #ffffff;
+  --superficie-viva: #eef3ef;
+  --bordo: #d9e3db;
+  --bordo-vivo: #b9ccbe;
+
+  --testo: #11231a;
+  --testo-tenue: #4e6557;
+  --testo-fioco: #788d81;
+
+  --verde: #1a8a53;
+  --verde-chiaro: #156f42;
+  --verde-cupo: #0f6b3e;
+  --su-verde: #ffffff;
+  --rosso-tenue: #a3161b;
+  --azzurro-tenue: #1d5b94;
+  --su-rosso: #ffffff;
+  --ambra: #9a6b00;
+  --rosso: #c62a2f;
+
+  --alone: #dceee3;
+  --righe-campo: rgb(0 0 0 / 0.022);
+  --velo-testata: rgb(255 255 255 / 0.86);
+  --velo-fianco: rgb(255 255 255 / 0.62);
+  --velo-riquadro: rgb(255 255 255 / 0.7);
+
+  --ombra:
+    0 1px 2px rgb(16 40 26 / 0.06), 0 10px 26px -14px rgb(16 40 26 / 0.22);
+  --ombra-piccola: 0 1px 2px rgb(16 40 26 / 0.08);
+
+  color-scheme: light;
+}
+
+/* Chi non ha mai scelto segue il sistema. L'attributo `data-tema` vince
+   comunque, perche' e' una scelta esplicita e viene dopo. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-tema="scuro"]) {
+    --sfondo: #f4f7f4;
+    --sfondo-alto: #ffffff;
+    --superficie: #ffffff;
+    --superficie-viva: #eef3ef;
+    --bordo: #d9e3db;
+    --bordo-vivo: #b9ccbe;
+
+    --testo: #11231a;
+    --testo-tenue: #4e6557;
+    --testo-fioco: #788d81;
+
+    --verde: #1a8a53;
+    --verde-chiaro: #156f42;
+    --verde-cupo: #0f6b3e;
+    --su-verde: #ffffff;
+    --rosso-tenue: #a3161b;
+    --azzurro-tenue: #1d5b94;
+    --su-rosso: #ffffff;
+    --ambra: #9a6b00;
+    --rosso: #c62a2f;
+
+    --alone: #dceee3;
+    --righe-campo: rgb(0 0 0 / 0.022);
+    --velo-testata: rgb(255 255 255 / 0.86);
+    --velo-fianco: rgb(255 255 255 / 0.62);
+    --velo-riquadro: rgb(255 255 255 / 0.7);
+
+    --ombra:
+      0 1px 2px rgb(16 40 26 / 0.06), 0 10px 26px -14px rgb(16 40 26 / 0.22);
+    --ombra-piccola: 0 1px 2px rgb(16 40 26 / 0.08);
+
+    color-scheme: light;
+  }
 }
 
 * {
@@ -52,7 +152,7 @@ body,
 body {
   margin: 0;
   background:
-    radial-gradient(1200px 600px at 50% -10%, #12241a 0%, transparent 60%),
+    radial-gradient(1200px 600px at 50% -10%, var(--alone) 0%, transparent 60%),
     var(--sfondo);
   color: var(--testo);
   font-family:
@@ -200,7 +300,7 @@ button:disabled {
   background: repeating-linear-gradient(
     90deg,
     transparent 0 58px,
-    rgb(255 255 255 / 0.016) 58px 116px
+    var(--righe-campo) 58px 116px
   );
 }
 
@@ -328,7 +428,7 @@ button:disabled {
 .porta-schede .scheda.attiva {
   background: var(--superficie-viva);
   color: var(--testo);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  box-shadow: var(--ombra-piccola);
 }
 
 .accesso-riquadro h2 {
@@ -441,7 +541,7 @@ button:disabled {
   align-items: center;
   gap: 18px;
   padding: 13px 24px;
-  background: rgb(10 15 12 / 0.82);
+  background: var(--velo-testata);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--bordo);
 }
@@ -481,7 +581,7 @@ button:disabled {
 
 .fianco {
   border-right: 1px solid var(--bordo);
-  background: rgb(17 26 20 / 0.4);
+  background: var(--velo-fianco);
   padding: 20px 12px;
   position: sticky;
   top: 53px;
@@ -1284,7 +1384,7 @@ input[type="color"] {
    altri: chi amministra le vede mescolate ai pubblicati. */
 .annuncio.bozza {
   border-style: dashed;
-  background: rgb(22 33 26 / 0.5);
+  background: var(--velo-riquadro);
 }
 
 .annuncio h2 {
@@ -1338,7 +1438,7 @@ input[type="color"] {
 .pastiglia.azzurra {
   background: rgb(90 160 230 / 0.12);
   border-color: rgb(90 160 230 / 0.3);
-  color: #7fb4ea;
+  color: var(--azzurro-tenue);
 }
 
 /* Il Markdown lo rende `react-markdown`, che l'HTML non lo esegue: qui si
@@ -1428,7 +1528,7 @@ button.pericoloso {
   padding: 6px 12px;
   font-size: 13px;
   background: var(--rosso);
-  color: #fff;
+  color: var(--su-rosso);
 }
 
 .conferma-pericolo {
