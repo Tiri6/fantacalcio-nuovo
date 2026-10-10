@@ -68,6 +68,27 @@ def segreto() -> str:
     return valore
 
 
+def posa_sessione(risposta, nome_utente: str) -> None:
+    """Mette il cookie di sessione nella risposta.
+
+    Sta qui e non nelle rotte perche' a chiamarla sono in due — l'accesso e la
+    registrazione — e le opzioni del cookie sono una regola di sicurezza, non
+    un dettaglio: due copie divergerebbero, e divergerebbero dal lato
+    sbagliato il giorno che qualcuno ne tocca una sola.
+    """
+    risposta.set_cookie(
+        NOME_COOKIE,
+        crea_token(nome_utente),
+        max_age=int(DURATA.total_seconds()),
+        httponly=True,
+        # In sviluppo si gira su http://localhost, dove un cookie Secure non
+        # verrebbe mai mandato indietro e il login sembrerebbe rotto.
+        secure=os.environ.get("FANTA_AMBIENTE") != "sviluppo",
+        samesite="lax",
+        path="/",
+    )
+
+
 @dataclass(frozen=True)
 class Sessione:
     nome_utente: str

@@ -30,6 +30,7 @@ from .rotte import (
     identita,
     lega,
     profilo,
+    registrazione,
     squadre,
 )
 from .statici import monta_sito
@@ -80,6 +81,7 @@ if os.environ.get("FANTA_AMBIENTE") == "sviluppo":
     )
 
 app.include_router(accesso.rotte, prefix="/api")
+app.include_router(registrazione.rotte, prefix="/api")
 app.include_router(albo.rotte, prefix="/api")
 app.include_router(campionato.rotte, prefix="/api")
 app.include_router(bacheca.rotte, prefix="/api")

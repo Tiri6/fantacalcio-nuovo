@@ -184,8 +184,12 @@ export function Profilo() {
     <>
       <div className="intestazione-pagina">
         <h1>👤 Il mio profilo</h1>
+        {/* Il trattino solo se c'e' qualcosa dopo: chi si e' appena
+            registrato non sta ancora in nessuna lega, e un «Marco Rossi —»
+            monco sembra un dato che non ha caricato. */}
         <p>
-          {dato.nome_completo} — {dato.nome_lega}
+          {dato.nome_completo}
+          {dato.nome_lega ? ` — ${dato.nome_lega}` : ""}
         </p>
       </div>
 
