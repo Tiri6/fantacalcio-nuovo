@@ -474,6 +474,50 @@ export type Iscrizione = {
   conferma: string;
 };
 
+export type InvitoTrovato = {
+  lega_nome: string;
+  codice: string;
+};
+
+/** Cosa manca a questa persona prima di poter usare il sito. */
+export type StatoOnboarding = {
+  serve: "lega" | "squadra" | "niente";
+  nome: string;
+  nome_lega: string;
+  codice_invito: string;
+  esistono_leghe: boolean;
+  invito: InvitoTrovato | null;
+  modalita: VoceModulo[];
+  formati: VoceModulo[];
+  stili_maglia: VoceModulo[];
+};
+
+export type NuovaLega = {
+  nome: string;
+  stagione: string;
+  modalita: string;
+  formato: string;
+  partecipanti: number;
+  coppa_italia: boolean;
+  f1_rush: boolean;
+};
+
+export type NuovaSquadra = {
+  nome: string;
+  citta: string;
+  stadio: string;
+  curva: string;
+  motto: string;
+  colore_primario: string;
+  colore_secondario: string;
+  stile_maglia: string;
+};
+
+export type LegaCreata = {
+  nome: string;
+  codice_invito: string;
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -491,6 +535,22 @@ export const api = {
   squadre: () => chiama<Squadra[]>("/squadre"),
   squadra: (id: number) => chiama<SquadraInDettaglio>(`/squadre/${id}`),
   listone: () => chiama<Listone>("/giocatori"),
+  onboarding: () => chiama<StatoOnboarding>("/onboarding"),
+  creaLega: (corpo: NuovaLega) =>
+    chiama<LegaCreata>("/onboarding/lega", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  unisciti: (codice: string) =>
+    chiama<LegaCreata>("/onboarding/unisciti", {
+      method: "POST",
+      body: JSON.stringify({ codice }),
+    }),
+  fondaSquadra: (corpo: NuovaSquadra) =>
+    chiama<{ id: number; nome: string }>("/onboarding/squadra", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
   attivaPortiereEmergenza: (
     squadra: number,
     giocatore_id: number,
