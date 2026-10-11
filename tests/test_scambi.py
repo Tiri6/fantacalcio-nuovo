@@ -8,6 +8,7 @@ from conftest import STAGIONE, costruisci_rosa
 from fantacalcio.autenticazione import Ruolo, Utente
 from fantacalcio.mercato import PropostaScambio
 from fantacalcio.scambi import (
+    Scambio,
     StatoScambio,
     TransizioneNonAmmessa,
     accetta,
@@ -15,6 +16,7 @@ from fantacalcio.scambi import (
     applica_alle_rose,
     carica_scambi,
     conta_conclusi,
+    della_stagione,
     giornata_di_efficacia,
     proponi,
     ratifica,
@@ -236,9 +238,17 @@ class TestPersistenza:
 class TestLimiteScambiStagionale:
     """Il limite di scambi per stagione conta solo quelli andati a buon fine."""
 
-    def scambio(self, id_, stato, squadra_a=1, squadra_b=2, creato="2026-10-01T10:00:00"):
-        from fantacalcio.scambi import Scambio
-
+    def scambio(
+        self,
+        id_,
+        stato,
+        squadra_a=1,
+        squadra_b=2,
+        creato=datetime(2026, 10, 1, 10, 0),
+    ):
+        # Un `datetime` vero, non la stringa ISO: e' quel che producono sia
+        # `proponi` sia `carica_scambi`, e la stringa nascondeva un errore
+        # che in produzione faceva morire la pagina al primo ratificato.
         return Scambio(
             id=id_,
             squadra_a_id=squadra_a,
@@ -286,7 +296,59 @@ class TestLimiteScambiStagionale:
 
     def test_filtro_per_stagione(self):
         registro = [
-            self.scambio(1, StatoScambio.RATIFICATO, creato="2026-10-01T10:00:00"),
-            self.scambio(2, StatoScambio.RATIFICATO, creato="2025-10-01T10:00:00"),
+            self.scambio(1, StatoScambio.RATIFICATO, creato=datetime(2026, 10, 1)),
+            self.scambio(2, StatoScambio.RATIFICATO, creato=datetime(2025, 10, 1)),
         ]
         assert conta_conclusi(registro, 1, stagione="2026/27") == 1
+
+
+class TestContareLaStagione:
+    """`creato_il` e' un `datetime`, e la stagione sta a cavallo di due anni.
+
+    Il conto serviva a far rispettare il limite di scambi per stagione:
+    sbagliarlo vuol dire o regalarne uno in piu' o bloccare chi non ha
+    ancora finito i suoi.
+    """
+
+    def scambio_del(self, quando: datetime) -> Scambio:
+        return Scambio(
+            id=1,
+            squadra_a_id=1,
+            squadra_b_id=2,
+            proposto_da=1,
+            stato=StatoScambio.RATIFICATO,
+            creato_il=quando,
+        )
+
+    def test_una_data_vera_non_fa_esplodere_il_conto(self):
+        """Prima trattava `creato_il` come una stringa: col primo scambio
+        ratificato la pagina moriva con un AttributeError."""
+        registro = [self.scambio_del(datetime(2026, 10, 11, 9, 30))]
+        assert conta_conclusi(registro, 1, "2026/27") == 1
+
+    def test_l_autunno_e_della_stagione_che_inizia(self):
+        assert della_stagione(datetime(2026, 9, 1), "2026/27")
+        assert della_stagione(datetime(2026, 12, 31), "2026/27")
+
+    def test_la_primavera_e_della_stessa_stagione(self):
+        """E' qui che cadono le finestre di riparazione: guardare solo l'anno
+        le avrebbe contate nella stagione sbagliata."""
+        assert della_stagione(datetime(2027, 1, 15), "2026/27")
+        assert della_stagione(datetime(2027, 6, 30), "2026/27")
+
+    def test_la_stagione_prima_e_quella_dopo_non_contano(self):
+        assert not della_stagione(datetime(2026, 6, 30), "2026/27")
+        assert not della_stagione(datetime(2027, 7, 1), "2026/27")
+
+    def test_senza_stagione_contano_tutti(self):
+        assert della_stagione(datetime(2020, 1, 1), None)
+
+    def test_una_stagione_scritta_male_non_blocca_niente(self):
+        assert della_stagione(datetime(2026, 10, 1), "boh")
+
+    def test_gli_scambi_di_un_altra_stagione_non_pesano(self):
+        registro = [
+            self.scambio_del(datetime(2026, 10, 1)),
+            self.scambio_del(datetime(2025, 10, 1)),
+        ]
+        assert conta_conclusi(registro, 1, "2026/27") == 1

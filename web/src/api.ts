@@ -518,6 +518,60 @@ export type LegaCreata = {
   codice_invito: string;
 };
 
+export type MovimentoScambio = {
+  giocatore_id: number;
+  nome_giocatore: string;
+  da_squadra_id: number;
+  da_squadra: string;
+  a_squadra_id: number;
+  a_squadra: string;
+  anni: number;
+};
+
+export type ViolazioneScambio = {
+  codice: string;
+  articolo: string;
+  messaggio: string;
+  bloccante: boolean;
+};
+
+export type ScambioLetto = {
+  id: number;
+  stato: string;
+  stato_etichetta: string;
+  aperto: boolean;
+  squadra_a_id: number;
+  squadra_a: string;
+  squadra_b_id: number;
+  squadra_b: string;
+  movimenti: MovimentoScambio[];
+  note: string;
+  creato_il: string;
+  giornata_efficacia: number | null;
+  /** Cosa puo' fare chi guarda: lo decide il dominio, non il browser. */
+  posso_accettare: boolean;
+  posso_rifiutare: boolean;
+  posso_annullare: boolean;
+  posso_ratificare: boolean;
+  violazioni: ViolazioneScambio[];
+};
+
+export type PaginaScambi = {
+  scambi: ScambioLetto[];
+  mia_squadra_id: number | null;
+  conclusi: number;
+  residui: number | null;
+  mercato_aperto: boolean;
+  finestra: string;
+  squadre: { id: number; nome: string }[];
+};
+
+export type EsitoProposta = {
+  scambio: ScambioLetto | null;
+  violazioni: ViolazioneScambio[];
+  inviata: boolean;
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -536,6 +590,29 @@ export const api = {
   squadra: (id: number) => chiama<SquadraInDettaglio>(`/squadre/${id}`),
   listone: () => chiama<Listone>("/giocatori"),
   onboarding: () => chiama<StatoOnboarding>("/onboarding"),
+  scambi: () => chiama<PaginaScambi>("/scambi"),
+  proponiScambio: (corpo: {
+    squadra_b_id: number;
+    da_me: number[];
+    da_loro: number[];
+    note: string;
+  }) =>
+    chiama<EsitoProposta>("/scambi", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  decidiScambio: (
+    id: number,
+    azione: "accetta" | "rifiuta" | "annulla" | "ratifica",
+    giornata_efficacia?: number | null,
+  ) =>
+    chiama<ScambioLetto>(`/scambi/${id}`, {
+      method: "POST",
+      body: JSON.stringify({
+        azione,
+        giornata_efficacia: giornata_efficacia ?? null,
+      }),
+    }),
   creaLega: (corpo: NuovaLega) =>
     chiama<LegaCreata>("/onboarding/lega", {
       method: "POST",

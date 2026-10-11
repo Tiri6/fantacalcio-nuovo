@@ -568,6 +568,109 @@ button:disabled {
   margin-top: 14px;
 }
 
+/* --- scambi ------------------------------------------------------------- */
+
+.scambi {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.scambio {
+  padding: 18px 20px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+}
+
+/* Uno scambio concluso resta leggibile ma non chiede attenzione: e' storia,
+   non una cosa da decidere. */
+.scambio.chiuso {
+  opacity: 0.72;
+}
+
+.scambio h3 {
+  font-size: 17px;
+  margin: 10px 0 12px;
+}
+
+.movimenti {
+  display: grid;
+  gap: 8px;
+}
+
+.movimento {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--sfondo-alto);
+  border-radius: var(--raggio-piccolo);
+  font-size: 13.5px;
+}
+
+/* Le due rose affiancate mentre si compone: si spunta chi va di la'. */
+.scelta-giocatori {
+  display: grid;
+  gap: 4px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  background: var(--sfondo-alto);
+}
+
+.riga-scelta {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  margin: 0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--testo);
+  cursor: pointer;
+}
+
+.riga-scelta:hover {
+  background: var(--superficie-viva);
+}
+
+/* Chi e' gia' nello scambio si vede a colpo d'occhio: senza, su una rosa da
+   trenta si perde il conto di cosa si e' spuntato. */
+.riga-scelta.presa {
+  background: rgb(53 208 127 / 0.1);
+  box-shadow: inset 2px 0 0 var(--verde);
+}
+
+.riga-scelta input {
+  width: auto;
+}
+
+.scambio .azioni {
+  margin-top: 14px;
+}
+
+.principale.compatto {
+  width: auto;
+  margin-top: 0;
+  padding: 8px 16px;
+}
+
+input.giornata {
+  width: 110px;
+}
+
+@media (max-width: 760px) {
+  .riga-scelta {
+    grid-template-columns: auto 1fr auto;
+  }
+}
+
 /* --- intelaiatura ------------------------------------------------------- */
 
 /* Testata sopra, menu a sinistra, contenuto a destra. La griglia tiene il
