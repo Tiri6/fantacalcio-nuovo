@@ -16,6 +16,7 @@ import { Identita } from "./pagine/Identita";
 import { Lega } from "./pagine/Lega";
 import { Listone } from "./pagine/Listone";
 import { Profilo } from "./pagine/Profilo";
+import { Scambi } from "./pagine/Scambi";
 import { Squadra } from "./pagine/Squadra";
 import { Squadre } from "./pagine/Squadre";
 import { ConSessione, useSessione } from "./sessione";
@@ -44,6 +45,10 @@ const SEZIONI = [
       { a: "/giocatori", icona: "📋", testo: "Listone" },
       { a: "/identita", icona: "🎨", testo: "Identità" },
     ],
+  },
+  {
+    titolo: "Mercato",
+    voci: [{ a: "/scambi", icona: "🤝", testo: "Scambi" }],
   },
   {
     titolo: "Impostazioni",
@@ -115,6 +120,7 @@ function Intelaiatura() {
           <Route path="/squadre/:id" element={<Squadra />} />
           <Route path="/giocatori" element={<Listone />} />
           <Route path="/identita" element={<Identita />} />
+          <Route path="/scambi" element={<Scambi />} />
           <Route path="/profilo" element={<Profilo />} />
           <Route path="/lega" element={<Lega />} />
           {/* La bacheca è la pagina d'ingresso: chi entra vuole sapere cosa
