@@ -24,6 +24,10 @@ type Stato = {
   entra: (nomeUtente: string, password: string) => Promise<void>;
   /** Registrarsi fa entrare: l'utente ha appena scelto le credenziali. */
   iscriviti: (corpo: Iscrizione) => Promise<void>;
+  /** Rilegge chi siamo. Serve dopo l'onboarding: entrando in una lega o
+   *  fondando la squadra la riga dell'utente cambia, e la sessione in
+   *  memoria resterebbe quella di prima. */
+  aggiorna: () => Promise<void>;
   esci: () => Promise<void>;
 };
 
@@ -55,13 +59,19 @@ export function ConSessione({ children }: { children: ReactNode }) {
     setUtente(await api.iscriviti(corpo));
   }, []);
 
+  const aggiorna = useCallback(async () => {
+    setUtente(await api.io());
+  }, []);
+
   const esci = useCallback(async () => {
     await api.esci();
     setUtente(null);
   }, []);
 
   return (
-    <Contesto.Provider value={{ utente, inCorso, entra, iscriviti, esci }}>
+    <Contesto.Provider
+      value={{ utente, inCorso, entra, iscriviti, aggiorna, esci }}
+    >
       {children}
     </Contesto.Provider>
   );

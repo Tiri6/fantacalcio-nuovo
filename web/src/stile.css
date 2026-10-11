@@ -521,6 +521,53 @@ button:disabled {
   }
 }
 
+/* Il codice d'invito, grande e copiabile: e' la cosa che il presidente deve
+   girare agli altri, e cercarlo fra le impostazioni ogni volta e' una noia. */
+.codice-invito {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.codice-invito code {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 14px;
+  background: var(--sfondo-alto);
+  border: 1px dashed var(--bordo-vivo);
+  border-radius: var(--raggio-piccolo);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--verde);
+  text-align: center;
+  /* Il codice e' di otto caratteri, ma lo stesso riquadro mostra anche il
+     link d'invito, che e' lungo: senza questo sfonderebbe la colonna. */
+  overflow-wrap: anywhere;
+}
+
+/* Il link non e' un codice da leggere a voce: piu' piccolo e senza la
+   spaziatura fra le lettere, che su un indirizzo lo rende illeggibile. */
+.codice-invito code:not(:only-child) {
+  font-size: 19px;
+}
+
+.porta-aiuto + .codice-invito code {
+  font-size: 13px;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.codice-invito button {
+  padding: 11px 16px;
+  white-space: nowrap;
+}
+
+.avviso.corona .principale {
+  margin-top: 14px;
+}
+
 /* --- intelaiatura ------------------------------------------------------- */
 
 /* Testata sopra, menu a sinistra, contenuto a destra. La griglia tiene il

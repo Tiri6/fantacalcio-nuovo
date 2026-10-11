@@ -29,6 +29,7 @@ from .rotte import (
     giocatori,
     identita,
     lega,
+    onboarding,
     profilo,
     registrazione,
     squadre,
@@ -82,6 +83,7 @@ if os.environ.get("FANTA_AMBIENTE") == "sviluppo":
 
 app.include_router(accesso.rotte, prefix="/api")
 app.include_router(registrazione.rotte, prefix="/api")
+app.include_router(onboarding.rotte, prefix="/api")
 app.include_router(albo.rotte, prefix="/api")
 app.include_router(campionato.rotte, prefix="/api")
 app.include_router(bacheca.rotte, prefix="/api")
