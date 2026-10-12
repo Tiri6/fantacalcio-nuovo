@@ -419,3 +419,42 @@ e 2 di scontri diretti, la coppa finisce alla 34ª — e la F1 Rush occupa dalla
 33ª alla 38ª. **Le due competizioni si sovrappongono per due weekend.** La
 pagina Calendario lo mostra invece di nasconderlo, ma va sciolto: o la coppa
 parte prima, o la F1 Rush e' piu' corta, o il campionato si accorcia.
+
+## 20. Correggere gli anni di contratto dopo una draft room
+
+**La lega ha deciso** (Marco, ottobre 2026): dopo ogni draft room — quella di
+inizio stagione e quelle di riparazione — gli anni di contratto si possono
+correggere fino alla giornata di campionato successiva. Il draft si fa di
+corsa, e un contratto scritto male va potuto correggere prima che conti.
+
+**Oggi il codice** sa calcolare la finestra: `contratti.finestra_modifica_anni`
+la apre quando la draft room chiude e la chiude **con il calcio d'inizio della
+giornata successiva**, lo stesso istante in cui si bloccano le formazioni.
+L'opzione `modifica_anni_dopo_draft` in `OpzioniLega` la accende: parte accesa.
+
+### Tre cose da sciogliere
+
+**a) L'articolo 8 dice il contrario.** «Il contratto si trasferisce con
+ingaggio e anni residui invariati: non sono ammessi prolungamenti ne' riduzioni
+di durata, **ne' in sede di scambio ne' con altra operazione**». Una finestra
+che cambia gli anni e' «un'altra operazione». Due letture:
+
+- e' una **finestra di sistemazione** di quello che si e' appena assegnato, non
+  un potere di rinegoziare: l'articolo 8 parla di contratti gia' stabiliti, e
+  qui si sta ancora chiudendo il draft. Nessun conflitto;
+- e' un **potere nuovo** che deroga all'articolo 8, e come tale va votato.
+
+Finche' non e' votato, lo switch resta e si puo' spegnere.
+
+**b) Su quali contratti vale.** Solo su quelli nati in *quella* draft room, o
+su tutta la rosa? Con la prima lettura di (a) la risposta e' «solo quelli
+nuovi»; con la seconda, «tutti». Cambia la schermata, non solo la regola: nel
+primo caso la pagina mostra l'esito del draft, nel secondo la rosa intera.
+
+**c) Il giorno esatto.** La lega ha detto «fino al giorno prima della
+successiva giornata» e, nell'esempio, «fino al giorno della giornata
+successiva, in questo caso il 10 ottobre»: sono due frasi diverse di
+ventiquattr'ore. Il codice si lega al **calcio d'inizio**, che e' l'unico
+istante su cui sono d'accordo tutte e due — il 9 si corregge, la mattina del 10
+si corregge, a partita cominciata no. Se la lega intendeva la mezzanotte del 9,
+e' un parametro da cambiare.

@@ -299,6 +299,14 @@ class OpzioniLega:
     # Quanti scambi puo' fare una squadra in una stagione. 0 = illimitati.
     scambi_per_stagione: int = 0
 
+    # Dopo una draft room — di inizio stagione o di riparazione — gli anni di
+    # contratto si correggono fino all'inizio della giornata successiva: il
+    # draft si fa di corsa, e un contratto scritto male va potuto correggere
+    # prima che conti. **E' in tensione con l'articolo 8**, che dice che la
+    # durata non si tocca «ne' con altra operazione»: finche' la lega non
+    # vota, si accende da qui. Vedi PUNTI_APERTI.md e `contratti.py`.
+    modifica_anni_dopo_draft: bool = True
+
     # Draft: l'ordine di chiamata (id delle squadre, dal primo a chiamare) e
     # l'andamento dei round. Vivono qui, e non in una tabella loro, per non
     # chiedere una migrazione del database a chi il sito ce l'ha gia' su.
