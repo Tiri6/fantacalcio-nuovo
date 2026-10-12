@@ -231,6 +231,39 @@ def turno(sala: Sala, scelte: Sequence[Scelta]) -> Turno | None:
     )
 
 
+def turni_successivi(
+    sala: Sala, scelte: Sequence[Scelta], quanti: int = 5
+) -> list[Turno]:
+    """Le chiamate che vengono **dopo** quella in corso.
+
+    L'ordine e' congelato all'apertura, quindi a questa domanda si puo'
+    rispondere: in sala e' la prima cosa che chiedono tutti — «dopo chi
+    tocca?» — e sapere se si e' fra due o fra venti cambia se conviene
+    alzarsi a prendere da bere.
+
+    Nessuna scadenza: una scadenza vale per il turno che sta scorrendo, e
+    quella dei prossimi dipende da quanto ci mette chi deve chiamare adesso.
+
+    A sala non in corso l'elenco e' vuoto, come `turno`: a sala chiusa
+    nessuno chiama piu', e mostrare «dopo tocca a te» sarebbe una bugia.
+    """
+    if sala.stato is not StatoSala.IN_CORSO:
+        return []
+    fatte = len(scelte)
+    quante = len(sala.squadre) or 1
+    futuri: list[Turno] = []
+    for indice in range(fatte + 1, min(fatte + 1 + quanti, sala.chiamate_totali)):
+        futuri.append(
+            Turno(
+                numero=indice + 1,
+                squadra_id=sala.chiamate_previste[indice],
+                round=indice // quante + 1,
+                posizione=indice % quante + 1,
+            )
+        )
+    return futuri
+
+
 def _ultimo_istante(sala: Sala, scelte: Sequence[Scelta]) -> datetime | None:
     """Da quando scorre il turno: l'ultima chiamata, o l'inizio della sala."""
     grezzo = scelte[-1].quando if scelte else sala.cominciata_il

@@ -22,6 +22,7 @@ from fantacalcio.sala import (
     componi_chiamate,
     registra,
     scelte_di,
+    turni_successivi,
     turno,
     verifica_chiamata,
 )
@@ -285,3 +286,56 @@ class TestIlRegistro:
         scelte = [Scelta(1, 10, 100, 1), Scelta(2, 20, 200, 2), Scelta(3, 10, 300, 3)]
         assert [s.giocatore_id for s in scelte_di(scelte, 10)] == [100, 300]
         assert scelte_di(scelte, 99) == []
+
+
+class TestDopoDiTe:
+    """«Dopo chi tocca?»: in sala e' la domanda che fanno tutti."""
+
+    def test_sono_le_chiamate_dopo_quella_in_corso(self):
+        sala = sala_pronta(round_totali=2)
+
+        prossimi = turni_successivi(sala, [], quanti=3)
+
+        # Tocca a 10 (chiamata 1): dopo vengono 20, 30 e poi il round 2.
+        assert [t.numero for t in prossimi] == [2, 3, 4]
+        assert [t.squadra_id for t in prossimi] == [20, 30, 10]
+
+    def test_avanzano_con_le_chiamate(self):
+        sala = sala_pronta(round_totali=2)
+        scelte = [Scelta(1, 10, 1, 2)]
+
+        prossimi = turni_successivi(sala, scelte, quanti=2)
+
+        assert [t.squadra_id for t in prossimi] == [30, 10]
+
+    def test_seguono_l_ordine_congelato_anche_quando_cambia_round(self):
+        """Il round 3 di settembre segue la classifica, non la Lottery."""
+        sala = sala_pronta(round_totali=3)
+        fatte = [Scelta(n, 0, n, 1) for n in range(1, 6)]  # cinque chiamate
+
+        prossimi = turni_successivi(sala, fatte, quanti=4)
+
+        # Tocca alla sesta, ultima del round 2: i prossimi sono il round 3,
+        # che segue la classifica e non la Lottery.
+        assert [t.numero for t in prossimi] == [7, 8, 9]
+        assert [t.squadra_id for t in prossimi] == [30, 20, 10]
+        assert [t.round for t in prossimi] == [3, 3, 3]
+        assert [t.posizione for t in prossimi] == [1, 2, 3]
+
+    def test_in_fondo_alla_sala_non_ce_n_e_piu(self):
+        sala = sala_pronta(round_totali=1)
+        fatte = [Scelta(n, 0, n, 1) for n in range(1, 3)]
+
+        assert turni_successivi(sala, fatte, quanti=5) == []
+
+    def test_a_sala_chiusa_non_ce_ne_sono(self):
+        """Come `turno`: a sala chiusa nessuno chiama, e «dopo tocca a te»
+        sarebbe una bugia."""
+        assert turni_successivi(chiudi(sala_pronta()), []) == []
+
+    def test_non_portano_scadenza(self):
+        """La scadenza e' del turno che scorre: quella dei prossimi dipende da
+        quanto ci mette chi deve chiamare adesso."""
+        sala = sala_pronta(secondi_per_chiamata=60)
+
+        assert all(t.scade_il is None for t in turni_successivi(sala, []))

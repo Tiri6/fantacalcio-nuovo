@@ -945,6 +945,93 @@ export type Svincoli = {
 
 export type MotivoSvincolo = "riparazione" | "pre-asta" | "correzione";
 
+/* --- la sala del draft ---------------------------------------------------- */
+
+export type GiocatoreLibero = {
+  id: number;
+  nome: string;
+  club: string;
+  ruoli: string[];
+  ingaggio: number;
+};
+
+export type ChiamataLetta = {
+  numero: number;
+  squadra_id: number;
+  squadra: string;
+  giocatore_id: number;
+  giocatore: string;
+  ruoli: string[];
+  anni: number;
+  quando: string;
+};
+
+export type TurnoLetto = {
+  numero: number;
+  squadra_id: number;
+  squadra: string;
+  round: number;
+  posizione: number;
+  etichetta: string;
+  scade_il: string | null;
+  /** Deciso dal server: la pagina non deve dedurre di chi e' il turno. */
+  e_mio: boolean;
+};
+
+export type ViolazioneDiSala = {
+  codice: string;
+  articolo: string;
+  messaggio: string;
+  bloccante: boolean;
+};
+
+/**
+ * Lo stato della sala, con la **versione** per interrogarla a vuoto.
+ *
+ * `versione` e' l'impronta di quel che la pagina mostra: quale sala, in che
+ * stato, quante chiamate. Chi fa polling la rimanda, e se non e' cambiata il
+ * server risponde `aggiornato: false` senza rileggere rose e listone: dieci
+ * persone collegate diventano dieci confronti fra due stringhe invece di
+ * dieci letture complete ogni due secondi.
+ */
+export type PaginaSala = {
+  versione: string;
+  aggiornato: boolean;
+  c_e_una_sala: boolean;
+  id: number | null;
+  tipo: string | null;
+  tipo_etichetta: string | null;
+  stato: string | null;
+  stagione: string | null;
+  chiamate_totali: number;
+  round_totali: number;
+  turno: TurnoLetto | null;
+  prossimi: TurnoLetto[];
+  chiamate: ChiamataLetta[];
+  disponibili: GiocatoreLibero[];
+  mia_squadra_id: number | null;
+  posso_amministrare: boolean;
+  anni_minimo: number;
+  anni_massimo: number;
+  miei_acquisti: ChiamataLetta[];
+  anni_correggibili: boolean;
+  anni_chiudono_il: string | null;
+  anni_motivo: string;
+};
+
+export type EsitoChiamata = {
+  fatta: boolean;
+  messaggio: string;
+  violazioni: ViolazioneDiSala[];
+};
+
+export type NuovaSala = {
+  tipo: "SETTEMBRE" | "RIPARAZIONE";
+  round_totali: number;
+  secondi_per_chiamata: number | null;
+  ordine_lottery: number[];
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -1162,6 +1249,29 @@ export const api = {
       `/squadre/${squadra}/svincoli`,
       { method: "POST", body: JSON.stringify({ giocatore_id, motivo }) },
     ),
+  sala: (versione?: string) =>
+    chiama<PaginaSala>(
+      versione === undefined
+        ? "/sala"
+        : `/sala?versione=${encodeURIComponent(versione)}`,
+    ),
+  apriSala: (corpo: NuovaSala) =>
+    chiama<PaginaSala>("/sala", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  cominciaSala: () => chiama<PaginaSala>("/sala/comincia", { method: "POST" }),
+  chiudiSala: () => chiama<PaginaSala>("/sala/chiudi", { method: "POST" }),
+  chiamaGiocatore: (giocatore_id: number, anni: number) =>
+    chiama<EsitoChiamata>("/sala/chiamate", {
+      method: "POST",
+      body: JSON.stringify({ giocatore_id, anni }),
+    }),
+  correggiAnni: (giocatore_id: number, anni: number) =>
+    chiama<EsitoChiamata>("/sala/anni", {
+      method: "PUT",
+      body: JSON.stringify({ giocatore_id, anni }),
+    }),
   caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>
     chiama<{ data_uri: string }>("/immagini", {
       method: "POST",

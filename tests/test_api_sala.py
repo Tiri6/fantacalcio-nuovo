@@ -220,6 +220,37 @@ class TestIlPolling:
         # La risposta leggera non rilegge il listone: e' il punto.
         assert di_nuovo["disponibili"] == []
 
+    def test_cominciare_la_sala_cambia_la_versione(self, client):
+        """Non tutto cio' che cambia in sala e' una chiamata: gli altri nove
+        devono vedere che si e' cominciato senza ricaricare a mano."""
+        entra(client)
+        aperta = client.post(
+            "/api/sala", json={"tipo": "SETTEMBRE", "round_totali": 1}
+        ).json()
+
+        in_corso = client.post("/api/sala/comincia").json()
+
+        assert in_corso["versione"] != aperta["versione"]
+        dopo = client.get("/api/sala", params={"versione": aperta["versione"]}).json()
+        assert dopo["aggiornato"] is True
+        assert dopo["stato"] == "in corso"
+
+    def test_aprire_la_sala_la_fa_comparire_a_chi_guardava(self, client):
+        """Chi aveva davanti la pagina vuota non deve restare a guardarla."""
+        entra(client)
+        vuota = client.get("/api/sala").json()
+        assert vuota["versione"] == "nessuna"
+
+        entra(client, "luca")
+        ferma = client.get("/api/sala", params={"versione": "nessuna"}).json()
+        apri_sala(client, round_totali=1)
+        entra(client, "luca")
+        dopo = client.get("/api/sala", params={"versione": "nessuna"}).json()
+
+        assert ferma["aggiornato"] is False
+        assert dopo["aggiornato"] is True
+        assert dopo["c_e_una_sala"] is True
+
     def test_senza_versione_torna_la_pagina_intera(self, client):
         apri_sala(client)
         pagina = client.get("/api/sala").json()
@@ -237,7 +268,8 @@ class TestIlPolling:
         dopo = client.get("/api/sala", params={"versione": pagina["versione"]}).json()
 
         assert dopo["aggiornato"] is True
-        assert dopo["versione"] == pagina["versione"] + 1
+        assert dopo["versione"] != pagina["versione"]
+        assert len(dopo["chiamate"]) == 1
 
     def test_gli_altri_vedono_la_chiamata_appena_fatta(self, client):
         """E' tutto quel che serve: nessun canale aperto, solo un numero."""
@@ -658,3 +690,64 @@ class TestCorreggereGliAnni:
 
         assert [c["giocatore_id"] for c in miei] == [scelto["id"]]
         assert altrui == []
+
+
+class TestDopoDiTe:
+    """L'ordine e' congelato, quindi la pagina puo' dire chi chiama dopo."""
+
+    def test_la_pagina_porta_i_prossimi_turni(self, client):
+        pagina = apri_sala(client)
+
+        assert len(pagina["prossimi"]) == 5
+        assert pagina["prossimi"][0]["numero"] == 2
+        assert pagina["prossimi"][0]["squadra"]
+
+    def test_avanzano_quando_qualcuno_chiama(self, client):
+        pagina = apri_sala(client)
+        fai_spazio(client, pagina["turno"]["squadra_id"])
+        pagina = client.get("/api/sala").json()
+        dopo_di_me = pagina["prossimi"][0]["squadra_id"]
+        chiama(client, pagina)
+
+        dopo = client.get("/api/sala").json()
+
+        assert dopo["turno"]["squadra_id"] == dopo_di_me
+        assert dopo["prossimi"][0]["numero"] == 3
+
+    def test_a_sala_chiusa_non_ce_ne_sono(self, client):
+        apri_sala(client)
+        pagina = client.post("/api/sala/chiudi").json()
+
+        assert pagina["prossimi"] == []
+
+
+class TestLOrdineIncompleto:
+    def test_chi_non_e_stato_estratto_si_accoda(self, client):
+        """Un ordine a meta' e' una trascrizione interrotta, non la volonta'
+        di far saltare il turno a qualcuno: round piu' corti del numero di
+        squadre vorrebbero dire squadre che non chiamano mai."""
+        entra(client)
+        pagina = client.post(
+            "/api/sala",
+            json={
+                "tipo": "SETTEMBRE",
+                "round_totali": 1,
+                "ordine_lottery": [7, 3],
+            },
+        ).json()
+        client.post("/api/sala/comincia")
+        turno = client.get("/api/sala").json()["turno"]
+        prossimi = client.get("/api/sala").json()["prossimi"]
+
+        assert pagina["chiamate_totali"] == 10
+        assert turno["squadra_id"] == 7
+        assert prossimi[0]["squadra_id"] == 3
+
+    def test_una_squadra_che_non_esiste_si_ignora(self, client):
+        entra(client)
+        pagina = client.post(
+            "/api/sala",
+            json={"tipo": "SETTEMBRE", "round_totali": 1, "ordine_lottery": [999]},
+        ).json()
+
+        assert pagina["chiamate_totali"] == 10

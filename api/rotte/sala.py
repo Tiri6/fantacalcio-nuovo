@@ -5,10 +5,13 @@ giro ogni paio di secondi basta e avanza, e costa un ordine di grandezza meno
 — in codice da mantenere e in cose che si rompono — di tenere dieci
 connessioni vive dietro un proxy che le chiude quando gli pare.
 
-Perche' interrogare non costi, la risposta porta una **versione**: il numero
-dell'ultima chiamata registrata. Chi interroga manda quella che ha, e se non
-e' cambiato niente si risponde `aggiornato: false` e basta, senza rileggere
-rose e listone.
+Perche' interrogare non costi, la risposta porta una **versione**: l'impronta
+di quel che la pagina mostra — quale sala, in che stato, quante chiamate. Chi
+interroga manda quella che ha, e se non e' cambiato niente si risponde
+`aggiornato: false` e basta, senza rileggere rose e listone. Non e' solo il
+conto delle chiamate perche' non tutto cio' che cambia in sala e' una
+chiamata: chi amministra apre e fa cominciare, e gli altri nove devono
+vederlo senza ricaricare a mano.
 
 **Chi chiama non sceglie il numero della chiamata.** Lo decide il registro
 (`sala.registra`), e il database lo rifiuta se e' gia' preso: e' quello che
@@ -44,11 +47,13 @@ from fantacalcio.sala import (
     Scelta,
     StatoSala,
     TipoSala,
+    Turno,
     apri,
     chiudi,
     comincia,
     registra,
     scelte_di,
+    turni_successivi,
     turno,
     verifica_chiamata,
 )
@@ -60,6 +65,10 @@ from ..dipendenze import UtenteDentro
 rotte = APIRouter(tags=["sala"])
 
 NON_ELABORABILE = 422
+
+# Quante chiamate future si mostrano. Cinque e non tutte: in sala serve sapere
+# se tocca fra poco, non leggere l'elenco di sessanta turni.
+QUANTI_PROSSIMI = 5
 
 
 # ---------------------------------------------------------------------------
@@ -105,9 +114,14 @@ class ViolazioneLetta(BaseModel):
 
 
 class PaginaSala(BaseModel):
-    # La versione: il numero dell'ultima chiamata. Chi interroga la rimanda, e
-    # se non e' cambiata si risponde che non c'e' niente di nuovo.
-    versione: int
+    # L'impronta di quel che la pagina mostra: quale sala, in che stato,
+    # quante chiamate. Chi interroga la rimanda, e se non e' cambiata si
+    # risponde che non c'e' niente di nuovo.
+    #
+    # Non e' solo il numero delle chiamate perche' non tutto cio' che cambia
+    # in sala e' una chiamata: chi amministra apre e fa cominciare, e gli
+    # altri nove devono vederlo senza ricaricare la pagina a mano.
+    versione: str
     aggiornato: bool = True
 
     c_e_una_sala: bool
@@ -120,6 +134,9 @@ class PaginaSala(BaseModel):
     round_totali: int
 
     turno: TurnoLetto | None
+    # Le chiamate che vengono dopo questa. In sala la domanda che tutti fanno
+    # e' «dopo chi tocca?», e l'ordine e' congelato: si puo' rispondere.
+    prossimi: list[TurnoLetto]
     chiamate: list[ChiamataLetta]
     disponibili: list[GiocatoreLibero]
 
@@ -171,6 +188,21 @@ def _chiamata(scelta: Scelta, squadre: dict, giocatori: dict) -> ChiamataLetta:
     )
 
 
+def _turno(atteso: Turno, squadre: dict, mia_squadra_id: int | None) -> TurnoLetto:
+    return TurnoLetto(
+        numero=atteso.numero,
+        squadra_id=atteso.squadra_id,
+        squadra=squadre.get(atteso.squadra_id, str(atteso.squadra_id)),
+        round=atteso.round,
+        posizione=atteso.posizione,
+        etichetta=atteso.etichetta,
+        scade_il=(
+            atteso.scade_il.isoformat(timespec="seconds") if atteso.scade_il else None
+        ),
+        e_mio=atteso.squadra_id == mia_squadra_id,
+    )
+
+
 def _finestra(ctx: Contesto, sala: Sala | None):
     """Se gli anni degli acquisti si possono ancora correggere."""
     opzioni = ctx.lega.opzioni if ctx.lega else None
@@ -200,11 +232,18 @@ def _finestra(ctx: Contesto, sala: Sala | None):
 # ---------------------------------------------------------------------------
 
 
+def _impronta(sala: Sala | None, quante_chiamate: int) -> str:
+    if sala is None:
+        return "nessuna"
+    return f"{sala.id}-{sala.stato.value}-{quante_chiamate}"
+
+
 @rotte.get("/sala", response_model=PaginaSala)
-def pagina(utente: UtenteDentro, versione: int = -1) -> PaginaSala:
+def pagina(utente: UtenteDentro, versione: str = "") -> PaginaSala:
     """Lo stato della sala.
 
-    Con `versione` uguale all'ultima, risponde che non c'e' niente di nuovo.
+    Con `versione` uguale all'impronta attuale, risponde che non c'e' niente
+    di nuovo e non rilegge rose e listone.
     """
     ctx = contesto_di(utente)
     sala = _sala_corrente(ctx)
@@ -213,7 +252,7 @@ def pagina(utente: UtenteDentro, versione: int = -1) -> PaginaSala:
     )
 
     vuota = PaginaSala(
-        versione=0,
+        versione="nessuna",
         c_e_una_sala=False,
         id=None,
         tipo=None,
@@ -223,6 +262,7 @@ def pagina(utente: UtenteDentro, versione: int = -1) -> PaginaSala:
         chiamate_totali=0,
         round_totali=0,
         turno=None,
+        prossimi=[],
         chiamate=[],
         disponibili=[],
         mia_squadra_id=utente.squadra_id,
@@ -235,13 +275,13 @@ def pagina(utente: UtenteDentro, versione: int = -1) -> PaginaSala:
         anni_motivo="",
     )
     if sala is None:
-        return vuota
+        return vuota.model_copy(update={"aggiornato": versione != "nessuna"})
 
     scelte = carica_chiamate(ctx.arch, sala.id)
-    attuale = len(scelte)
-    if versione == attuale and versione >= 0:
+    impronta = _impronta(sala, len(scelte))
+    if versione == impronta:
         # Niente di nuovo: si risponde subito, senza rileggere rose e listone.
-        return vuota.model_copy(update={"versione": attuale, "aggiornato": False})
+        return vuota.model_copy(update={"versione": impronta, "aggiornato": False})
 
     rose = carica_rose(ctx.arch)
     squadre = {id_: r.squadra.nome for id_, r in rose.items()}
@@ -250,11 +290,12 @@ def pagina(utente: UtenteDentro, versione: int = -1) -> PaginaSala:
     liberi = svincolati(ctx.arch, giocatori) - presi
 
     attuale_turno = turno(sala, scelte)
+    prossimi = turni_successivi(sala, scelte, QUANTI_PROSSIMI)
     miei = scelte_di(scelte, utente.squadra_id) if utente.squadra_id else []
     finestra = _finestra(ctx, sala)
 
     return PaginaSala(
-        versione=attuale,
+        versione=impronta,
         c_e_una_sala=True,
         id=sala.id,
         tipo=sala.tipo.name,
@@ -264,25 +305,9 @@ def pagina(utente: UtenteDentro, versione: int = -1) -> PaginaSala:
         chiamate_totali=sala.chiamate_totali,
         round_totali=sala.round_totali,
         turno=(
-            TurnoLetto(
-                numero=attuale_turno.numero,
-                squadra_id=attuale_turno.squadra_id,
-                squadra=squadre.get(
-                    attuale_turno.squadra_id, str(attuale_turno.squadra_id)
-                ),
-                round=attuale_turno.round,
-                posizione=attuale_turno.posizione,
-                etichetta=attuale_turno.etichetta,
-                scade_il=(
-                    attuale_turno.scade_il.isoformat(timespec="seconds")
-                    if attuale_turno.scade_il
-                    else None
-                ),
-                e_mio=attuale_turno.squadra_id == utente.squadra_id,
-            )
-            if attuale_turno
-            else None
+            _turno(attuale_turno, squadre, utente.squadra_id) if attuale_turno else None
         ),
+        prossimi=[_turno(t, squadre, utente.squadra_id) for t in prossimi],
         chiamate=[_chiamata(s, squadre, giocatori) for s in reversed(scelte)],
         disponibili=sorted(
             (
@@ -528,7 +553,12 @@ def apri_sala(richiesta: DaAprire, utente: UtenteDentro) -> PaginaSala:
     # nessuna squadra resta fuori dal draft.
     ordine_classifica += [id_ for id_ in sorted(rose) if id_ not in ordine_classifica]
 
-    lottery = [s for s in richiesta.ordine_lottery if s in rose] or ordine_classifica
+    lottery = [s for s in richiesta.ordine_lottery if s in rose]
+    # Chi non e' stato estratto si accoda in ordine di classifica. Senza, un
+    # ordine incompleto farebbe round piu' corti del numero di squadre, e
+    # qualcuno non chiamerebbe mai: un ordine a meta' e' un errore di
+    # trascrizione, non la volonta' di escludere una squadra.
+    lottery += [s for s in ordine_classifica if s not in lottery]
 
     sala = apri(
         prossimo_id(ctx.arch, "sale"),

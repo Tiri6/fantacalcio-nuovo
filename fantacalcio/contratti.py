@@ -68,8 +68,7 @@ def finestra_modifica_anni(
         return FinestraAnni(
             False,
             None,
-            "Gli anni si correggono solo dopo una draft room: non ce n'e' una "
-            "conclusa.",
+            "Gli anni si correggono solo dopo una draft room: non ce n'e' una conclusa.",
         )
     if adesso < chiusura_draft:
         return FinestraAnni(
