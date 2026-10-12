@@ -159,7 +159,33 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 Cose decise ma non ancora eseguibili: manca un dato o un permesso. Quando
 l'innesco scatta, si riprende da qui senza ricostruire il contesto.
 
+### Il trasloco su Fly.io
+
+**Innesco:** Marco davanti al PC di casa, con `flyctl` installato. Richiede
+un suo account: da qui non si puo' fare, e non si puo' nemmeno provare —
+`fly.io` e' fuori dalla rete di questo contenitore.
+
+Pronto nel repository: `fly.toml` in cima e le istruzioni in README.md →
+*Pubblicare su Fly.io*. Non cambia niente nel codice: stesso `Dockerfile`,
+stesso Supabase. Cambia chi lo esegue, e che la macchina **non si ferma**
+(`auto_stop_machines = "off"`), che e' tutta la ragione del trasloco: su
+Render il primo che entra dopo una pausa aspetta cinquanta secondi, e in una
+draft room con dieci collegati e' il momento peggiore.
+
+In sintesi: `fly auth login`, `fly apps create fantacalcio-nuovo`,
+`fly secrets set` coi tre valori (segreto delle sessioni, URL e chiave
+`service_role` di Supabase), `fly deploy`, poi `/api/salute` deve dire
+`"backend": "supabase"`.
+
+Due differenze da ricordare: Fly **non ridispiega da solo a ogni push** (si
+lancia `fly deploy` dal PC dopo un `git pull`), e non serve nessun volume
+perche' i dati stanno su Supabase.
+
 ### Pubblicare il sito nuovo su Render
+
+> **Superato da Fly.io**, qui sopra. Resta scritto perche' `render.yaml` c'e'
+> ancora e funziona: se Fly dovesse dare problemi, questa e' la strada che
+> era gia' stata provata.
 
 **Innesco:** Marco davanti al PC di casa. Richiede un suo account: da qui non
 si puo' fare.

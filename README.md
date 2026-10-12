@@ -475,3 +475,91 @@ Due cose da sapere sul piano gratuito: l'app **va in letargo** quando non la usa
 nessuno, e il primo che apre il link aspetta qualche decina di secondi; e
 l'indirizzo e' pubblico, quindi la pagina di accesso e' raggiungibile da
 chiunque ce l'abbia (senza credenziali, pero', non si entra).
+
+### Pubblicare su Fly.io (quello che non dorme)
+
+Render va bene per provare, ma sul piano gratuito il servizio si ferma e il
+primo che entra aspetta. Per una **draft room** con dieci persone collegate
+e' il momento peggiore in cui far aspettare qualcuno: su Fly la macchina
+resta accesa, e il prezzo e' qualche euro al mese.
+
+Non cambia niente nel codice: stesso `Dockerfile`, stesso database Supabase.
+Cambia solo chi lo esegue. Il repository ha gia' un `fly.toml` pronto.
+
+**1. Installare `flyctl`** (una volta sola, sul tuo PC):
+
+```bash
+# macOS / Linux
+curl -L https://fly.io/install.sh | sh
+# Windows, da PowerShell
+powershell -Command "iwr https://fly.io/install.ps1 -useb | iex"
+```
+
+**2. Entrare e creare l'app:**
+
+```bash
+fly auth signup        # oppure `fly auth login` se hai gia' un account
+fly apps create fantacalcio-nuovo
+```
+
+Il nome e' unico su tutto Fly. Se risponde che e' gia' preso, scegline un
+altro e **cambia la riga `app =` in `fly.toml`**: sono due posti che devono
+dire la stessa cosa.
+
+**3. I tre segreti.** Non vanno nel repository, mai. `fly secrets set` li
+tiene da parte e li passa all'app come variabili d'ambiente:
+
+```bash
+fly secrets set \
+  FANTA_SEGRETO_JWT="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" \
+  SUPABASE_URL="https://....supabase.co" \
+  SUPABASE_KEY="sb_secret_..."
+```
+
+La chiave di Supabase e' la **`service_role`** (`sb_secret_…`), la stessa dei
+Secrets di Streamlit — non la `anon`/`publishable`, con cui la RLS blocca
+tutte le scritture. Il segreto delle sessioni dev'essere di almeno 32
+caratteri: sotto, l'app non parte di proposito.
+
+**4. Pubblicare:**
+
+```bash
+fly deploy
+```
+
+La prima volta costruisce l'immagine (qualche minuto: Node compila le pagine,
+poi Python si porta via solo il risultato). Alla fine stampa l'indirizzo,
+tipo `https://fantacalcio-nuovo.fly.dev`.
+
+**5. Controllare che legga i dati veri.** Apri `/api/salute`: deve rispondere
+
+```json
+{"stato": "ok", "backend": "supabase"}
+```
+
+Se dice `demo (SQLite)` mancano le due variabili di Supabase — e la lega
+starebbe guardando squadre finte senza che nessuno se ne accorga. Si
+rimedia con `fly secrets set` e un `fly deploy`.
+
+**Comandi che servono dopo:**
+
+| Cosa | Comando |
+|---|---|
+| Vedere i log dal vivo | `fly logs` |
+| Vedere se la macchina e' su | `fly status` |
+| Ripubblicare dopo un `git pull` | `fly deploy` |
+| Aprire il sito | `fly open` |
+| Cambiare un segreto | `fly secrets set CHIAVE=valore` (ridispiega da se') |
+
+**Due cose da sapere.**
+
+Fly **non guarda GitHub**: ogni volta che vuoi pubblicare una versione nuova
+lanci `fly deploy` dal PC, dopo esserti portato il codice aggiornato con
+`git pull`. Render invece ridispiegava da solo a ogni push — e' il prezzo di
+non addormentarsi. Chi vuole il ridispiegamento automatico puo' aggiungere
+un'azione GitHub con un token di Fly, ma e' un segreto in piu' da custodire.
+
+Non serve nessun **volume**: i dati stanno su Supabase, e il contenitore non
+scrive niente che debba sopravvivergli. Il giorno che servisse (un file
+caricato, una cache su disco) va aggiunto, altrimenti sparirebbe a ogni
+riavvio senza dire niente.
