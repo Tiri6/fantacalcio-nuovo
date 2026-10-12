@@ -408,6 +408,28 @@ def applica_alle_rose(arch, nuova_a: Rosa, nuova_b: Rosa) -> None:
     arch.scrivi("contratti", righe, chiave="giocatore_id")
 
 
+def della_stagione(quando: datetime | None, stagione: str | None) -> bool:
+    """Se quella data cade nella stagione indicata, scritta «2026/27».
+
+    Una stagione sportiva sta a cavallo di due anni solari: «2026/27» va da
+    luglio 2026 a giugno 2027. Guardare solo l'anno conterebbe nella stagione
+    sbagliata ogni scambio fatto da gennaio in poi — cioe' tutte e due le
+    finestre di riparazione, che e' quando si scambia davvero.
+
+    Senza stagione, o con una scritta male, contano tutti: meglio un conto
+    largo che un limite applicato a caso.
+    """
+    if stagione is None or quando is None:
+        return True
+    try:
+        inizio = int(str(stagione)[:4])
+    except ValueError:
+        return True
+    return (quando.year == inizio and quando.month >= 7) or (
+        quando.year == inizio + 1 and quando.month <= 6
+    )
+
+
 def conta_conclusi(
     scambi: list[Scambio], squadra_id: int, stagione: str | None = None
 ) -> int:
@@ -422,7 +444,7 @@ def conta_conclusi(
         for s in scambi
         if s.stato is StatoScambio.RATIFICATO
         and squadra_id in (s.squadra_a_id, s.squadra_b_id)
-        and (stagione is None or (s.creato_il or "").startswith(stagione[:4]))
+        and della_stagione(s.creato_il, stagione)
     )
 
 

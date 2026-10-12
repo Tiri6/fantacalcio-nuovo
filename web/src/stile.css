@@ -7,6 +7,16 @@
  * ricaricamenti.
  */
 
+/* I colori stanno tutti qui, in due gruppi: il tema scuro (quello di
+ * partenza) e quello chiaro. Nessuna regola piu' sotto scrive un colore
+ * suo — se lo facesse, cambiando tema resterebbe quello di prima e si
+ * vedrebbe solo su una delle due versioni.
+ *
+ * La scelta la fa la persona da Impostazioni, e `main.tsx` la scrive su
+ * `<html data-tema>` prima del primo disegno. Senza scelta si segue il
+ * sistema operativo, che e' quel che si aspetta chi non ha mai aperto le
+ * impostazioni.
+ */
 :root {
   --sfondo: #0a0f0c;
   --sfondo-alto: #111a14;
@@ -20,17 +30,113 @@
   --testo-fioco: #5d7265;
 
   --verde: #35d07f;
+  --verde-chiaro: #45e08f;
   --verde-cupo: #1f7a4d;
+  /* Il colore del testo sopra il verde pieno, e il rosso leggibile sul
+     fondo degli errori: cambiano col tema, quindi sono token e non
+     valori scritti dentro le regole. */
+  --su-verde: #06120b;
+  --rosso-tenue: #ff9ca0;
+  --azzurro-tenue: #7fb4ea;
+  --su-rosso: #ffffff;
   --ambra: #f0b429;
   --rosso: #e5484d;
+
+  /* L'alone verde in cima alla pagina e le righe del campo nella vetrina:
+     su fondo chiaro una velatura bianca non si vede, serve il nero. */
+  --alone: #12241a;
+  --righe-campo: rgb(255 255 255 / 0.016);
+  /* Testata e menu non usano `--superficie` ma una velatura, perche' sotto
+     ci scorre il contenuto e il `backdrop-filter` deve vederlo. */
+  --velo-testata: rgb(10 15 12 / 0.82);
+  --velo-fianco: rgb(17 26 20 / 0.4);
+  --velo-riquadro: rgb(22 33 26 / 0.5);
 
   --raggio: 14px;
   --raggio-piccolo: 9px;
   --ombra: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --ombra-piccola: 0 1px 2px rgb(0 0 0 / 0.3);
 
   --passo: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   color-scheme: dark;
+}
+
+/* Il tema chiaro. Non e' lo scuro schiarito: i verdi scendono di luminosita'
+   perche' il verde acceso su bianco non si legge, e le ombre diventano
+   grigie invece che nere. */
+:root[data-tema="chiaro"] {
+  --sfondo: #f4f7f4;
+  --sfondo-alto: #ffffff;
+  --superficie: #ffffff;
+  --superficie-viva: #eef3ef;
+  --bordo: #d9e3db;
+  --bordo-vivo: #b9ccbe;
+
+  --testo: #11231a;
+  --testo-tenue: #4e6557;
+  --testo-fioco: #788d81;
+
+  --verde: #1a8a53;
+  --verde-chiaro: #156f42;
+  --verde-cupo: #0f6b3e;
+  --su-verde: #ffffff;
+  --rosso-tenue: #a3161b;
+  --azzurro-tenue: #1d5b94;
+  --su-rosso: #ffffff;
+  --ambra: #9a6b00;
+  --rosso: #c62a2f;
+
+  --alone: #dceee3;
+  --righe-campo: rgb(0 0 0 / 0.022);
+  --velo-testata: rgb(255 255 255 / 0.86);
+  --velo-fianco: rgb(255 255 255 / 0.62);
+  --velo-riquadro: rgb(255 255 255 / 0.7);
+
+  --ombra:
+    0 1px 2px rgb(16 40 26 / 0.06), 0 10px 26px -14px rgb(16 40 26 / 0.22);
+  --ombra-piccola: 0 1px 2px rgb(16 40 26 / 0.08);
+
+  color-scheme: light;
+}
+
+/* Chi non ha mai scelto segue il sistema. L'attributo `data-tema` vince
+   comunque, perche' e' una scelta esplicita e viene dopo. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-tema="scuro"]) {
+    --sfondo: #f4f7f4;
+    --sfondo-alto: #ffffff;
+    --superficie: #ffffff;
+    --superficie-viva: #eef3ef;
+    --bordo: #d9e3db;
+    --bordo-vivo: #b9ccbe;
+
+    --testo: #11231a;
+    --testo-tenue: #4e6557;
+    --testo-fioco: #788d81;
+
+    --verde: #1a8a53;
+    --verde-chiaro: #156f42;
+    --verde-cupo: #0f6b3e;
+    --su-verde: #ffffff;
+    --rosso-tenue: #a3161b;
+    --azzurro-tenue: #1d5b94;
+    --su-rosso: #ffffff;
+    --ambra: #9a6b00;
+    --rosso: #c62a2f;
+
+    --alone: #dceee3;
+    --righe-campo: rgb(0 0 0 / 0.022);
+    --velo-testata: rgb(255 255 255 / 0.86);
+    --velo-fianco: rgb(255 255 255 / 0.62);
+    --velo-riquadro: rgb(255 255 255 / 0.7);
+
+    --ombra:
+      0 1px 2px rgb(16 40 26 / 0.06), 0 10px 26px -14px rgb(16 40 26 / 0.22);
+    --ombra-piccola: 0 1px 2px rgb(16 40 26 / 0.08);
+
+    color-scheme: light;
+  }
 }
 
 * {
@@ -46,11 +152,17 @@ body,
 body {
   margin: 0;
   background:
-    radial-gradient(1200px 600px at 50% -10%, #12241a 0%, transparent 60%),
+    radial-gradient(1200px 600px at 50% -10%, var(--alone) 0%, transparent 60%),
     var(--sfondo);
   color: var(--testo);
-  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    Roboto, sans-serif;
+  font-family:
+    "Inter",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -64,43 +176,10 @@ h3 {
   font-weight: 650;
 }
 
-/* --- accesso ------------------------------------------------------------ */
+/* --- moduli: etichette, campi, bottoni ---------------------------------- */
 
-.accesso {
-  min-height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-}
-
-.accesso-riquadro {
-  width: min(400px, 100%);
-  background: var(--superficie);
-  border: 1px solid var(--bordo);
-  border-radius: var(--raggio);
-  padding: 32px;
-  box-shadow: var(--ombra);
-}
-
-.occhiello {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--verde);
-  margin-bottom: 10px;
-}
-
-.accesso h1 {
-  font-size: 27px;
-  margin-bottom: 6px;
-}
-
-.sottotitolo {
-  color: var(--testo-tenue);
-  font-size: 14px;
-  margin: 0 0 26px;
-}
+/* Globali e non della pagina d'ingresso, anche se e' li' che si vedono per
+   prime: le usano tutte le schermate che hanno un modulo. */
 
 label {
   display: block;
@@ -110,7 +189,8 @@ label {
   margin-bottom: 7px;
 }
 
-input {
+input,
+select {
   width: 100%;
   padding: 11px 13px;
   background: var(--sfondo-alto);
@@ -118,13 +198,20 @@ input {
   border-radius: var(--raggio-piccolo);
   color: var(--testo);
   font: inherit;
-  transition: border-color 0.15s var(--passo), box-shadow 0.15s var(--passo);
+  transition:
+    border-color 0.15s var(--passo),
+    box-shadow 0.15s var(--passo);
 }
 
-input:focus {
+input:focus,
+select:focus {
   outline: none;
   border-color: var(--verde-cupo);
   box-shadow: 0 0 0 3px rgb(53 208 127 / 0.14);
+}
+
+input::placeholder {
+  color: var(--testo-fioco);
 }
 
 .campo + .campo {
@@ -137,7 +224,9 @@ button {
   border-radius: var(--raggio-piccolo);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background 0.15s var(--passo), transform 0.08s var(--passo),
+  transition:
+    background 0.15s var(--passo),
+    transform 0.08s var(--passo),
     opacity 0.15s var(--passo);
 }
 
@@ -155,11 +244,11 @@ button:disabled {
   margin-top: 24px;
   padding: 12px;
   background: var(--verde);
-  color: #06120b;
+  color: var(--su-verde);
 }
 
 .principale:hover:not(:disabled) {
-  background: #45e08f;
+  background: var(--verde-chiaro);
 }
 
 .errore {
@@ -168,23 +257,418 @@ button:disabled {
   background: rgb(229 72 77 / 0.1);
   border: 1px solid rgb(229 72 77 / 0.3);
   border-radius: var(--raggio-piccolo);
-  color: #ff9ca0;
+  color: var(--rosso-tenue);
   font-size: 13.5px;
 }
 
-.nota-demo {
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--bordo);
-  color: var(--testo-fioco);
-  font-size: 12.5px;
+/* --- la porta d'ingresso ------------------------------------------------ */
+
+/* Due colonne: a sinistra cosa e' questo sito, a destra come si entra. Sotto
+   i 900px diventa una colonna sola e la vetrina passa sopra al modulo —
+   leggerla prima di compilare ha senso, il contrario no. */
+.porta {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
 }
 
-.nota-demo code {
+.porta-vetrina {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 26px;
+  padding: 56px clamp(32px, 5vw, 76px);
+  background:
+    radial-gradient(
+      900px 500px at 15% 10%,
+      rgb(53 208 127 / 0.16),
+      transparent 62%
+    ),
+    linear-gradient(160deg, var(--sfondo-alto), var(--sfondo));
+  border-right: 1px solid var(--bordo);
+}
+
+/* Le righe del campo, appena accennate: danno profondita' senza chiedere
+   un'immagine da scaricare. */
+.porta-vetrina::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 58px,
+    var(--righe-campo) 58px 116px
+  );
+}
+
+.porta-vetrina > * {
+  position: relative;
+  z-index: 1;
+}
+
+.porta-marchio {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.porta-stemma {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, var(--verde), var(--verde-cupo));
+  font-size: 17px;
+}
+
+.porta-vetrina h1 {
+  font-size: clamp(34px, 4.6vw, 54px);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  margin: 0;
+}
+
+.porta-richiamo {
+  margin: -12px 0 0;
+  font-size: clamp(16px, 1.5vw, 19px);
   color: var(--testo-tenue);
+  max-width: 34ch;
+}
+
+.porta-punti {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+  max-width: 44ch;
+}
+
+.porta-punti li {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.porta-punti .icona {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  font-size: 16px;
+}
+
+.porta-punti div {
+  display: grid;
+  gap: 2px;
+}
+
+.porta-punti strong {
+  font-size: 14px;
+  font-weight: 620;
+}
+
+.porta-punti span:not(.icona) {
+  font-size: 13.5px;
+  color: var(--testo-tenue);
+}
+
+.accesso {
+  display: grid;
+  place-items: center;
+  padding: 48px 24px;
+}
+
+.accesso-riquadro {
+  width: min(470px, 100%);
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 30px;
+  box-shadow: var(--ombra);
+}
+
+/* Le due schede dell'ingresso: entrare o iscriversi. Non sono due pagine
+   perche' chi arriva spesso non sa quale delle due gli serve, e rimbalzare
+   fra due indirizzi gli fa perdere quello che aveva gia' scritto. */
+.porta-schede {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 26px;
   background: var(--sfondo-alto);
-  padding: 1px 5px;
-  border-radius: 4px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+}
+
+.porta-schede .scheda {
+  padding: 9px;
+  background: transparent;
+  color: var(--testo-tenue);
+  border-radius: 6px;
+  font-size: 13.5px;
+}
+
+.porta-schede .scheda:hover {
+  color: var(--testo);
+}
+
+.porta-schede .scheda.attiva {
+  background: var(--superficie-viva);
+  color: var(--testo);
+  box-shadow: var(--ombra-piccola);
+}
+
+.accesso-riquadro h2 {
+  font-size: 22px;
+  margin-bottom: 5px;
+}
+
+.occhiello {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--verde);
+  margin-bottom: 10px;
+}
+
+.porta-spiega {
+  color: var(--testo-tenue);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+/* Il titoletto che divide «chi sei» da «come entri»: due gruppi di campi
+   invece di una colonna lunga che non si capisce dove finisce. */
+.porta-gruppo {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--testo-fioco);
+  margin: 26px 0 14px;
+}
+
+.porta-gruppo:first-child {
+  margin-top: 0;
+}
+
+.porta-aiuto {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  color: var(--testo-fioco);
+  line-height: 1.45;
+}
+
+.avviso.corona {
+  margin-bottom: 22px;
+}
+
+/* «Non hai un account?»: la via d'uscita per chi ha scelto la scheda
+   sbagliata, dove la cerca — in fondo, dopo il bottone. */
+.porta-passaggio {
+  margin: 22px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--bordo);
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--testo-tenue);
+}
+
+.porta-passaggio button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--verde);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .porta {
+    grid-template-columns: 1fr;
+  }
+
+  .porta-vetrina {
+    border-right: none;
+    border-bottom: 1px solid var(--bordo);
+    padding: 44px 24px 38px;
+    gap: 20px;
+  }
+
+  /* Sul telefono i tre punti sono scorrimento in piu' prima del modulo:
+     il titolo e la riga sotto dicono gia' cos'e' questo sito. */
+  .porta-punti {
+    display: none;
+  }
+
+  .accesso {
+    padding: 28px 18px 48px;
+  }
+}
+
+/* Il codice d'invito, grande e copiabile: e' la cosa che il presidente deve
+   girare agli altri, e cercarlo fra le impostazioni ogni volta e' una noia. */
+.codice-invito {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.codice-invito code {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 14px;
+  background: var(--sfondo-alto);
+  border: 1px dashed var(--bordo-vivo);
+  border-radius: var(--raggio-piccolo);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--verde);
+  text-align: center;
+  /* Il codice e' di otto caratteri, ma lo stesso riquadro mostra anche il
+     link d'invito, che e' lungo: senza questo sfonderebbe la colonna. */
+  overflow-wrap: anywhere;
+}
+
+/* Il link non e' un codice da leggere a voce: piu' piccolo e senza la
+   spaziatura fra le lettere, che su un indirizzo lo rende illeggibile. */
+.codice-invito code:not(:only-child) {
+  font-size: 19px;
+}
+
+.porta-aiuto + .codice-invito code {
+  font-size: 13px;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.codice-invito button {
+  padding: 11px 16px;
+  white-space: nowrap;
+}
+
+.avviso.corona .principale {
+  margin-top: 14px;
+}
+
+/* --- scambi ------------------------------------------------------------- */
+
+.scambi {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.scambio {
+  padding: 18px 20px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+}
+
+/* Uno scambio concluso resta leggibile ma non chiede attenzione: e' storia,
+   non una cosa da decidere. */
+.scambio.chiuso {
+  opacity: 0.72;
+}
+
+.scambio h3 {
+  font-size: 17px;
+  margin: 10px 0 12px;
+}
+
+.movimenti {
+  display: grid;
+  gap: 8px;
+}
+
+.movimento {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--sfondo-alto);
+  border-radius: var(--raggio-piccolo);
+  font-size: 13.5px;
+}
+
+/* Le due rose affiancate mentre si compone: si spunta chi va di la'. */
+.scelta-giocatori {
+  display: grid;
+  gap: 4px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  background: var(--sfondo-alto);
+}
+
+.riga-scelta {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  margin: 0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--testo);
+  cursor: pointer;
+}
+
+.riga-scelta:hover {
+  background: var(--superficie-viva);
+}
+
+/* Chi e' gia' nello scambio si vede a colpo d'occhio: senza, su una rosa da
+   trenta si perde il conto di cosa si e' spuntato. */
+.riga-scelta.presa {
+  background: rgb(53 208 127 / 0.1);
+  box-shadow: inset 2px 0 0 var(--verde);
+}
+
+.riga-scelta input {
+  width: auto;
+}
+
+.scambio .azioni {
+  margin-top: 14px;
+}
+
+.principale.compatto {
+  width: auto;
+  margin-top: 0;
+  padding: 8px 16px;
+}
+
+input.giornata {
+  width: 110px;
+}
+
+@media (max-width: 760px) {
+  .riga-scelta {
+    grid-template-columns: auto 1fr auto;
+  }
 }
 
 /* --- intelaiatura ------------------------------------------------------- */
@@ -207,7 +691,7 @@ button:disabled {
   align-items: center;
   gap: 18px;
   padding: 13px 24px;
-  background: rgb(10 15 12 / 0.82);
+  background: var(--velo-testata);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--bordo);
 }
@@ -247,7 +731,7 @@ button:disabled {
 
 .fianco {
   border-right: 1px solid var(--bordo);
-  background: rgb(17 26 20 / 0.4);
+  background: var(--velo-fianco);
   padding: 20px 12px;
   position: sticky;
   top: 53px;
@@ -282,7 +766,9 @@ button:disabled {
   text-decoration: none;
   font-size: 14px;
   font-weight: 540;
-  transition: background 0.15s var(--passo), color 0.15s var(--passo);
+  transition:
+    background 0.15s var(--passo),
+    color 0.15s var(--passo);
 }
 
 .navigazione .voce .icona {
@@ -365,7 +851,9 @@ main {
   border: 1px solid var(--bordo);
   border-radius: var(--raggio);
   padding: 20px;
-  transition: border-color 0.18s var(--passo), transform 0.18s var(--passo),
+  transition:
+    border-color 0.18s var(--passo),
+    transform 0.18s var(--passo),
     box-shadow 0.18s var(--passo);
 }
 
@@ -762,7 +1250,9 @@ h2.sezione {
   font-weight: 540;
   cursor: pointer;
   user-select: none;
-  transition: border-color 0.15s var(--passo), color 0.15s var(--passo);
+  transition:
+    border-color 0.15s var(--passo),
+    color 0.15s var(--passo);
 }
 
 .interruttore:has(input:checked) {
@@ -878,7 +1368,9 @@ a.scheda {
   background: var(--superficie);
   border: 1px solid var(--bordo);
   border-radius: var(--raggio);
-  transition: border-color 0.18s var(--passo), transform 0.18s var(--passo);
+  transition:
+    border-color 0.18s var(--passo),
+    transform 0.18s var(--passo);
 }
 
 .scheda-identita:hover {
@@ -1042,7 +1534,7 @@ input[type="color"] {
    altri: chi amministra le vede mescolate ai pubblicati. */
 .annuncio.bozza {
   border-style: dashed;
-  background: rgb(22 33 26 / 0.5);
+  background: var(--velo-riquadro);
 }
 
 .annuncio h2 {
@@ -1096,7 +1588,7 @@ input[type="color"] {
 .pastiglia.azzurra {
   background: rgb(90 160 230 / 0.12);
   border-color: rgb(90 160 230 / 0.3);
-  color: #7fb4ea;
+  color: var(--azzurro-tenue);
 }
 
 /* Il Markdown lo rende `react-markdown`, che l'HTML non lo esegue: qui si
@@ -1186,7 +1678,7 @@ button.pericoloso {
   padding: 6px 12px;
   font-size: 13px;
   background: var(--rosso);
-  color: #fff;
+  color: var(--su-rosso);
 }
 
 .conferma-pericolo {

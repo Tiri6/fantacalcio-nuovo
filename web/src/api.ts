@@ -440,6 +440,138 @@ export type DatiLega = {
   sql_di_riparazione: string;
 };
 
+export type VoceModulo = {
+  nome: string;
+  etichetta: string;
+};
+
+/**
+ * Quel che serve a disegnare il modulo di registrazione.
+ *
+ * Le tendine arrivano dal server e non si scrivono qui: le squadre del cuore
+ * sono quelle vere della stagione quando il listone e' caricato, e i minimi
+ * (password, eta') sono gli stessi numeri che il dominio poi applica. Una
+ * copia nel front-end direbbe una cosa e il server ne farebbe un'altra.
+ */
+export type ModuloRegistrazione = {
+  primo_utente: boolean;
+  sessi: VoceModulo[];
+  squadre_preferite: string[];
+  password_minima: number;
+  eta_minima: number;
+};
+
+export type Iscrizione = {
+  nome: string;
+  cognome: string;
+  data_nascita: string;
+  sesso: string;
+  citta: string;
+  squadra_preferita: string;
+  nome_utente: string;
+  email: string;
+  password: string;
+  conferma: string;
+};
+
+export type InvitoTrovato = {
+  lega_nome: string;
+  codice: string;
+};
+
+/** Cosa manca a questa persona prima di poter usare il sito. */
+export type StatoOnboarding = {
+  serve: "lega" | "squadra" | "niente";
+  nome: string;
+  nome_lega: string;
+  codice_invito: string;
+  esistono_leghe: boolean;
+  invito: InvitoTrovato | null;
+  modalita: VoceModulo[];
+  formati: VoceModulo[];
+  stili_maglia: VoceModulo[];
+};
+
+export type NuovaLega = {
+  nome: string;
+  stagione: string;
+  modalita: string;
+  formato: string;
+  partecipanti: number;
+  coppa_italia: boolean;
+  f1_rush: boolean;
+};
+
+export type NuovaSquadra = {
+  nome: string;
+  citta: string;
+  stadio: string;
+  curva: string;
+  motto: string;
+  colore_primario: string;
+  colore_secondario: string;
+  stile_maglia: string;
+};
+
+export type LegaCreata = {
+  nome: string;
+  codice_invito: string;
+};
+
+export type MovimentoScambio = {
+  giocatore_id: number;
+  nome_giocatore: string;
+  da_squadra_id: number;
+  da_squadra: string;
+  a_squadra_id: number;
+  a_squadra: string;
+  anni: number;
+};
+
+export type ViolazioneScambio = {
+  codice: string;
+  articolo: string;
+  messaggio: string;
+  bloccante: boolean;
+};
+
+export type ScambioLetto = {
+  id: number;
+  stato: string;
+  stato_etichetta: string;
+  aperto: boolean;
+  squadra_a_id: number;
+  squadra_a: string;
+  squadra_b_id: number;
+  squadra_b: string;
+  movimenti: MovimentoScambio[];
+  note: string;
+  creato_il: string;
+  giornata_efficacia: number | null;
+  /** Cosa puo' fare chi guarda: lo decide il dominio, non il browser. */
+  posso_accettare: boolean;
+  posso_rifiutare: boolean;
+  posso_annullare: boolean;
+  posso_ratificare: boolean;
+  violazioni: ViolazioneScambio[];
+};
+
+export type PaginaScambi = {
+  scambi: ScambioLetto[];
+  mia_squadra_id: number | null;
+  conclusi: number;
+  residui: number | null;
+  mercato_aperto: boolean;
+  finestra: string;
+  squadre: { id: number; nome: string }[];
+};
+
+export type EsitoProposta = {
+  scambio: ScambioLetto | null;
+  violazioni: ViolazioneScambio[];
+  inviata: boolean;
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -447,10 +579,55 @@ export const api = {
       body: JSON.stringify({ nome_utente, password }),
     }),
   io: () => chiama<ChiSono>("/io"),
+  moduloRegistrazione: () => chiama<ModuloRegistrazione>("/registrazione"),
+  iscriviti: (corpo: Iscrizione) =>
+    chiama<ChiSono>("/registrazione", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
   esci: () => chiama<void>("/esci", { method: "POST" }),
   squadre: () => chiama<Squadra[]>("/squadre"),
   squadra: (id: number) => chiama<SquadraInDettaglio>(`/squadre/${id}`),
   listone: () => chiama<Listone>("/giocatori"),
+  onboarding: () => chiama<StatoOnboarding>("/onboarding"),
+  scambi: () => chiama<PaginaScambi>("/scambi"),
+  proponiScambio: (corpo: {
+    squadra_b_id: number;
+    da_me: number[];
+    da_loro: number[];
+    note: string;
+  }) =>
+    chiama<EsitoProposta>("/scambi", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  decidiScambio: (
+    id: number,
+    azione: "accetta" | "rifiuta" | "annulla" | "ratifica",
+    giornata_efficacia?: number | null,
+  ) =>
+    chiama<ScambioLetto>(`/scambi/${id}`, {
+      method: "POST",
+      body: JSON.stringify({
+        azione,
+        giornata_efficacia: giornata_efficacia ?? null,
+      }),
+    }),
+  creaLega: (corpo: NuovaLega) =>
+    chiama<LegaCreata>("/onboarding/lega", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  unisciti: (codice: string) =>
+    chiama<LegaCreata>("/onboarding/unisciti", {
+      method: "POST",
+      body: JSON.stringify({ codice }),
+    }),
+  fondaSquadra: (corpo: NuovaSquadra) =>
+    chiama<{ id: number; nome: string }>("/onboarding/squadra", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
   attivaPortiereEmergenza: (
     squadra: number,
     giocatore_id: number,

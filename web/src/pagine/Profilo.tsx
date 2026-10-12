@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api, ErroreApi } from "../api";
 import { useCarica } from "../carica";
+import { TEMI, salvaTema, temaScelto, type Tema } from "../tema";
 
 /**
  * Password nuova e codice di recupero hanno la stessa forma: esistono in
@@ -42,7 +43,9 @@ function CambioPassword({ onFatto }: { onFatto: (messaggio: string) => void }) {
       onFatto("Password cambiata.");
     } catch (guasto) {
       setErrore(
-        guasto instanceof ErroreApi ? guasto.message : "Non riesco a cambiarla.",
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a cambiarla.",
       );
     } finally {
       setInCorso(false);
@@ -97,7 +100,11 @@ function CambioPassword({ onFatto }: { onFatto: (messaggio: string) => void }) {
       ))}
       {errore && <div className="errore">{errore}</div>}
 
-      <button className="principale" type="submit" disabled={!pronto || inCorso}>
+      <button
+        className="principale"
+        type="submit"
+        disabled={!pronto || inCorso}
+      >
         {inCorso ? "Cambio…" : "Cambia la password"}
       </button>
     </form>
@@ -117,7 +124,9 @@ function CodiceRecupero({ gia }: { gia: boolean }) {
       setCodice(esito.codice);
     } catch (guasto) {
       setErrore(
-        guasto instanceof ErroreApi ? guasto.message : "Non riesco a generarlo.",
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a generarlo.",
       );
     } finally {
       setInCorso(false);
@@ -152,10 +161,54 @@ function CodiceRecupero({ gia }: { gia: boolean }) {
           )}
           {errore && <div className="errore">{errore}</div>}
           <button className="secondario" disabled={inCorso} onClick={genera}>
-            {inCorso ? "Genero…" : gia ? "Generane uno nuovo" : "Genera il codice"}
+            {inCorso
+              ? "Genero…"
+              : gia
+                ? "Generane uno nuovo"
+                : "Genera il codice"}
           </button>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Chiaro o scuro.
+ *
+ * Sta nel profilo e non nelle impostazioni della lega perche' e' una
+ * preferenza di chi guarda, non una regola: due persone della stessa lega
+ * possono volerlo diverso, e lo stesso utente puo' volerlo diverso fra
+ * telefono e portatile.
+ */
+function Aspetto() {
+  const [scelto, setScelto] = useState<Tema>(temaScelto);
+
+  function cambia(tema: Tema) {
+    setScelto(tema);
+    salvaTema(tema);
+  }
+
+  return (
+    <div className="riquadro-modulo">
+      <h3>Aspetto</h3>
+      <p className="tenue">
+        «Come il sistema» segue l'impostazione del telefono o del computer e
+        cambia da sola al tramonto, se li hai impostati cosi'. La scelta resta
+        su questo dispositivo.
+      </p>
+      <div className="filtri">
+        {TEMI.map((t) => (
+          <button
+            key={t.nome}
+            className={scelto === t.nome ? "filtro attiva" : "filtro"}
+            aria-pressed={scelto === t.nome}
+            onClick={() => cambia(t.nome)}
+          >
+            {t.icona} {t.etichetta}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -184,8 +237,12 @@ export function Profilo() {
     <>
       <div className="intestazione-pagina">
         <h1>👤 Il mio profilo</h1>
+        {/* Il trattino solo se c'e' qualcosa dopo: chi si e' appena
+            registrato non sta ancora in nessuna lega, e un «Marco Rossi —»
+            monco sembra un dato che non ha caricato. */}
         <p>
-          {dato.nome_completo} — {dato.nome_lega}
+          {dato.nome_completo}
+          {dato.nome_lega ? ` — ${dato.nome_lega}` : ""}
         </p>
       </div>
 
@@ -223,6 +280,9 @@ export function Profilo() {
         Questi dati li hai scritti iscrivendoti. Per ora si cambiano solo dal
         database: se ne hai sbagliato uno, scrivilo al presidente di lega.
       </p>
+
+      <h2 className="sottotitolo">Preferenze</h2>
+      <Aspetto />
 
       <div className="moduli-affiancati">
         <CambioPassword

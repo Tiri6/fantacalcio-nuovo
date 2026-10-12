@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel
 
@@ -11,7 +9,7 @@ from fantacalcio.autenticazione import autentica
 from fantacalcio.data import archivio, carica_credenziali
 
 from ..dipendenze import UtenteDentro
-from ..sicurezza import DURATA, NOME_COOKIE, crea_token
+from ..sicurezza import NOME_COOKIE, posa_sessione
 
 rotte = APIRouter(tags=["accesso"])
 
@@ -69,17 +67,7 @@ def entra(credenziali: Credenziali, risposta: Response) -> ChiSono:
             detail="Nome utente o password non corretti.",
         )
 
-    risposta.set_cookie(
-        NOME_COOKIE,
-        crea_token(utente.nome_utente),
-        max_age=int(DURATA.total_seconds()),
-        httponly=True,
-        # In sviluppo si gira su http://localhost, dove un cookie Secure non
-        # verrebbe mai mandato indietro e il login sembrerebbe rotto.
-        secure=os.environ.get("FANTA_AMBIENTE") != "sviluppo",
-        samesite="lax",
-        path="/",
-    )
+    posa_sessione(risposta, utente.nome_utente)
     return _chi_sono(utente)
 
 

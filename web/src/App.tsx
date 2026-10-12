@@ -1,6 +1,13 @@
 import { useState } from "react";
-import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
+import {
+  BrowserRouter,
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+} from "react-router-dom";
 import { Accesso } from "./pagine/Accesso";
+import { Onboarding } from "./pagine/Onboarding";
 import { Albo } from "./pagine/Albo";
 import { Bacheca } from "./pagine/Bacheca";
 import { Campionato } from "./pagine/Campionato";
@@ -9,6 +16,7 @@ import { Identita } from "./pagine/Identita";
 import { Lega } from "./pagine/Lega";
 import { Listone } from "./pagine/Listone";
 import { Profilo } from "./pagine/Profilo";
+import { Scambi } from "./pagine/Scambi";
 import { Squadra } from "./pagine/Squadra";
 import { Squadre } from "./pagine/Squadre";
 import { ConSessione, useSessione } from "./sessione";
@@ -37,6 +45,10 @@ const SEZIONI = [
       { a: "/giocatori", icona: "📋", testo: "Listone" },
       { a: "/identita", icona: "🎨", testo: "Identità" },
     ],
+  },
+  {
+    titolo: "Mercato",
+    voci: [{ a: "/scambi", icona: "🤝", testo: "Scambi" }],
   },
   {
     titolo: "Impostazioni",
@@ -108,6 +120,7 @@ function Intelaiatura() {
           <Route path="/squadre/:id" element={<Squadra />} />
           <Route path="/giocatori" element={<Listone />} />
           <Route path="/identita" element={<Identita />} />
+          <Route path="/scambi" element={<Scambi />} />
           <Route path="/profilo" element={<Profilo />} />
           <Route path="/lega" element={<Lega />} />
           {/* La bacheca è la pagina d'ingresso: chi entra vuole sapere cosa
@@ -121,12 +134,27 @@ function Intelaiatura() {
 
 function Instradamento() {
   const { utente, inCorso } = useSessione();
+  // Chi amministra e basta puo' rimandare la squadra: la scelta vale per
+  // questa visita, e al giro dopo il sito glielo richiede. E' voluto —
+  // un presidente senza squadra deve poter entrare, ma e' anche vero che
+  // nove volte su dieci se l'e' solo dimenticata.
+  const [saltaSquadra, setSaltaSquadra] = useState(false);
 
   // Finche' non sappiamo se c'e' una sessione non si disegna niente: un
   // lampo della schermata d'accesso a chi e' gia' dentro sembra un guasto.
   if (inCorso) return null;
+  if (!utente) return <Accesso />;
 
-  return utente ? <Intelaiatura /> : <Accesso />;
+  // I due cancelli, nello stesso ordine di Streamlit: prima la lega, poi la
+  // squadra. Si decidono da `ChiSono`, che il server rilegge a ogni
+  // richiesta: non serve una chiamata in piu' per sapere a che punto siamo.
+  const serveLega = utente.lega_id === null;
+  const serveSquadra = utente.squadra_id === null && !saltaSquadra;
+  if (serveLega || serveSquadra) {
+    return <Onboarding onSalta={() => setSaltaSquadra(true)} />;
+  }
+
+  return <Intelaiatura />;
 }
 
 export default function App() {

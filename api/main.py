@@ -29,7 +29,10 @@ from .rotte import (
     giocatori,
     identita,
     lega,
+    onboarding,
     profilo,
+    registrazione,
+    scambi,
     squadre,
 )
 from .statici import monta_sito
@@ -80,6 +83,8 @@ if os.environ.get("FANTA_AMBIENTE") == "sviluppo":
     )
 
 app.include_router(accesso.rotte, prefix="/api")
+app.include_router(registrazione.rotte, prefix="/api")
+app.include_router(onboarding.rotte, prefix="/api")
 app.include_router(albo.rotte, prefix="/api")
 app.include_router(campionato.rotte, prefix="/api")
 app.include_router(bacheca.rotte, prefix="/api")
@@ -89,6 +94,7 @@ app.include_router(lega.rotte, prefix="/api")
 app.include_router(profilo.rotte, prefix="/api")
 app.include_router(identita.rotte, prefix="/api")
 app.include_router(squadre.rotte, prefix="/api")
+app.include_router(scambi.rotte, prefix="/api")
 
 
 @app.get("/api/salute", tags=["servizio"])
