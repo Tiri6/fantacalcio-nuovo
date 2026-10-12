@@ -889,15 +889,23 @@ def prospetto_regolamento(
     parametri: ParametriLega,
     opzioni: OpzioniLega,
     data_u21,
+    lega: Lega | None = None,
 ) -> tuple[GruppoRegolamento, ...]:
     """I valori che il gestionale applica davvero, raggruppati per articolo.
 
     Prende i parametri gia' risolti invece di andarseli a prendere: la data
     Under 21 la sa chi chiama (la lega la fissa al 31 agosto), e cosi' la
     funzione resta pura e si prova senza database.
+
+    **I parametri si rifondono qui con le opzioni.** Il gruppo «Punteggio»
+    dice i valori che il sito applica, e quelli li decide
+    `parametri_di_punteggio`: leggendo i parametri grezzi, una lega che ha
+    votato il primo gol a 60 avrebbe letto 66 nel gruppo che promette di dire
+    cosa si applica, contraddicendo il gruppo «Le scelte di questa lega» due
+    tabelle piu' su.
     """
     v = VoceRegolamento
-    p = parametri
+    p = parametri_di_punteggio(parametri, lega) if lega else parametri
 
     lega = [
         v("Modalita'", opzioni.modalita.etichetta),

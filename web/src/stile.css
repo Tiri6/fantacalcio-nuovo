@@ -61,6 +61,9 @@
   --maglia-bordo: rgb(255 255 255 / 0.18);
   --su-prato: #e9efe9;
   --su-prato-tenue: rgb(233 239 233 / 0.65);
+  /* Un velo scuro da mettere sopra il verde pieno: la bolla di chi scrive
+     e' verde in tutti e due i temi, quindi il velo non cambia. */
+  --velo-su-verde: rgb(0 0 0 / 0.2);
   /* Testata e menu non usano `--superficie` ma una velatura, perche' sotto
      ci scorre il contenuto e il `backdrop-filter` deve vederlo. */
   --velo-testata: rgb(10 15 12 / 0.82);
@@ -3074,7 +3077,7 @@ a.bottone-principale:hover {
 }
 
 .bolla.mia code {
-  background: rgb(0 0 0 / 0.2);
+  background: var(--velo-su-verde);
 }
 
 /* I tre motivi di svincolo, uno sotto l'altro: la differenza fra loro è un

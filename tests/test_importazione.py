@@ -628,3 +628,61 @@ class TestLaTabellaDeiFormati:
 
     def test_senza_listone_restano_quelli_di_sempre(self):
         assert campi_rose() == CAMPI_ROSE
+
+
+class TestIRisultatiNonCancellanoIlCalendario:
+    """Il CSV dei risultati non parla di calendario, e non deve cancellarlo.
+
+    `arch.scrivi` e' un «insert or replace»: quello che non si rimanda sparisce.
+    Scrivendo solo giornata, squadre, punti e gol, l'import azzerava
+    `inizio_previsto` — che e' l'orario su cui si **chiudono le formazioni** —
+    e `giornata_serie_a`, che e' quello su cui la F1 Rush conta le tappe.
+    Caricare i risultati di una giornata riapriva le formazioni di tutte le
+    altre, senza che nessuno se ne accorgesse.
+    """
+
+    @staticmethod
+    def _con_calendario(arch):
+        from fantacalcio.data import calendario_dettagliato
+
+        partite = calendario_dettagliato(arch)
+        riga = partite.iloc[0]
+        righe = [
+            {**r, "inizio_previsto": "2026-09-20T15:00:00", "giornata_serie_a": 33}
+            for r in arch.calendario().to_dict("records")
+            if int(r["id"]) == int(riga["id"])
+        ]
+        arch.scrivi("calendario", righe, "id")
+        return riga
+
+    def test_l_orario_e_la_giornata_di_serie_a_restano(self, archivio_demo):
+        from fantacalcio.data import calendario_dettagliato
+
+        riga = self._con_calendario(archivio_demo)
+        csv = (
+            "giornata;casa;trasferta;punti_casa;punti_trasferta\n"
+            f"{int(riga['giornata'])};{riga['casa']};{riga['trasferta']};70;60\n"
+        )
+
+        applica_risultati(archivio_demo, importa_risultati(csv))
+
+        partite = calendario_dettagliato(archivio_demo)
+        dopo = partite[partite["id"] == int(riga["id"])].iloc[0]
+        assert dopo["inizio_previsto"] == "2026-09-20T15:00:00"
+        assert int(dopo["giornata_serie_a"]) == 33
+
+    def test_il_risultato_si_scrive_lo_stesso(self, archivio_demo):
+        from fantacalcio.data import calendario_dettagliato
+
+        riga = self._con_calendario(archivio_demo)
+        csv = (
+            "giornata;casa;trasferta;punti_casa;punti_trasferta\n"
+            f"{int(riga['giornata'])};{riga['casa']};{riga['trasferta']};70;60\n"
+        )
+
+        applica_risultati(archivio_demo, importa_risultati(csv))
+
+        partite = calendario_dettagliato(archivio_demo)
+        dopo = partite[partite["id"] == int(riga["id"])].iloc[0]
+        assert dopo["punti_casa"] == 70
+        assert dopo["gol_casa"] >= dopo["gol_trasferta"]

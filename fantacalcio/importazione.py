@@ -862,7 +862,7 @@ def applica_rose(arch, esito: EsitoImportazione, sostituisci: bool = True) -> di
 
 def applica_risultati(arch, esito: EsitoImportazione) -> dict:
     """Scrive i risultati di giornata, ricavando i gol dalle fasce della lega."""
-    from .data import prossimo_id
+    from .data import _ripulisci, prossimo_id
     from .regole import fasce_gol
 
     if not esito.importabile:
@@ -889,6 +889,9 @@ def applica_risultati(arch, esito: EsitoImportazione) -> dict:
 
     esistenti = arch.calendario()
     indice_partita = {}
+    # La riga intera, non solo il suo id: la scrittura e' un «insert or
+    # replace», quindi quello che non si rimanda **sparisce**.
+    righe_esistenti: dict[int, dict] = {}
     impegni_esistenti: dict[tuple[int, int], tuple[int, int]] = {}
     if not esistenti.empty:
         for _, r in esistenti.iterrows():
@@ -898,6 +901,7 @@ def applica_risultati(arch, esito: EsitoImportazione) -> dict:
                 int(r["trasferta_id"]),
             )
             indice_partita[(giornata, casa, trasferta)] = int(r["id"])
+            righe_esistenti[int(r["id"])] = _ripulisci(dict(r))
             impegni_esistenti[(giornata, casa)] = (casa, trasferta)
             impegni_esistenti[(giornata, trasferta)] = (casa, trasferta)
     prossimo = prossimo_id(arch, "calendario") if not esistenti.empty else 1
@@ -928,8 +932,16 @@ def applica_risultati(arch, esito: EsitoImportazione) -> dict:
             impegni_esistenti[(riga["giornata"], casa_id)] = (casa_id, trasferta_id)
             impegni_esistenti[(riga["giornata"], trasferta_id)] = (casa_id, trasferta_id)
 
+        # Si parte dalla riga che c'e' gia' e si sovrascrivono solo i campi
+        # del risultato. **Il CSV dei risultati non parla di calendario**: non
+        # porta l'orario d'inizio, la competizione, la giornata di Serie A ne'
+        # la data. Scrivendo solo i campi qui sotto, l'«insert or replace» di
+        # SQLite azzerava le altre colonne — e `inizio_previsto` e' l'orario su
+        # cui si chiudono le formazioni, quindi caricare i risultati di una
+        # giornata riapriva le formazioni di tutte le altre.
         righe.append(
             {
+                **righe_esistenti.get(identificativo, {}),
                 "id": identificativo,
                 "giornata": riga["giornata"],
                 "casa_id": casa_id,

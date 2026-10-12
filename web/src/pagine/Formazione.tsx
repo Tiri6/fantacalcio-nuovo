@@ -80,12 +80,13 @@ function SchierataDa({ squadra }: { squadra: SquadraInCampo }) {
 
 function Componi({
   dato,
+  onModulo,
   onSalvata,
 }: {
   dato: PaginaFormazione;
+  onModulo: (modulo: string) => void;
   onSalvata: (messaggio: string) => void;
 }) {
-  const [modulo, setModulo] = useState(dato.modulo);
   const [titolari, setTitolari] = useState<number[]>(dato.titolari);
   const [panchina, setPanchina] = useState<number[]>(dato.panchina);
   const [errore, setErrore] = useState<string | null>(null);
@@ -95,21 +96,6 @@ function Componi({
     () => new Map(dato.rosa.map((g) => [g.id, g])),
     [dato.rosa],
   );
-
-  // Il modulo cambia le caselle, quindi le liste: le chiede il server. Finché
-  // la risposta non arriva la pagina resta su quella vecchia, che è ancora
-  // coerente — meglio di undici tendine vuote per mezzo secondo.
-  function cambiaModulo(nuovo: string) {
-    setModulo(nuovo);
-    setErrore(null);
-    api
-      .formazione(dato.giornata, dato.competizione, nuovo)
-      .then((fresco) => {
-        setTitolari(fresco.titolari);
-        setPanchina(fresco.panchina);
-      })
-      .catch(() => setErrore("Non riesco a cambiare modulo."));
-  }
 
   /**
    * Chi entra in una casella lascia all'altra il giocatore che usciva.
@@ -182,7 +168,7 @@ function Componi({
       const esito = await api.schiera({
         giornata: dato.giornata,
         competizione: dato.competizione,
-        modulo,
+        modulo: dato.modulo,
         titolari,
         panchina,
       });
@@ -214,8 +200,8 @@ function Componi({
           <label htmlFor="modulo">Modulo</label>
           <select
             id="modulo"
-            value={modulo}
-            onChange={(e) => cambiaModulo(e.target.value)}
+            value={dato.modulo}
+            onChange={(e) => onModulo(e.target.value)}
           >
             {dato.moduli.map((m) => (
               <option key={m} value={m}>
@@ -362,11 +348,16 @@ function Componi({
 export function Formazione() {
   const [giornata, setGiornata] = useState(0);
   const [competizione, setCompetizione] = useState("CAMPIONATO");
+  // Il modulo sta qui e non nel modulo di composizione: cambiarlo cambia le
+  // caselle, quindi chi la occupa di diritto e chi ci si adatta — tutta roba
+  // che decide il server. Tenendolo di sotto, la pagina restava con le caselle
+  // del modulo vecchio e le tendine offrivano i giocatori sbagliati.
+  const [modulo, setModulo] = useState("");
   const [giro, setGiro] = useState(0);
   const [conferma, setConferma] = useState<string | null>(null);
   const { dato, errore, inCorso } = useCarica(
-    () => api.formazione(giornata, competizione, ""),
-    [giornata, competizione, giro],
+    () => api.formazione(giornata, competizione, modulo),
+    [giornata, competizione, modulo, giro],
   );
 
   if (inCorso) return <div className="fantasma alto" />;
@@ -395,7 +386,12 @@ export function Formazione() {
           <select
             id="giornata"
             value={dato.giornata}
-            onChange={(e) => setGiornata(Number(e.target.value))}
+            onChange={(e) => {
+              setGiornata(Number(e.target.value));
+              // Un'altra giornata puo' avere gia' una formazione salvata,
+              // col suo modulo: si lascia scegliere al server.
+              setModulo("");
+            }}
           >
             {giornate.map((g) => (
               <option key={g} value={g}>
@@ -411,7 +407,10 @@ export function Formazione() {
             <select
               id="competizione"
               value={dato.competizione}
-              onChange={(e) => setCompetizione(e.target.value)}
+              onChange={(e) => {
+                setCompetizione(e.target.value);
+                setModulo("");
+              }}
             >
               {dato.competizioni.map((c) => (
                 <option key={c} value={c}>
@@ -460,10 +459,11 @@ export function Formazione() {
 
       {dato.posso_schierare ? (
         <Componi
-          // Rimontare il modulo quando cambia giornata o competizione: le
-          // scelte di prima non valgono per un'altra partita.
-          key={`${dato.giornata}-${dato.competizione}-${giro}`}
+          // Rimontare quando cambia giornata, competizione o modulo: le scelte
+          // di prima non valgono per un'altra partita ne' per altre caselle.
+          key={`${dato.giornata}-${dato.competizione}-${dato.modulo}-${giro}`}
           dato={dato}
+          onModulo={setModulo}
           onSalvata={(messaggio) => {
             setConferma(messaggio);
             setGiro((g) => g + 1);

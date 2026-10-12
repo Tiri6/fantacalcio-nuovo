@@ -303,12 +303,18 @@ function Emergenza({
  */
 function Svincolo({
   squadra,
+  giro,
   onFatto,
 }: {
   squadra: number;
+  // Il giro del genitore entra fra le dipendenze: senza, dopo uno svincolo
+  // questo elenco restava quello di prima e il giocatore appena tolto
+  // continuava a comparire nella tendina — sceglierlo di nuovo dava un 422
+  // che non si spiegava.
+  giro: number;
   onFatto: (messaggio: string) => void;
 }) {
-  const { dato } = useCarica(() => api.svincolabili(squadra), [squadra]);
+  const { dato } = useCarica(() => api.svincolabili(squadra), [squadra, giro]);
   const [chi, setChi] = useState<number | null>(null);
   const [motivo, setMotivo] = useState<MotivoSvincolo>("riparazione");
   const [conferma, setConferma] = useState(false);
@@ -582,6 +588,7 @@ export function Squadra() {
 
       <Svincolo
         squadra={numero}
+        giro={giro}
         onFatto={(messaggio) => {
           setConferma(messaggio);
           setGiro((g) => g + 1);

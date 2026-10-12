@@ -361,6 +361,26 @@ def schiera(richiesta: DaSchierare, utente: UtenteDentro) -> Salvata:
     if not blocco.modificabile:
         raise HTTPException(status_code=NON_ELABORABILE, detail=blocco.motivo)
 
+    # Modulo e competizione si ricontrollano qui, non solo nella GET che li
+    # corregge: la rotta si chiama anche a mano, e un modulo che la lega non
+    # ammette e' una regola saltata — `valida` non puo' accorgersene, perche'
+    # guarda se il modulo e' *leggibile*, non se e' *consentito*.
+    opzioni = ctx.lega.opzioni if ctx.lega else None
+    if opzioni:
+        if richiesta.modulo not in opzioni.moduli_ammessi:
+            raise HTTPException(
+                status_code=NON_ELABORABILE,
+                detail=(
+                    f"Il modulo {richiesta.modulo} non e' fra quelli ammessi da "
+                    f"questa lega."
+                ),
+            )
+        if richiesta.competizione not in [c.name for c in opzioni.competizioni]:
+            raise HTTPException(
+                status_code=NON_ELABORABILE,
+                detail="Questa lega non gioca quella competizione.",
+            )
+
     giocatori = carica_giocatori(ctx.arch)
     ruoli = {g.id: g.ruoli for g in giocatori.values()}
     in_rosa = {c.giocatore_id for c in rose[utente.squadra_id].contratti}

@@ -30,7 +30,7 @@ opzioni = lega.opzioni
 # I gruppi li costruisce `leghe.prospetto_regolamento`, che e' anche quello
 # che legge l'API: scritti qui a mano, un lodo avrebbe aggiornato una pagina
 # e lasciato l'altra a dire il numero vecchio.
-for gruppo in prospetto_regolamento(p, opzioni, ui.data_u21()):
+for gruppo in prospetto_regolamento(p, opzioni, ui.data_u21(), lega):
     st.subheader(gruppo.titolo)
     if gruppo.nota:
         st.caption(gruppo.nota)

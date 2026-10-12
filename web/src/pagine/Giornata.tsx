@@ -125,27 +125,27 @@ function Voti({
 }: {
   giornata: number;
   modello: string;
-  onFatto: (messaggio: string) => void;
+  // I non abbinati salgono col messaggio: questo modulo viene rimontato
+  // appena la giornata si ricarica, e tenendoli qui sparivano prima di
+  // essere letti — proprio l'elenco che serve a capire quali voti mancano.
+  onFatto: (messaggio: string, nonAbbinati: string[]) => void;
 }) {
   const [testo, setTesto] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
-  const [nonAbbinati, setNonAbbinati] = useState<string[]>([]);
   const [inCorso, setInCorso] = useState(false);
 
   async function invia() {
     setErrore(null);
-    setNonAbbinati([]);
     setInCorso(true);
     try {
       const corpo = file
         ? { giornata, contenuto_base64: await leggiBase64(file) }
         : { giornata, testo };
       const esito = await api.caricaVoti(corpo);
-      setNonAbbinati(esito.non_abbinati);
       setTesto("");
       setFile(null);
-      onFatto(esito.messaggio);
+      onFatto(esito.messaggio, esito.non_abbinati);
     } catch (guasto) {
       setErrore(
         guasto instanceof ErroreApi
@@ -200,13 +200,6 @@ function Voti({
       {errore && (
         <div className="errore" role="alert">
           {errore}
-        </div>
-      )}
-      {nonAbbinati.length > 0 && (
-        <div className="avviso">
-          ⚠️ Non abbinati ({nonAbbinati.length}):{" "}
-          {nonAbbinati.slice(0, 10).join(", ")}
-          {nonAbbinati.length > 10 && "…"}
         </div>
       )}
 
@@ -303,6 +296,7 @@ export function Giornata() {
   const [competizione, setCompetizione] = useState("CAMPIONATO");
   const [giro, setGiro] = useState(0);
   const [conferma, setConferma] = useState<string | null>(null);
+  const [nonAbbinati, setNonAbbinati] = useState<string[]>([]);
   const [scheda, setScheda] = useState<"voti" | "calcola">("voti");
   const { dato, errore, inCorso } = useCarica(
     () => api.giornata(giornata, competizione),
@@ -315,8 +309,9 @@ export function Giornata() {
 
   const mostrata = dato.giornata;
 
-  function aggiorna(messaggio: string) {
+  function aggiorna(messaggio: string, nonAbbinati: string[] = []) {
     setConferma(messaggio);
+    setNonAbbinati(nonAbbinati);
     // La giornata si fissa qui, e non è un dettaglio: finché `giornata` vale
     // zero il server risponde «la prima non ancora disputata», e appena si
     // calcola la 12 quella diventa la 13. Senza questa riga, dopo il calcolo
@@ -348,6 +343,15 @@ export function Giornata() {
       </div>
 
       {conferma && <div className="conferma">{conferma}</div>}
+
+      {nonAbbinati.length > 0 && (
+        <div className="avviso">
+          ⚠️ Voti non abbinati ({nonAbbinati.length}):{" "}
+          {nonAbbinati.slice(0, 10).join(", ")}
+          {nonAbbinati.length > 10 && "…"}. Controlla i nomi, oppure metti nel
+          file la colonna «id» del listone.
+        </div>
+      )}
 
       <div className="filtri">
         {dato.competizioni.length > 1 && (

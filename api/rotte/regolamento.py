@@ -128,7 +128,9 @@ def regolamento(utente: UtenteDentro) -> PaginaRegolamento:
                 nota=g.nota,
                 voci=[VoceLetta(voce=v.voce, valore=v.valore) for v in g.voci],
             )
-            for g in prospetto_regolamento(ctx.parametri, opzioni, ctx.riferimento_u21)
+            for g in prospetto_regolamento(
+                ctx.parametri, opzioni, ctx.riferimento_u21, ctx.lega
+            )
         ],
         ruoli_mantra=[
             Ruolo(sigla=sigla, nome=nome) for sigla, nome in ETICHETTE_RUOLO.items()

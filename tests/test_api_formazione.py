@@ -296,3 +296,36 @@ class TestIlBlocco:
 
         assert blocco["modificabile"] is True
         assert 6000 < blocco["mancano_secondi"] <= 7200
+
+
+class TestCosaLaLegaAmmette:
+    """Modulo e competizione si controllano anche sulla rotta.
+
+    `valida` guarda se il modulo e' **leggibile**, non se e' **consentito**:
+    un 4-4-2 in una lega che ammette solo moduli a tre difensori passerebbe
+    tutti i controlli del Mantra. La tendina non e' il controllo.
+    """
+
+    def test_un_modulo_che_la_lega_non_ammette_non_si_salva(self, client):
+        entra(client)
+        dati = pagina(client)
+        proposta = da_schierare(dati)
+        # Leggibile e con undici giocatori, ma fuori dall'elenco della lega.
+        fuori = "4-5-1"
+        assert fuori not in dati["moduli"]
+        proposta["modulo"] = fuori
+
+        risposta = client.post("/api/formazione", json=proposta)
+
+        assert risposta.status_code == 422
+        assert "non e' fra quelli ammessi" in risposta.json()["detail"]
+
+    def test_una_competizione_che_la_lega_non_gioca_non_si_salva(self, client):
+        entra(client)
+        proposta = da_schierare(pagina(client))
+        proposta["competizione"] = "CHAMPIONS"
+
+        risposta = client.post("/api/formazione", json=proposta)
+
+        assert risposta.status_code == 422
+        assert "non gioca" in risposta.json()["detail"]
