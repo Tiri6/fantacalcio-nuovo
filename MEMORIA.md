@@ -40,6 +40,9 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 | La formazione si **blocca un minuto prima** del calcio d'inizio | set | Dopo il blocco quelle di tutti si vedono, non si cambiano |
 | Le **regole di lega si cambiano anche dopo la creazione**, ma solo da chi la lega l'ha creata | 23 set | Serviva per non rifare la lega a ogni ripensamento. Il permesso si controlla nel dominio, non nascondendo il bottone |
 | La **chat sul regolamento** legge un dossier generato dai parametri, mai il ricordo del modello | 24 set | Un test parametrizzato pretende che ogni campo di `ParametriLega` e `OpzioniLega` compaia nel dossier |
+| Il **draft si fa anche nel sito**, in una Draft Room | 12 ott | Non annulla la decisione «il draft si fa offline»: l'import CSV resta. Chi vuole chiamare a turno sul sito adesso puo' |
+| La sala si aggiorna **interrogando ogni 2,5 s**, non con un canale aperto | 12 ott | Per dieci persone costa un ordine di grandezza meno da mantenere, e regge un proxy che chiude le connessioni |
+| Gli **anni di contratto si correggono solo dopo la draft room**, e solo sui giocatori presi li', fino al calcio d'inizio della giornata dopo | 12 ott | Dettata da Marco. L'istante e' lo stesso del blocco formazioni: «il giorno prima» e «il giorno della giornata» sono due frasi diverse, il calcio d'inizio e' un istante solo |
 
 ## Cosa c'e' (funziona e ha i test)
 
@@ -122,6 +125,16 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
   parametri di *questa* lega, dalle tabelle Mantra e da `PUNTI_APERTI.md`, e
   ha istruzioni di non inventare numeri. Serve `ANTHROPIC_API_KEY`: senza,
   la pagina spiega come attivarla invece di rompersi.
+
+- **Draft Room** (`sala.py` + `api/rotte/sala.py` + `web/src/pagine/Sala.tsx`):
+  dieci persone che guardano la stessa pagina e chiamano a turno. L'ordine si
+  congela all'apertura (Lottery a Settembre, classifica alla rovescia in
+  riparazione) e di chi sia il turno si ricava **contando le chiamate**, non da
+  un campo «turno corrente» che prima o poi contraddice il registro. Una
+  chiamata respinta torna 200 con le violazioni, non un errore: chi chiama
+  deve vedere di quanto sfora, con nove persone che aspettano. Chiusa la sala,
+  chi ha preso qualcuno puo' correggerne gli anni fino alla giornata
+  successiva.
 
 ## Cosa manca (in ordine di utilita')
 
@@ -290,6 +303,27 @@ finestre di mercato (il regolamento dice solo quando aprono) e se il campionato
 sara' di 18 o 27 giornate.
 
 ## Trappole gia' pagate (non ripeterle)
+
+- **`insert or replace` rende inutile un `unique`.** Le chiamate del draft
+  hanno `unique (sala_id, numero)` in tutti e due gli schemi: e' quello che
+  impedisce a due persone che premono insieme di prendere lo stesso posto. Ma
+  `Archivio.scrivi` su SQLite fa `insert or replace`, e davanti a un vincolo
+  violato quello **cancella la riga che c'era** e mette la nuova: la chiamata
+  di chi era arrivato primo spariva, lasciandogli il contratto senza chiamata.
+  Da qui `Archivio.aggiungi`, che fa un `insert` secco e lascia salire
+  l'errore. Se scrivi una tabella in sola aggiunta, usa quello.
+- **Nei test scrypt costa piu' di tutto il resto.** `COSTO_N = 2**14` sono
+  ~100 ms per verifica, voluti: per chi entra sono impercettibili, per chi
+  tenta a forza bruta sono cari. Ma ogni `entra()` di un test dell'API e' una
+  verifica, e i test dell'API ne fanno centinaia: la suite ci passava meta'
+  del tempo. La fixture `scrypt_da_test` in `conftest.py` lo abbassa per
+  tutta la sessione, **prima** che il database di demo si costruisca — un `n`
+  diverso da' un digest diverso, e le password di demo non entrerebbero piu'.
+  E' il rovescio della trappola piu' sotto sugli hash che non registrano i
+  propri parametri: qui se ne approfitta, ma solo perche' nei test le
+  password nascono e si verificano nello stesso processo. Chi confronta un
+  hash nato in un altro processo (uno script lanciato con `subprocess`)
+  chiede `scrypt_di_produzione`.
 
 - **`st.html` non renderizza l'SVG inline.** Passa da un data URI e `st.image`.
 - **`st.cache_data.clear()` provoca un rerun** che cancella il messaggio di
