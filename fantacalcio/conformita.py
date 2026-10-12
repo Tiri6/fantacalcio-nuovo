@@ -21,11 +21,19 @@ class Momento(Enum):
     e' vincolante. In STAGIONE gli scambi possono far sforare il Salary Cap
     (articolo 8b): il rientro nei 100M e' imposto solo prima dell'asta
     successiva, quindi lo sforamento resta un avviso.
+
+    DRAFT e' il momento in cui la rosa **si sta costruendo**: i minimi non
+    possono bloccare, perche' alla terza chiamata la rosa e' corta per
+    definizione e nessuno potrebbe mai arrivare alla quarta. I tetti invece
+    bloccano, Salary Cap compreso: una chiamata che sfora va fermata quando si
+    fa, perche' una chiamata non si annulla — scoprirlo a draft finito
+    vorrebbe dire una rosa invalida e nessun modo di tornare indietro.
     """
 
     ASTA_SETTEMBRE = "asta di Settembre"
     RIPARAZIONE = "asta di riparazione"
     STAGIONE = "stagione in corso"
+    DRAFT = "draft in corso"
 
 
 class Gravita(Enum):
@@ -110,6 +118,10 @@ def verifica_rosa(
     limite_dimensione = parametri.rosa_massimo(slot_u21)
     annuali_richiesti = parametri.minimo_annuali(rosa.dimensione)
     chiude_mercato = momento in (Momento.ASTA_SETTEMBRE, Momento.RIPARAZIONE)
+    # Il Cap blocca ovunque tranne che in stagione, dove l'articolo 8b
+    # tollera lo sforamento da scambio fino all'asta successiva. Durante il
+    # draft blocca: una chiamata non si annulla.
+    cap_vincolante = momento is not Momento.STAGIONE
 
     # --- Articolo 2: dimensione rosa ---------------------------------------
     if rosa.dimensione < parametri.rosa_minimo:
@@ -229,7 +241,7 @@ def verifica_rosa(
             Violazione(
                 "salary_cap",
                 "Art. 4",
-                Gravita.BLOCCO if chiude_mercato else Gravita.AVVISO,
+                Gravita.BLOCCO if cap_vincolante else Gravita.AVVISO,
                 f"Spesa salariale {_milioni(rosa.spesa_salariale)} contro un tetto "
                 f"di {_milioni(parametri.salary_cap)}: eccesso di "
                 f"{_milioni(eccesso)}.",
