@@ -32,10 +32,20 @@ class ChiSono(BaseModel):
     puo_importare: bool
     puo_svincolare: bool
     puo_scrivere_in_bacheca: bool
+    # Quali competizioni gioca la lega. Servono al menu: una voce che parla di
+    # una coppa che non si gioca e' peggio di una voce mancante, e il
+    # front-end non puo' dedurlo dall'utente.
+    gioca_coppa: bool = False
+    gioca_f1_rush: bool = False
 
 
 def _chi_sono(utente) -> ChiSono:
+    from fantacalcio.data import carica_leghe
+
+    lega = carica_leghe(archivio()).get(utente.lega_id) if utente.lega_id else None
     return ChiSono(
+        gioca_coppa=bool(lega and lega.opzioni.coppa_italia),
+        gioca_f1_rush=bool(lega and lega.opzioni.f1_rush),
         nome_utente=utente.nome_utente,
         nome=utente.nome,
         ruolo=utente.ruolo.name,

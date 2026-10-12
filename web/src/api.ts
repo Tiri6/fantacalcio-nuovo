@@ -57,6 +57,9 @@ export type ChiSono = {
   puo_importare: boolean;
   puo_svincolare: boolean;
   puo_scrivere_in_bacheca: boolean;
+  /** Le voci di menu di Coppa e F1 Rush dipendono da questi due. */
+  gioca_coppa: boolean;
+  gioca_f1_rush: boolean;
 };
 
 export type Squadra = {
@@ -816,6 +819,83 @@ export type GiornataCalcolata = {
   avvisi: string[];
 };
 
+// --- Calendario, Coppa, F1 Rush ---------------------------------------------
+
+export type PartitaInCalendario = {
+  giornata: number;
+  casa: string;
+  trasferta: string;
+  gol_casa: number | null;
+  gol_trasferta: number | null;
+  punti_casa: number | null;
+  punti_trasferta: number | null;
+};
+
+export type Weekend = {
+  numero: number;
+  serie_a: number;
+  nella_lega: string;
+};
+
+export type PaginaCalendario = {
+  squadre: string[];
+  giornate_disputate: number;
+  giornate_totali: number;
+  partite_giocate: number;
+  partite: PartitaInCalendario[];
+  senza_partite: boolean;
+  weekend: Weekend[];
+  gioca_coppa: boolean;
+};
+
+export type FaseDiCoppa = { fase: string; quando: string; stato: string };
+
+export type PaginaCoppa = {
+  si_gioca: boolean;
+  formato: string;
+  squadre_ammesse: number;
+  a_gironi: boolean;
+  gironi: number;
+  squadre_per_girone: number;
+  giornate_di_girone: number;
+  qualificate_per_girone: number;
+  squadre_a_eliminazione: number;
+  turni: number;
+  nomi_turni: string[];
+  prima_giornata: number;
+  ogni_quante_giornate: number;
+  teste_di_serie: boolean;
+  spareggio_ai_fantapunti: boolean;
+  tabellone: FaseDiCoppa[];
+  ammesse: string[];
+  accoppiamenti: [string, string][];
+};
+
+export type RigaF1 = {
+  posizione: number;
+  squadra: string;
+  punti: number;
+  vittorie_di_tappa: number;
+  fantapunti: number;
+};
+
+export type TappaF1 = { titolo: string; podio: string[] };
+
+export type PaginaF1 = {
+  si_gioca: boolean;
+  giornate_serie_a: number;
+  prima_giornata: number;
+  ultima_giornata: number;
+  criterio: string;
+  punti_per_posizione: number[];
+  classifica: RigaF1[];
+  tappe: TappaF1[];
+  senza_giornate_serie_a: boolean;
+  vincitrice: string | null;
+  posso_assegnare: boolean;
+  squadre: string[];
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -1013,6 +1093,17 @@ export const api = {
         `&competizione=${encodeURIComponent(competizione)}`,
       { method: "POST" },
     ),
+  calendario: (prima_serie_a: number, fino_a: number) =>
+    chiama<PaginaCalendario>(
+      `/calendario?prima_serie_a=${prima_serie_a}&fino_a=${fino_a}`,
+    ),
+  coppa: () => chiama<PaginaCoppa>("/coppa"),
+  f1Rush: () => chiama<PaginaF1>("/f1-rush"),
+  assegnaF1: (squadra: string) =>
+    chiama<PaginaF1>("/f1-rush/vincitrice", {
+      method: "POST",
+      body: JSON.stringify({ squadra }),
+    }),
   caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>
     chiama<{ data_uri: string }>("/immagini", {
       method: "POST",

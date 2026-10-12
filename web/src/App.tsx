@@ -10,8 +10,11 @@ import { Accesso } from "./pagine/Accesso";
 import { Onboarding } from "./pagine/Onboarding";
 import { Albo } from "./pagine/Albo";
 import { Bacheca } from "./pagine/Bacheca";
+import { Calendario } from "./pagine/Calendario";
 import { Campionato } from "./pagine/Campionato";
+import { Coppa } from "./pagine/Coppa";
 import { Cruscotto } from "./pagine/Cruscotto";
+import { F1Rush } from "./pagine/F1Rush";
 import { Formazione } from "./pagine/Formazione";
 import { Giornata } from "./pagine/Giornata";
 import { Identita } from "./pagine/Identita";
@@ -49,6 +52,21 @@ const SEZIONI: { titolo: string; voci: Voce[] }[] = [
       { a: "/formazione", icona: "📋", testo: "Formazione" },
       { a: "/giornata", icona: "⚔️", testo: "Giornata" },
       { a: "/campionato", icona: "🏆", testo: "Campionato" },
+      // Coppa e F1 Rush ci sono solo se la lega le gioca: una voce che
+      // parla di una competizione inesistente e' peggio di una mancante.
+      {
+        a: "/coppa",
+        icona: "🥇",
+        testo: "Coppa Italia",
+        soloSe: (u) => u.gioca_coppa,
+      },
+      {
+        a: "/f1-rush",
+        icona: "🏁",
+        testo: "F1 Rush",
+        soloSe: (u) => u.gioca_f1_rush,
+      },
+      { a: "/calendario", icona: "📅", testo: "Calendario" },
       { a: "/albo", icona: "🏛️", testo: "Albo d'oro" },
     ],
   },
@@ -149,6 +167,9 @@ function Intelaiatura() {
           <Route path="/formazione" element={<Formazione />} />
           <Route path="/giornata" element={<Giornata />} />
           <Route path="/campionato" element={<Campionato />} />
+          <Route path="/coppa" element={<Coppa />} />
+          <Route path="/f1-rush" element={<F1Rush />} />
+          <Route path="/calendario" element={<Calendario />} />
           <Route path="/albo" element={<Albo />} />
           <Route path="/squadre" element={<Squadre />} />
           <Route path="/squadre/:id" element={<Squadra />} />
