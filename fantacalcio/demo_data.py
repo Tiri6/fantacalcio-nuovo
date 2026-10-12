@@ -819,6 +819,30 @@ create table if not exists calendario (
     punti_casa real,
     punti_trasferta real
 );
+
+create table if not exists sale (
+    id integer primary key,
+    lega_id integer,
+    tipo text not null default 'SETTEMBRE',
+    stato text not null default 'aperta',
+    stagione text not null default '',
+    chiamate_previste text not null default '',
+    secondi_per_chiamata integer,
+    aperta_il text not null default '',
+    cominciata_il text not null default '',
+    chiusa_il text not null default ''
+);
+
+create table if not exists chiamate (
+    id integer primary key,
+    sala_id integer not null,
+    numero integer not null,
+    squadra_id integer not null,
+    giocatore_id integer not null,
+    anni integer not null default 1,
+    quando text not null default '',
+    unique (sala_id, numero)
+);
 """
 
 
@@ -831,6 +855,10 @@ def _schema_aggiornato(percorso: Path) -> bool:
     """
     attese = {
         "leghe": {"id", "nome", "codice_invito", "admin_id", "opzioni"},
+        # Le tabelle della sala: senza, chi ha un file di demo vecchio
+        # vedrebbe l'app morire su «no such table: sale» al primo click.
+        "sale": {"id", "tipo", "stato", "chiamate_previste"},
+        "chiamate": {"id", "sala_id", "numero", "squadra_id", "giocatore_id"},
         "inviti": {"id", "lega_id", "email", "codice", "stato"},
         "annunci": {"id", "lega_id", "titolo", "testo", "tipo", "pubblicato"},
         "albo": {"id", "lega_id", "competizione", "stagione", "squadra_nome"},

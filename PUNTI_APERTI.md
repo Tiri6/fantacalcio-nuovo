@@ -419,3 +419,32 @@ e 2 di scontri diretti, la coppa finisce alla 34ª — e la F1 Rush occupa dalla
 33ª alla 38ª. **Le due competizioni si sovrappongono per due weekend.** La
 pagina Calendario lo mostra invece di nasconderlo, ma va sciolto: o la coppa
 parte prima, o la F1 Rush e' piu' corta, o il campionato si accorcia.
+
+## 20. Correggere gli anni di contratto dopo una draft room — ✅ CHIUSO
+
+**La lega ha deciso** (Marco, ottobre 2026): dopo ogni draft room — quella di
+inizio stagione e quelle di riparazione — gli anni di contratto si possono
+correggere **solo per i giocatori presi in quella sala**, e solo fino alla
+giornata di campionato successiva. «Poi mai piu'.»
+
+**Nessun conflitto con l'articolo 8.** L'articolo vieta di cambiare la durata
+di un contratto gia' stabilito, «ne' in sede di scambio ne' con altra
+operazione». Questa non e' una rinegoziazione: e' la finestra per **finire di
+scrivere** quello che si e' appena assegnato. Il draft si fa di corsa, e un
+contratto battuto male va potuto correggere prima che conti. Un giocatore che
+hai da due stagioni non si tocca, ed e' esattamente quello che l'articolo 8
+protegge.
+
+**Nel codice**: `contratti.finestra_modifica_anni` apre la finestra quando la
+sala chiude e la chiude **con il calcio d'inizio della giornata successiva**,
+lo stesso istante in cui si bloccano le formazioni. Quali contratti siano
+correggibili lo dice `sala.scelte_di`, che torna solo le chiamate di quella
+squadra in quella sala. L'opzione `modifica_anni_dopo_draft` in `OpzioniLega`
+spegne tutto se un lodo futuro cambia idea.
+
+**Una sfumatura risolta da sola.** La lega ha detto «fino al giorno prima
+della successiva giornata» e, nell'esempio, «fino al giorno della giornata
+successiva, in questo caso il 10 ottobre»: due frasi diverse di
+ventiquattr'ore. Il codice si lega al calcio d'inizio, che e' l'unico istante
+su cui sono d'accordo tutte e due — il 9 si corregge, la mattina del 10 si
+corregge, a partita cominciata no.

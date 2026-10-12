@@ -3095,3 +3095,147 @@ a.bottone-principale:hover {
 .scelte-motivo .interruttore input {
   margin-top: 2px;
 }
+
+/* --- la sala del draft ---------------------------------------------------- */
+
+/* Il turno in cima: è l'unica cosa che dieci persone guardano insieme, e deve
+   dire a colpo d'occhio se tocca a loro. */
+.sala-turno {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 18px 20px;
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  border-left: 3px solid var(--bordo-vivo);
+  border-radius: var(--raggio);
+}
+
+.sala-turno.mio {
+  border-left-color: var(--verde);
+  background: var(--superficie-viva);
+}
+
+.sala-turno h2 {
+  margin: 8px 0 0;
+}
+
+.sala-tempo {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--testo-tenue);
+}
+
+.sala-tempo.scaduto {
+  color: var(--ambra);
+}
+
+.sala-comandi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+/* Le violazioni di una chiamata respinta: stanno sotto il selettore degli
+   anni, dove si sta guardando quando si premono. */
+.sala-violazioni {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--rosso);
+  border-radius: var(--raggio-piccolo);
+}
+
+.sala-violazioni p {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.sala-violazioni p:last-child {
+  margin-bottom: 0;
+}
+
+/* L'elenco dei liberi: venti righe cliccabili, non una tabella. In sala si
+   cerca un nome e si preme, non si sfoglia il listone. */
+.sala-liberi {
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 12px 0;
+}
+
+.sala-libero {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  color: var(--testo);
+  text-align: left;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.sala-libero:hover {
+  border-color: var(--bordo-vivo);
+}
+
+.sala-libero.scelto {
+  border-color: var(--verde);
+  background: var(--superficie-viva);
+}
+
+.sala-libero .tenue {
+  font-size: 12.5px;
+}
+
+.sala-coda {
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+
+.sala-coda.senza-numeri {
+  list-style: none;
+  padding-left: 0;
+}
+
+.sala-coda li {
+  margin-bottom: 5px;
+  color: var(--testo-tenue);
+}
+
+.sala-coda li.mio {
+  color: var(--testo);
+  font-weight: 650;
+}
+
+.sala-coda .pastiglia {
+  margin-left: 8px;
+}
+
+/* La propria chiamata nel registro: fra sessanta righe la si ritrova. Un
+   filetto verde e non una velatura: `--velo-su-verde` e' fatto per stare
+   sopra il verde pieno, su una tabella sarebbe solo una macchia scura. */
+.tabella tbody tr.mia td {
+  color: var(--testo);
+  font-weight: 600;
+}
+
+.tabella tbody tr.mia td:first-child {
+  box-shadow: inset 2px 0 0 var(--verde);
+}
+
+@media (max-width: 560px) {
+  .sala-libero {
+    grid-template-columns: 1fr auto;
+  }
+}

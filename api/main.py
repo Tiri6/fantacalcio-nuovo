@@ -37,6 +37,7 @@ from .rotte import (
     profilo,
     registrazione,
     regolamento,
+    sala,
     scambi,
     squadre,
 )
@@ -105,6 +106,7 @@ app.include_router(formazione.rotte, prefix="/api")
 app.include_router(giornata.rotte, prefix="/api")
 app.include_router(competizioni.rotte, prefix="/api")
 app.include_router(regolamento.rotte, prefix="/api")
+app.include_router(sala.rotte, prefix="/api")
 
 
 @app.get("/api/salute", tags=["servizio"])

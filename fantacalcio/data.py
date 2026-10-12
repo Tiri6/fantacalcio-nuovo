@@ -33,6 +33,7 @@ from .leghe import (
     StatoInvito,
 )
 from .modelli import Contratto, Giocatore, Rosa, Squadra, VoceDeadMoney
+from .sala import Sala, Scelta, StatoSala, TipoSala
 
 if TYPE_CHECKING:  # pragma: no cover - solo per i type checker
     from .autenticazione import Credenziali, RichiestaPassword
@@ -53,6 +54,8 @@ TABELLE = (
     "formazioni",
     "voti",
     "richieste_password",
+    "sale",
+    "chiamate",
 )
 
 
@@ -64,6 +67,27 @@ TABELLE = (
 # colonne**. Il codice che poi fa `contratti["squadra_id"]` funziona sul primo
 # e alza KeyError sul secondo — un guasto che in locale non si vede mai.
 COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
+    "sale": (
+        "id",
+        "lega_id",
+        "tipo",
+        "stato",
+        "stagione",
+        "chiamate_previste",
+        "secondi_per_chiamata",
+        "aperta_il",
+        "cominciata_il",
+        "chiusa_il",
+    ),
+    "chiamate": (
+        "id",
+        "sala_id",
+        "numero",
+        "squadra_id",
+        "giocatore_id",
+        "anni",
+        "quando",
+    ),
     "leghe": (
         "id",
         "nome",
@@ -337,6 +361,19 @@ class Archivio:
         """Inserisce o aggiorna righe, usando `chiave` per riconoscere i duplicati."""
         raise NotImplementedError
 
+    def aggiungi(
+        self, nome: str, righe: list[dict]
+    ) -> int:  # pragma: no cover - astratto
+        """Inserisce righe nuove, **senza** sovrascrivere niente.
+
+        Serve dove una riga gia' esistente non va aggiornata ma rifiutata: il
+        registro delle chiamate del draft, dove `unique (sala_id, numero)` e'
+        quello che impedisce a due persone che premono nello stesso istante di
+        prendere lo stesso posto. Con un upsert la seconda scrittura
+        vincerebbe e la prima chiamata svanirebbe.
+        """
+        raise NotImplementedError
+
     def svuota(self, nome: str) -> None:  # pragma: no cover - astratto
         raise NotImplementedError
 
@@ -379,6 +416,27 @@ class ArchivioSQLite(Archivio):
         with sqlite3.connect(self.percorso) as conn:
             conn.executemany(
                 f"insert or replace into {nome} ({', '.join(colonne)}) "
+                f"values ({', '.join(':' + c for c in colonne)})",
+                righe,
+            )
+        return len(righe)
+
+    def aggiungi(self, nome: str, righe: list[dict]) -> int:
+        """`insert` secco: un vincolo violato alza, non sovrascrive.
+
+        E' la differenza che conta con `scrivi`, che su SQLite fa `insert or
+        replace`: davanti a un `unique` quello **cancella la riga che c'era**
+        e mette la nuova, cioe' fa sparire la chiamata di chi era arrivato
+        primo. Qui si vuole l'errore.
+        """
+        if nome not in TABELLE:
+            raise ValueError(f"Tabella non prevista: {nome}")
+        if not righe:
+            return 0
+        colonne = list(righe[0])
+        with sqlite3.connect(self.percorso) as conn:
+            conn.executemany(
+                f"insert into {nome} ({', '.join(colonne)}) "
                 f"values ({', '.join(':' + c for c in colonne)})",
                 righe,
             )
@@ -432,6 +490,15 @@ class ArchivioSupabase(Archivio):
             return 0
         # Serve la service key: con la chiave anon la RLS blocca le scritture.
         self._client.table(nome).upsert(righe, on_conflict=chiave).execute()
+        return len(righe)
+
+    def aggiungi(self, nome: str, righe: list[dict]) -> int:
+        """`insert` e non `upsert`: un vincolo violato torna 409 e alza qui."""
+        if nome not in TABELLE:
+            raise ValueError(f"Tabella non prevista: {nome}")
+        if not righe:
+            return 0
+        self._client.table(nome).insert(righe).execute()
         return len(righe)
 
     def svuota(self, nome: str) -> None:
@@ -1544,3 +1611,162 @@ def elimina_titolo(arch: Archivio, titolo_id: int) -> None:
             conn.execute("delete from albo where id = ?", (titolo_id,))
         return
     arch._client.table("albo").delete().eq("id", titolo_id).execute()
+
+
+# ---------------------------------------------------------------------------
+# La sala del draft
+# ---------------------------------------------------------------------------
+
+
+def _numeri(testo) -> tuple[int, ...]:
+    """«10,20,30» -> (10, 20, 30). Le righe rotte si saltano, non si indovinano."""
+    if not testo or str(testo) == "nan":
+        return ()
+    numeri = []
+    for pezzo in str(testo).split(","):
+        try:
+            numeri.append(int(pezzo))
+        except ValueError:
+            continue
+    return tuple(numeri)
+
+
+def carica_sale(arch: Archivio, lega_id: int | None = None) -> list[Sala]:
+    """Le sale di una lega, dalla piu' recente."""
+    righe = arch.tabella("sale")
+    if righe.empty:
+        return []
+
+    sale: list[Sala] = []
+    for _, riga in righe.iterrows():
+        if lega_id is not None and _id_opzionale(riga.get("lega_id")) not in (
+            None,
+            lega_id,
+        ):
+            continue
+        try:
+            tipo = TipoSala[str(riga.get("tipo") or "SETTEMBRE")]
+            stato = StatoSala(str(riga.get("stato") or "aperta"))
+        except (KeyError, ValueError):
+            # Una riga con un tipo che il codice non conosce si salta: meglio
+            # una sala in meno che una pagina che non si apre.
+            continue
+        chiamate = _numeri(riga.get("chiamate_previste"))
+        sale.append(
+            Sala(
+                id=int(riga["id"]),
+                lega_id=_id_opzionale(riga.get("lega_id")),
+                tipo=tipo,
+                stato=stato,
+                stagione=_testo(riga.get("stagione")),
+                chiamate_previste=chiamate,
+                secondi_per_chiamata=_id_opzionale(riga.get("secondi_per_chiamata")),
+                aperta_il=_testo(riga.get("aperta_il")),
+                cominciata_il=_testo(riga.get("cominciata_il")),
+                chiusa_il=_testo(riga.get("chiusa_il")),
+                squadre=tuple(dict.fromkeys(chiamate)),
+            )
+        )
+    return sorted(sale, key=lambda s: s.id, reverse=True)
+
+
+def salva_sala(arch: Archivio, sala: Sala) -> None:
+    """Scrive la sala. L'ordine congelato viaggia come testo."""
+    arch.scrivi(
+        "sale",
+        [
+            {
+                "id": int(sala.id),
+                "lega_id": sala.lega_id,
+                "tipo": sala.tipo.name,
+                "stato": sala.stato.value,
+                "stagione": sala.stagione,
+                "chiamate_previste": ",".join(str(s) for s in sala.chiamate_previste),
+                "secondi_per_chiamata": sala.secondi_per_chiamata,
+                "aperta_il": sala.aperta_il,
+                "cominciata_il": sala.cominciata_il,
+                "chiusa_il": sala.chiusa_il,
+            }
+        ],
+        chiave="id",
+    )
+
+
+def carica_chiamate(arch: Archivio, sala_id: int) -> list[Scelta]:
+    """Il registro di una sala, in ordine di chiamata."""
+    righe = arch.tabella("chiamate")
+    if righe.empty:
+        return []
+    scelte = [
+        Scelta(
+            numero=int(r["numero"]),
+            squadra_id=int(r["squadra_id"]),
+            giocatore_id=int(r["giocatore_id"]),
+            anni=int(r.get("anni") or 1),
+            quando=_testo(r.get("quando")),
+        )
+        for _, r in righe.iterrows()
+        if int(r["sala_id"]) == int(sala_id)
+    ]
+    return sorted(scelte, key=lambda s: s.numero)
+
+
+def salva_chiamata(arch: Archivio, sala_id: int, scelta: Scelta) -> None:
+    """Scrive una chiamata e il contratto che ne nasce.
+
+    **Prima la chiamata, poi il contratto.** Le due scritture non stanno in una
+    transazione su PostgREST: in quest'ordine il caso peggiore e' una chiamata
+    registrata senza contratto — si vede nel registro e si sistema. Nell'ordine
+    opposto sarebbe un giocatore in rosa che non risulta chiamato da nessuno,
+    e il turno successivo lo rimetterebbe in palio.
+    """
+    # `aggiungi` e non `scrivi`: qui una riga che c'e' gia' va **rifiutata**.
+    # Con un upsert la chiamata numero 3 di chi arriva secondo prenderebbe il
+    # posto di quella di chi era arrivato primo, che resterebbe con il
+    # contratto scritto e nessuna chiamata a giustificarlo.
+    arch.aggiungi(
+        "chiamate",
+        [
+            {
+                "id": prossimo_id(arch, "chiamate"),
+                "sala_id": int(sala_id),
+                "numero": int(scelta.numero),
+                "squadra_id": int(scelta.squadra_id),
+                "giocatore_id": int(scelta.giocatore_id),
+                "anni": int(scelta.anni),
+                "quando": scelta.quando,
+            }
+        ],
+    )
+    # L'ordine degli argomenti e' (giocatore, squadra): e' la chiave primaria
+    # dei contratti a venire prima.
+    assegna_contratto(
+        arch, scelta.giocatore_id, scelta.squadra_id, anni_residui=scelta.anni
+    )
+
+
+def aggiorna_anni_chiamata(
+    arch: Archivio, sala_id: int, squadra_id: int, giocatore_id: int, anni: int
+) -> None:
+    """Corregge gli anni di una chiamata e del contratto che ne e' nato.
+
+    Si correggono tutti e due o nessuno dei due: il registro e' quello che dice
+    cosa si puo' ancora correggere, e lasciarlo indietro vorrebbe dire una
+    finestra che si riapre su un valore che non e' piu' quello.
+    """
+    righe = arch.tabella("chiamate")
+    if righe.empty:
+        return
+    for _, r in righe.iterrows():
+        if (
+            int(r["sala_id"]) == int(sala_id)
+            and int(r["squadra_id"]) == int(squadra_id)
+            and int(r["giocatore_id"]) == int(giocatore_id)
+        ):
+            arch.scrivi(
+                "chiamate",
+                [{**_ripulisci(dict(r)), "anni": int(anni)}],
+                chiave="id",
+            )
+            break
+    assegna_contratto(arch, giocatore_id, squadra_id, anni_residui=anni)

@@ -24,6 +24,7 @@ import { Lega } from "./pagine/Lega";
 import { Listone } from "./pagine/Listone";
 import { Profilo } from "./pagine/Profilo";
 import { Regolamento } from "./pagine/Regolamento";
+import { Sala } from "./pagine/Sala";
 import { Scambi } from "./pagine/Scambi";
 import { Squadra } from "./pagine/Squadra";
 import { Squadre } from "./pagine/Squadre";
@@ -84,7 +85,10 @@ const SEZIONI: { titolo: string; voci: Voce[] }[] = [
   },
   {
     titolo: "Mercato",
-    voci: [{ a: "/scambi", icona: "🤝", testo: "Scambi" }],
+    voci: [
+      { a: "/sala", icona: "🎙️", testo: "Draft Room" },
+      { a: "/scambi", icona: "🤝", testo: "Scambi" },
+    ],
   },
   {
     titolo: "Impostazioni",
@@ -181,6 +185,7 @@ function Intelaiatura() {
           <Route path="/squadre/:id" element={<Squadra />} />
           <Route path="/giocatori" element={<Listone />} />
           <Route path="/identita" element={<Identita />} />
+          <Route path="/sala" element={<Sala />} />
           <Route path="/scambi" element={<Scambi />} />
           <Route path="/profilo" element={<Profilo />} />
           <Route path="/importa" element={<Importa />} />
