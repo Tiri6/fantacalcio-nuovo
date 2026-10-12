@@ -744,6 +744,78 @@ export type PaginaFormazione = {
   totali: number;
 };
 
+// --- Giornata ---------------------------------------------------------------
+
+export type InCampoLetto = {
+  id: number;
+  nome: string;
+  ruoli: string[];
+  punti: number | null;
+  entrato: boolean;
+  senza_voto: boolean;
+  adattato: boolean;
+};
+
+export type TabellinoLetto = {
+  totale: number;
+  gol: number;
+  modificatore_difesa: number;
+  malus_adattamento: number;
+  malus_emergenza: number;
+  adattati: number;
+  sostituzioni: string[];
+  senza_voto_rimasti: string[];
+};
+
+export type SquadraDellaPartita = {
+  squadra_id: number;
+  squadra: string;
+  modulo: string | null;
+  ha_schierato: boolean;
+  reparti: InCampoLetto[][];
+  panchina: string[];
+  tabellino: TabellinoLetto | null;
+};
+
+export type PartitaLetta = {
+  id: number;
+  stato: "salvata" | "provvisoria" | "da giocare";
+  gol_casa: number | null;
+  gol_trasferta: number | null;
+  punti_casa: number | null;
+  punti_trasferta: number | null;
+  casa: SquadraDellaPartita;
+  trasferta: SquadraDellaPartita;
+};
+
+export type PaginaGiornata = {
+  giornata: number;
+  giornate: number[];
+  competizione: string;
+  competizioni: string[];
+  partite: PartitaLetta[];
+  formazioni_salvate: number;
+  voti_caricati: number;
+  calendario_vuoto: boolean;
+  posso_calcolare: boolean;
+  modello_voti: string;
+  senza_formazione: string[];
+};
+
+export type VotiLetti = {
+  messaggio: string;
+  salvati: number;
+  senza_voto: number;
+  non_abbinati: string[];
+};
+
+export type GiornataCalcolata = {
+  messaggio: string;
+  calcolate: number;
+  saltate: number;
+  avvisi: string[];
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -922,6 +994,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify(corpo),
     }),
+  giornata: (giornata: number, competizione: string) =>
+    chiama<PaginaGiornata>(
+      `/giornata?giornata=${giornata}&competizione=${encodeURIComponent(competizione)}`,
+    ),
+  caricaVoti: (corpo: {
+    giornata: number;
+    testo?: string;
+    contenuto_base64?: string;
+  }) =>
+    chiama<VotiLetti>("/giornata/voti", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  calcolaGiornata: (giornata: number, competizione: string) =>
+    chiama<GiornataCalcolata>(
+      `/giornata/calcola?giornata=${giornata}` +
+        `&competizione=${encodeURIComponent(competizione)}`,
+      { method: "POST" },
+    ),
   caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>
     chiama<{ data_uri: string }>("/immagini", {
       method: "POST",

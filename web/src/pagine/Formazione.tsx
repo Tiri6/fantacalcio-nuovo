@@ -3,10 +3,10 @@ import {
   ErroreApi,
   api,
   type CasellaFormazione,
-  type GiocatoreScelta,
   type PaginaFormazione,
   type SquadraInCampo,
 } from "../api";
+import { Campo } from "../campo";
 import { useCarica } from "../carica";
 
 /**
@@ -57,33 +57,6 @@ function mancaDetto(secondi: number): string {
 // ---------------------------------------------------------------------------
 // Il campo
 // ---------------------------------------------------------------------------
-
-function Maglia({ giocatore }: { giocatore: GiocatoreScelta | null }) {
-  if (!giocatore) return <div className="maglia vuota">—</div>;
-  return (
-    <div className="maglia">
-      <span className="nome">{giocatore.nome}</span>
-      {giocatore.ruoli.length > 0 && (
-        <span className="ruolo">{giocatore.ruoli.join("/")}</span>
-      )}
-    </div>
-  );
-}
-
-function Campo({ reparti }: { reparti: GiocatoreScelta[][] }) {
-  return (
-    <div className="campo-gioco">
-      <div className="cerchio" aria-hidden="true" />
-      {reparti.map((riga, indice) => (
-        <div key={indice} className="reparto">
-          {riga.map((g, posto) => (
-            <Maglia key={`${g.id}-${posto}`} giocatore={g} />
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function SchierataDa({ squadra }: { squadra: SquadraInCampo }) {
   return (
