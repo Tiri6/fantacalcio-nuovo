@@ -300,3 +300,100 @@ class TestNonToccaIConti:
         emergenza = client.get("/api/squadre/1").json()["emergenza"]
         assert emergenza["attiva"], "l'emergenza e' sopravvissuta al salvataggio"
         assert emergenza["in_carica_id"] == libero["id"]
+
+
+class TestSvincolo:
+    """Art. 7: togliere un giocatore, con l'effetto che il momento comporta.
+
+    Il conto lo fa `mercato.calcola_dead_money` e il permesso
+    `mercato.verifica_svincolo`: qui si prova che l'API li chiami e non li
+    rifaccia, e che i tre motivi non si confondano — e' la differenza fra
+    addebitare una buonuscita e non addebitarla.
+    """
+
+    def test_elenca_chi_si_puo_togliere_col_suo_costo(self, client):
+        entra(client)
+        dati = client.get("/api/squadre/1/svincoli").json()
+
+        assert dati["posso_svincolare"] is True
+        assert dati["giocatori"]
+        uno = dati["giocatori"][0]
+        # Il conto del Lodo Origi: meta' del valore residuo.
+        assert uno["dead_money"] == uno["valore_residuo"] * dati["quota_dead_money"]
+        assert uno["a_carico_quest_anno"] == uno["dead_money"] + uno["ingaggio"]
+
+    def test_a_chi_non_svincola_non_si_elenca_niente(self, client):
+        entra(client, "Luca")
+        dati = client.get("/api/squadre/1/svincoli").json()
+        assert dati["posso_svincolare"] is False
+        assert dati["giocatori"] == []
+
+    def test_un_fantallenatore_non_svincola_nemmeno_dalla_sua_squadra(self, client):
+        entra(client, "Luca")
+        rosa = client.get("/api/squadre/2").json()["rosa"]
+
+        risposta = client.post(
+            "/api/squadre/2/svincoli", json={"giocatore_id": rosa[0]["id"]}
+        )
+
+        assert risposta.status_code == 403
+        assert len(client.get("/api/squadre/2").json()["rosa"]) == len(rosa)
+
+    def test_in_riparazione_addebita_la_buonuscita(self, client):
+        entra(client)
+        prima = client.get("/api/squadre/1/svincoli").json()["giocatori"][0]
+
+        risposta = client.post(
+            "/api/squadre/1/svincoli",
+            json={"giocatore_id": prima["giocatore_id"], "motivo": "riparazione"},
+        )
+
+        assert risposta.status_code == 200
+        assert risposta.json()["dead_money"] == prima["dead_money"]
+        assert risposta.json()["anni_liberati"] == prima["anni_residui"]
+        conti = client.get("/api/squadre/1").json()["conti"]
+        assert conti["dead_money"] >= prima["dead_money"]
+
+    def test_prima_dell_asta_non_addebita_niente(self, client):
+        """«Gli svincoli effettuati prima dell'asta di Settembre non hanno
+        alcun effetto sul Salary Cap» (art. 7)."""
+        entra(client)
+        prima = client.get("/api/squadre/1").json()["conti"]
+        chi = client.get("/api/squadre/1/svincoli").json()["giocatori"][0]
+
+        risposta = client.post(
+            "/api/squadre/1/svincoli",
+            json={"giocatore_id": chi["giocatore_id"], "motivo": "pre-asta"},
+        )
+
+        assert risposta.json()["dead_money"] == 0
+        assert (
+            client.get("/api/squadre/1").json()["conti"]["dead_money"]
+            == (prima["dead_money"])
+        )
+
+    def test_gli_anni_si_liberano_sempre(self, client):
+        """Vale per tutti e tre i motivi: l'art. 7 non lega il monte anni a
+        nessuna sessione."""
+        entra(client)
+        prima = client.get("/api/squadre/1").json()["conti"]["anni_impegnati"]
+        chi = client.get("/api/squadre/1/svincoli").json()["giocatori"][0]
+
+        client.post(
+            "/api/squadre/1/svincoli",
+            json={"giocatore_id": chi["giocatore_id"], "motivo": "correzione"},
+        )
+
+        dopo = client.get("/api/squadre/1").json()["conti"]["anni_impegnati"]
+        assert dopo == prima - chi["anni_residui"]
+
+    def test_un_giocatore_che_non_e_in_rosa_e_respinto(self, client):
+        entra(client)
+        risposta = client.post("/api/squadre/1/svincoli", json={"giocatore_id": 999_999})
+        assert risposta.status_code == 422
+        assert "non ha in rosa" in risposta.json()["detail"]
+
+    def test_una_squadra_che_non_esiste_e_un_404(self, client):
+        entra(client)
+        risposta = client.post("/api/squadre/999/svincoli", json={"giocatore_id": 1})
+        assert risposta.status_code == 404

@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from fantacalcio.competizioni import titoli_di
-from fantacalcio.conformita import verifica_rosa
+from fantacalcio.conformita import Momento, verifica_rosa
 from fantacalcio.data import (
     archivio,
     carica_albo,
     carica_giocatori,
     carica_rose,
     imposta_portiere_emergenza,
+    registra_svincolo,
     svincolati,
 )
 from fantacalcio.emergenza import (
@@ -22,11 +25,19 @@ from fantacalcio.emergenza import (
     verifica_attivazione,
     verifica_revoca,
 )
+from fantacalcio.mercato import (
+    SvincoloNonAmmesso,
+    calcola_dead_money,
+    svincola,
+    verifica_svincolo,
+)
 
 from ..contesto import contesto_di
 from ..dipendenze import UtenteDentro
 
 rotte = APIRouter(tags=["squadre"])
+
+NON_ELABORABILE = 422
 
 
 class Colori(BaseModel):
@@ -445,4 +456,156 @@ def dettaglio(squadra_id: int, utente: UtenteDentro) -> SquadraInDettaglio:
         ],
         riferimento_u21=ctx.riferimento_u21.isoformat(),
         emergenza=_emergenza(ctx, rosa, utente.puo_gestire(s.id)),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Svincolo (art. 7)
+# ---------------------------------------------------------------------------
+#
+# Sta accanto alla rosa, non in una pagina a parte: e' da qui che si guarda chi
+# c'e', e mandare a cercare altrove per togliere un giocatore che si ha davanti
+# agli occhi e' il modo di far credere che non si possa.
+
+
+class Svincolabile(BaseModel):
+    """Un giocatore della rosa, col conto di cosa costa toglierlo.
+
+    I numeri li fa il server con `mercato.calcola_dead_money`: la pagina li
+    mostra e basta. Rifatti di la', sarebbero una seconda aritmetica del
+    Lodo Origi, e la prima a sbagliare sarebbe quella che nessuno controlla.
+    """
+
+    giocatore_id: int
+    nome: str
+    anni_residui: int
+    anni_oltre_quello_in_corso: int
+    ingaggio: float
+    valore_residuo: float
+    dead_money: float
+    a_carico_quest_anno: float
+
+
+class Svincoli(BaseModel):
+    posso_svincolare: bool
+    quota_dead_money: float
+    giocatori: list[Svincolabile]
+
+
+class DaSvincolare(BaseModel):
+    giocatore_id: int
+    # Tre casi e non due: il V3 distingue **quando** si svincola. Prima
+    # dell'asta di Settembre non c'e' nessun effetto sul Salary Cap; in
+    # riparazione ci sono buonuscita e ingaggio a carico; la correzione di
+    # un'assegnazione sbagliata non addebita niente, perche' un contratto messo
+    # per errore non ha prodotto valore residuo.
+    motivo: Literal["riparazione", "pre-asta", "correzione"] = "riparazione"
+
+
+class SvincoloFatto(BaseModel):
+    messaggio: str
+    anni_liberati: int
+    dead_money: float
+
+
+def _svincolabili(ctx, rosa) -> list[Svincolabile]:
+    voci: list[Svincolabile] = []
+    for contratto in sorted(rosa.contratti, key=lambda c: -c.anni_residui):
+        try:
+            chi = rosa.giocatore(contratto.giocatore_id)
+        except KeyError:
+            # Contratto che punta a un giocatore fuori anagrafica: non si
+            # svincola quello che non si sa nemmeno nominare.
+            continue
+        dovuto = calcola_dead_money(contratto, chi.ingaggio, ctx.parametri)
+        voci.append(
+            Svincolabile(
+                giocatore_id=chi.id,
+                nome=chi.nome,
+                anni_residui=contratto.anni_residui,
+                anni_oltre_quello_in_corso=contratto.anni_oltre_quello_in_corso,
+                ingaggio=chi.ingaggio,
+                valore_residuo=contratto.valore_residuo(chi.ingaggio),
+                dead_money=dovuto,
+                a_carico_quest_anno=dovuto + chi.ingaggio,
+            )
+        )
+    return voci
+
+
+@rotte.get("/squadre/{squadra_id}/svincoli", response_model=Svincoli)
+def svincolabili(squadra_id: int, utente: UtenteDentro) -> Svincoli:
+    """Chi si puo' togliere da questa rosa, e quanto costa."""
+    ctx = contesto_di(utente)
+    rosa = carica_rose(ctx.arch).get(squadra_id)
+    if rosa is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Squadra inesistente."
+        )
+    return Svincoli(
+        posso_svincolare=utente.puo_svincolare,
+        quota_dead_money=ctx.parametri.quota_dead_money,
+        giocatori=_svincolabili(ctx, rosa) if utente.puo_svincolare else [],
+    )
+
+
+@rotte.post("/squadre/{squadra_id}/svincoli", response_model=SvincoloFatto)
+def svincola_giocatore(
+    squadra_id: int, richiesta: DaSvincolare, utente: UtenteDentro
+) -> SvincoloFatto:
+    """Toglie un giocatore dalla rosa, con l'effetto che il motivo comporta.
+
+    Il permesso lo controlla `mercato.verifica_svincolo`, che e' del dominio:
+    e' del presidente anche sulla propria squadra. Che questa rotta ci sia o no
+    non e' il controllo, e' la conseguenza.
+    """
+    ctx = contesto_di(utente)
+    rosa = carica_rose(ctx.arch).get(squadra_id)
+    if rosa is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Squadra inesistente."
+        )
+
+    contratto = rosa.contratto_di(richiesta.giocatore_id)
+    if contratto is None:
+        raise HTTPException(
+            status_code=NON_ELABORABILE,
+            detail=f"{rosa.squadra.nome} non ha in rosa quel giocatore.",
+        )
+
+    try:
+        verifica_svincolo(utente, rosa, richiesta.giocatore_id)
+    except SvincoloNonAmmesso as errore:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(errore)
+        ) from errore
+
+    voce = None
+    if richiesta.motivo != "correzione":
+        _, voce = svincola(
+            rosa,
+            richiesta.giocatore_id,
+            ctx.stagione,
+            ctx.parametri,
+            momento=(
+                Momento.RIPARAZIONE
+                if richiesta.motivo == "riparazione"
+                else Momento.ASTA_SETTEMBRE
+            ),
+        )
+
+    registra_svincolo(ctx.arch, squadra_id, richiesta.giocatore_id, voce)
+
+    nome = rosa.giocatore(richiesta.giocatore_id).nome
+    anni = "anno" if contratto.anni_residui == 1 else "anni"
+    messaggio = (
+        f"{nome} e' tornato svincolato: {contratto.anni_residui} {anni} "
+        f"tornano liberi nel monte di {rosa.squadra.nome}."
+    )
+    if voce is not None and voce.importo:
+        messaggio += f" Dead Money addebitato: {voce.importo / 1_000_000:.2f}M."
+    return SvincoloFatto(
+        messaggio=messaggio,
+        anni_liberati=contratto.anni_residui,
+        dead_money=voce.importo if voce else 0.0,
     )

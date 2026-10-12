@@ -18,6 +18,7 @@ from fantacalcio.formazioni import (
     adattamenti,
     esito_casella,
     formazione_suggerita,
+    frase_adattamenti,
     leggi_modulo,
     puo_occupare,
     schieramento,
@@ -327,7 +328,6 @@ else:
     # sapere chi schiera, prima di premere il pulsante, non a giornata finita.
     fuori_posizione = adattamenti(proposta, ruoli)
     if fuori_posizione:
-        costo = malus * len(fuori_posizione)
         st.warning(
             "Fuori posizione: "
             + ", ".join(
@@ -338,12 +338,8 @@ else:
                 )
                 for g, c in fuori_posizione
             )
-            + (
-                f". Un adattamento: {costo:g} punti in meno."
-                if len(fuori_posizione) == 1
-                else f". Sono {len(fuori_posizione)} adattamenti: "
-                f"{costo:g} punti in meno."
-            ),
+            + ". "
+            + frase_adattamenti(len(fuori_posizione), malus),
             icon="🔁",
         )
 
@@ -373,10 +369,8 @@ st.subheader("Le formazioni della giornata")
 if not salvate:
     st.caption("Nessuno ha ancora salvato la formazione per questa giornata.")
 else:
-    st.caption(
-        f"{len(salvate)} squadre su {len(rose)} hanno schierato. "
-        "Le formazioni sono visibili a tutti."
-    )
+    quante = "Una squadra ha" if len(salvate) == 1 else f"{len(salvate)} squadre hanno"
+    st.caption(f"{quante} schierato su {len(rose)}. Le formazioni sono visibili a tutti.")
     colonne = st.columns(2)
     for indice, (squadra_id, formazione) in enumerate(sorted(salvate.items())):
         with colonne[indice % 2]:

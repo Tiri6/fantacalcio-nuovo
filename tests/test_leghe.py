@@ -705,3 +705,52 @@ class TestF1RushNelleOpzioni:
 
     def test_spenta_non_compare(self):
         assert TipoCompetizione.F1_RUSH not in OpzioniLega().competizioni
+
+
+class TestParametriDiPunteggio:
+    """Il regolamento e le opzioni di lega si incontrano in un posto solo.
+
+    Erano fusi dentro `ui.py`, cioe' dietro Streamlit: l'API non poteva
+    arrivarci e si sarebbe ritrovata a rifare la fusione per conto suo. Due
+    copie vogliono dire la stessa giornata calcolata con fasce diverse a
+    seconda di da dove la guardi.
+    """
+
+    def test_senza_lega_valgono_i_parametri_del_regolamento(self):
+        from fantacalcio.leghe import parametri_di_punteggio
+        from fantacalcio.regole import ParametriLega
+
+        base = ParametriLega()
+        assert parametri_di_punteggio(base, None) is base
+
+    def test_la_lega_sovrascrive_fasce_e_modificatore(self):
+        from fantacalcio.leghe import OpzioniLega, crea_lega, parametri_di_punteggio
+        from fantacalcio.regole import ParametriLega
+
+        lega = crea_lega(
+            1,
+            "Prova",
+            admin_id=1,
+            opzioni=OpzioniLega(
+                soglia_primo_gol=60.0,
+                passo_gol=4.0,
+                modificatore_difesa=True,
+            ),
+        )
+        uniti = parametri_di_punteggio(ParametriLega(), lega)
+
+        assert uniti.soglia_primo_gol == 60.0
+        assert uniti.passo_gol == 4.0
+        assert uniti.modificatore_difesa is True
+
+    def test_il_resto_del_regolamento_non_si_tocca(self):
+        """Solo i tre campi che la lega puo' votare, non gli altri."""
+        from fantacalcio.leghe import crea_lega, parametri_di_punteggio
+        from fantacalcio.regole import ParametriLega
+
+        base = ParametriLega()
+        lega = crea_lega(1, "Prova", admin_id=1)
+        uniti = parametri_di_punteggio(base, lega)
+
+        assert uniti.monte_anni == base.monte_anni
+        assert uniti.salary_cap == base.salary_cap

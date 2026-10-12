@@ -205,3 +205,51 @@ class TestCalcoloGiornata:
             ParametriLega(),
         )
         assert casa.risultati[0].esito.casa.gol > bassa.risultati[0].esito.casa.gol
+
+
+class TestAbbinamento:
+    """Le due chiavi con cui un file di voti ritrova i giocatori."""
+
+    @staticmethod
+    def _giocatori():
+        from fantacalcio.modelli import Giocatore
+
+        return {
+            1: Giocatore(
+                id=1,
+                nome="Dybala",
+                club="Roma",
+                ruoli=("A",),
+                ingaggio=6_000_000,
+                id_ufficiale=2071,
+            ),
+            2: Giocatore(
+                id=2,
+                nome="Di Lorenzo",
+                club="Napoli",
+                ruoli=("Dd",),
+                ingaggio=3_000_000,
+                id_ufficiale=None,
+            ),
+        }
+
+    def test_il_nome_si_normalizza(self):
+        from fantacalcio.giornata import abbinamento
+        from fantacalcio.importazione import normalizza_nome_giocatore
+
+        per_nome, _ = abbinamento(self._giocatori())
+        assert per_nome[normalizza_nome_giocatore("Dybala")] == 1
+        assert per_nome[normalizza_nome_giocatore("DI LORENZO")] == 2
+
+    def test_chi_non_ha_id_ufficiale_resta_fuori_dalla_seconda_chiave(self):
+        """Non si inventa un id: un `None` come chiave abbinerebbe chiunque."""
+        from fantacalcio.giornata import abbinamento
+
+        _, per_id = abbinamento(self._giocatori())
+        assert per_id == {2071: 1}
+
+    def test_accetta_anche_una_lista(self):
+        from fantacalcio.giornata import abbinamento
+
+        per_nome, _ = abbinamento(list(self._giocatori().values()))
+        assert len(per_nome) == 2

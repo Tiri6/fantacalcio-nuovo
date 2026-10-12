@@ -603,3 +603,38 @@ class TestIlPortiereNonSiAdattaMai:
             1, 1, "3-4-3", titolari=(1, 2, 11, 12, 23, 20, 21, 13, 30, 33, 31)
         )
         assert adattamenti(formazione, RUOLI) == []
+
+
+class TestFraseAdattamenti:
+    """«1 punto» o «1 punti» e' la differenza fra un sito curato e uno no.
+
+    La frase la scrivevano la vista Streamlit e l'API, ognuna per conto suo, e
+    tutte e due dicevano «1 punti in meno». Adesso e' una sola.
+    """
+
+    def test_un_adattamento_e_un_punto(self):
+        from fantacalcio.formazioni import frase_adattamenti
+
+        assert frase_adattamenti(1, 1.0) == "Un adattamento: 1 punto in meno."
+
+    def test_due_adattamenti_sono_punti(self):
+        from fantacalcio.formazioni import frase_adattamenti
+
+        assert frase_adattamenti(2, 1.0) == "2 adattamenti: 2 punti in meno."
+
+    def test_il_singolare_guarda_il_costo_non_quanti_sono(self):
+        """Con mezzo punto di malus, due adattati fanno un punto solo."""
+        from fantacalcio.formazioni import frase_adattamenti
+
+        assert frase_adattamenti(2, 0.5) == "2 adattamenti: 1 punto in meno."
+
+    def test_il_malus_negativo_vale_come_quello_positivo(self):
+        """`malus_adattamento` e' scritto col segno meno nei parametri."""
+        from fantacalcio.formazioni import frase_adattamenti
+
+        assert frase_adattamenti(1, -1.0) == frase_adattamenti(1, 1.0)
+
+    def test_senza_adattamenti_non_si_dice_niente(self):
+        from fantacalcio.formazioni import frase_adattamenti
+
+        assert frase_adattamenti(0, 1.0) == ""

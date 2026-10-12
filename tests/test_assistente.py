@@ -342,3 +342,96 @@ def test_il_dossier_dice_che_i_prolungamenti_non_si_fanno_piu():
 def test_col_lodo_che_li_riaccende_il_dossier_torna_a_spiegarli():
     testo = scheda(ParametriLega(prolungamenti_ammessi=True))
     assert "Lodo Longoni" in testo
+
+
+class TestQuandoScattaLaValidazione:
+    """`rispondi` deve alzare **chiamandola**, non scorrendola.
+
+    Era una funzione generatrice, quindi non eseguiva niente finche' non la si
+    scorreva: il controllo sulla domanda scattava a risposta gia' cominciata.
+    In HTTP vuol dire con lo stato 200 gia' mandato, in Streamlit dentro
+    `write_stream` — in tutti e due i casi troppo tardi per dire «scrivi una
+    domanda», e al suo posto si vedeva un errore tecnico.
+    """
+
+    class ClienteCheNonDeveServire:
+        def __getattr__(self, nome):
+            raise AssertionError(
+                "con una domanda vuota non si deve nemmeno toccare il client"
+            )
+
+    def test_una_domanda_vuota_alza_subito(self):
+        from fantacalcio.assistente import DomandaNonValida, rispondi
+
+        with pytest.raises(DomandaNonValida):
+            rispondi("   ", [], "scheda", self.ClienteCheNonDeveServire())
+
+    def test_una_domanda_troppo_lunga_alza_subito(self):
+        from fantacalcio.assistente import LIMITE_DOMANDA, DomandaNonValida, rispondi
+
+        with pytest.raises(DomandaNonValida):
+            rispondi(
+                "a" * (LIMITE_DOMANDA + 1),
+                [],
+                "scheda",
+                self.ClienteCheNonDeveServire(),
+            )
+
+
+class TestComeSiChiamaIlModello:
+    """Modello e impegno viaggiano nella richiesta, e sono scritti.
+
+    L'impegno non e' un dettaglio: il valore di partenza cambia da modello a
+    modello, quindi lasciandolo implicito un cambio di modello cambierebbe
+    anche quanto a fondo ragiona — e la bolletta — senza che nessuno l'abbia
+    deciso.
+    """
+
+    class FintoFlusso:
+        def __init__(self, visto):
+            self.visto = visto
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        @property
+        def text_stream(self):
+            return iter(["ok"])
+
+    class FintoClient:
+        def __init__(self):
+            self.visto = {}
+
+            prova = self
+
+            class Messaggi:
+                def stream(self, **kwargs):
+                    prova.visto = kwargs
+                    return TestComeSiChiamaIlModello.FintoFlusso(kwargs)
+
+            self.messages = Messaggi()
+
+    def test_manda_modello_e_impegno(self):
+        from fantacalcio.assistente import IMPEGNO, MODELLO, rispondi
+
+        finto = self.FintoClient()
+        assert list(rispondi("Quanti anni?", [], "scheda", finto)) == ["ok"]
+
+        assert finto.visto["model"] == MODELLO
+        assert finto.visto["output_config"] == {"effort": IMPEGNO}
+
+    def test_la_scheda_viaggia_in_un_blocco_in_cache(self):
+        """Cambia solo quando la lega cambia le regole: dalla seconda domanda
+        in poi non si paga piu'."""
+        from fantacalcio.assistente import rispondi
+
+        finto = self.FintoClient()
+        list(rispondi("Quanti anni?", [], "LA SCHEDA", finto))
+
+        blocchi = finto.visto["system"]
+        in_cache = [b for b in blocchi if b.get("cache_control")]
+        assert len(in_cache) == 1
+        assert in_cache[0]["text"] == "LA SCHEDA"

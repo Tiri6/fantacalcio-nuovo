@@ -699,6 +699,25 @@ def calcola_partita(
     )
 
 
+def frase_adattamenti(quanti: int, malus: float) -> str:
+    """«Un adattamento: 1 punto in meno», al plurale solo quando serve.
+
+    La frase sta qui e non nelle pagine perche' e' la stessa in tutte: la
+    scriveva la vista Streamlit, la riscriveva l'API, e in tutte e due diceva
+    «1 punti in meno». Una copia si corregge sempre per prima.
+
+    Il singolare guarda il **costo**, non il numero di adattati: con un malus
+    da mezzo punto, due adattamenti fanno «1 punto in meno».
+    """
+    if quanti <= 0:
+        return ""
+    costo = abs(malus) * quanti
+    quanto = f"{costo:g} {'punto' if costo == 1 else 'punti'} in meno"
+    if quanti == 1:
+        return f"Un adattamento: {quanto}."
+    return f"{quanti} adattamenti: {quanto}."
+
+
 def formazione_suggerita(
     squadra_id: int,
     giornata: int,

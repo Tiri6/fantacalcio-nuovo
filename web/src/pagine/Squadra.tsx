@@ -5,6 +5,7 @@ import {
   ErroreApi,
   type Emergenza as DatiEmergenza,
   type GiocatoreInRosa,
+  type MotivoSvincolo,
   type Violazione,
 } from "../api";
 import { milioni, useCarica } from "../carica";
@@ -290,6 +291,171 @@ function Emergenza({
   );
 }
 
+/**
+ * Svincolo (art. 7). Sta sotto la rosa, non in una pagina a parte: è da qui
+ * che si guarda chi c'è, e mandare a cercare altrove per togliere un
+ * giocatore che si ha davanti agli occhi è il modo di far credere che non si
+ * possa.
+ *
+ * I numeri non si calcolano qui: la buonuscita del Lodo Origi la fa il
+ * server. Rifarla in TypeScript vorrebbe dire due aritmetiche, e la prima a
+ * sbagliare sarebbe quella che nessuno controlla.
+ */
+function Svincolo({
+  squadra,
+  giro,
+  onFatto,
+}: {
+  squadra: number;
+  // Il giro del genitore entra fra le dipendenze: senza, dopo uno svincolo
+  // questo elenco restava quello di prima e il giocatore appena tolto
+  // continuava a comparire nella tendina — sceglierlo di nuovo dava un 422
+  // che non si spiegava.
+  giro: number;
+  onFatto: (messaggio: string) => void;
+}) {
+  const { dato } = useCarica(() => api.svincolabili(squadra), [squadra, giro]);
+  const [chi, setChi] = useState<number | null>(null);
+  const [motivo, setMotivo] = useState<MotivoSvincolo>("riparazione");
+  const [conferma, setConferma] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+  const [inCorso, setInCorso] = useState(false);
+
+  if (!dato?.posso_svincolare) return null;
+  if (dato.giocatori.length === 0) {
+    return (
+      <section>
+        <h2 className="sezione">🔻 Svincola un giocatore</h2>
+        <p className="didascalia">
+          Nessun giocatore svincolabile: i contratti di questa rosa puntano a
+          giocatori che non sono in anagrafica.
+        </p>
+      </section>
+    );
+  }
+
+  const scelto =
+    dato.giocatori.find((g) => g.giocatore_id === chi) ?? dato.giocatori[0];
+
+  const spiegazioni: Record<MotivoSvincolo, string> = {
+    riparazione:
+      `${milioni(scelto.ingaggio, 2)} × ${scelto.anni_oltre_quello_in_corso} anni ` +
+      `oltre quello in corso = ${milioni(scelto.valore_residuo, 2)}, al ` +
+      `${(dato.quota_dead_money * 100).toFixed(0)}% fanno ` +
+      `${milioni(scelto.dead_money, 2)} di buonuscita (Lodo Origi). In più ` +
+      `l'ingaggio di ${milioni(scelto.ingaggio, 2)} continua a pesare fino a ` +
+      `fine stagione: in tutto ${milioni(scelto.a_carico_quest_anno, 2)} ` +
+      `quest'anno, zero dalla prossima.`,
+    "pre-asta":
+      "«Gli svincoli effettuati prima dell'asta di Settembre non hanno alcun " +
+      "effetto sul Salary Cap» (art. 7). Gli anni di contratto si liberano lo " +
+      "stesso.",
+    correzione:
+      "Da usare per un contratto messo per errore: non avendo prodotto valore " +
+      "residuo, non c'è niente da addebitare.",
+  };
+
+  const etichette: Record<MotivoSvincolo, string> = {
+    riparazione: `Svincolo in riparazione (art. 7) — ${milioni(scelto.a_carico_quest_anno, 2)} a carico quest'anno`,
+    "pre-asta":
+      "Svincolo prima dell'asta di Settembre — nessun effetto sul Salary Cap",
+    correzione: "Correzione di un'assegnazione sbagliata — nessun addebito",
+  };
+
+  async function svincola() {
+    setErrore(null);
+    setInCorso(true);
+    try {
+      const esito = await api.svincola(squadra, scelto.giocatore_id, motivo);
+      setConferma(false);
+      onFatto(esito.messaggio);
+    } catch (guasto) {
+      setErrore(
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a contattare il server.",
+      );
+    } finally {
+      setInCorso(false);
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="sezione">🔻 Svincola un giocatore</h2>
+      <div className="riquadro">
+        <div className="campo">
+          <label htmlFor="svincolo-chi">Chi</label>
+          <select
+            id="svincolo-chi"
+            value={scelto.giocatore_id}
+            onChange={(e) => {
+              setChi(Number(e.target.value));
+              setConferma(false);
+            }}
+          >
+            {dato.giocatori.map((g) => (
+              <option key={g.giocatore_id} value={g.giocatore_id}>
+                {g.nome} · {g.anni_residui}{" "}
+                {g.anni_residui === 1 ? "anno" : "anni"}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="scelte-motivo">
+          {(Object.keys(etichette) as MotivoSvincolo[]).map((m) => (
+            <label
+              key={m}
+              className={motivo === m ? "interruttore preso" : "interruttore"}
+            >
+              <input
+                type="radio"
+                name="motivo-svincolo"
+                checked={motivo === m}
+                onChange={() => {
+                  setMotivo(m);
+                  setConferma(false);
+                }}
+              />
+              <span>{etichette[m]}</span>
+            </label>
+          ))}
+        </div>
+
+        <p className="didascalia">{spiegazioni[motivo]}</p>
+
+        <label className="interruttore">
+          <input
+            type="checkbox"
+            checked={conferma}
+            onChange={(e) => setConferma(e.target.checked)}
+          />
+          <span>
+            Confermo: {scelto.nome} torna svincolato e i suoi{" "}
+            {scelto.anni_residui} {scelto.anni_residui === 1 ? "anno" : "anni"}{" "}
+            di contratto tornano liberi.
+          </span>
+        </label>
+
+        {errore && (
+          <div className="errore" role="alert">
+            {errore}
+          </div>
+        )}
+
+        <button
+          className="principale"
+          onClick={svincola}
+          disabled={!conferma || inCorso}
+        >
+          {inCorso ? "Svincolo…" : "🔻 Svincola"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function Squadra() {
   const { id } = useParams();
   const numero = Number(id);
@@ -415,6 +581,15 @@ export function Squadra() {
         dati={dato.emergenza}
         posso={dato.posso_gestirla}
         onCambiata={(messaggio) => {
+          setConferma(messaggio);
+          setGiro((g) => g + 1);
+        }}
+      />
+
+      <Svincolo
+        squadra={numero}
+        giro={giro}
+        onFatto={(messaggio) => {
           setConferma(messaggio);
           setGiro((g) => g + 1);
         }}

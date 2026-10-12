@@ -35,7 +35,14 @@ from .regole import ETICHETTE_RUOLO, ParametriLega
 
 # Il modello e il nome del secret che tiene la chiave. Sono qui e non nella
 # vista perche' la pagina non deve sapere con chi parla.
-MODELLO = "claude-opus-5"
+MODELLO = "claude-opus-5-5"
+
+# Quanto a fondo ragionare. Su questo modello il valore di partenza sarebbe
+# «medium», mentre sul precedente era «high»: scriverlo invece di lasciarlo
+# implicito evita che cambiando modello cambi anche il comportamento senza che
+# nessuno l'abbia deciso. «medium» basta: la risposta sta in un paragrafo e la
+# scheda del regolamento gliela diamo noi, non deve ricostruirsela.
+IMPEGNO = "medium"
 CHIAVE_SECRET = "ANTHROPIC_API_KEY"
 
 # Quanto lunga puo' essere una domanda, e quanti messaggi di storia si
@@ -385,16 +392,31 @@ def rispondi(
     breve ma un modello che ragiona ci mette qualche secondo: senza streaming
     la pagina resta muta e sembra rotta.
 
+    **La validazione sta fuori dal generatore, ed e' il motivo per cui questa
+    funzione non e' una funzione generatrice.** Una funzione generatrice non
+    esegue niente finche' non la si scorre: un controllo scritto dentro
+    scatterebbe a risposta gia' cominciata — in HTTP con lo stato 200 gia'
+    mandato, in Streamlit dentro `write_stream` — e in tutti e due i casi
+    troppo tardi per dire «scrivi una domanda». Chi chiama si aspetta che
+    `DomandaNonValida` arrivi qui, e qui arriva.
+    """
+    messaggi = costruisci_messaggi(domanda, storico)
+    return _flusso(messaggi, scheda, client)
+
+
+def _flusso(messaggi: list[dict], scheda: str, client) -> Iterator[str]:
+    """Il flusso vero e proprio.
+
     La scheda sta in un blocco messo in cache: cambia solo quando la lega
     cambia le regole, quindi dalla seconda domanda in poi non si paga piu'.
     """
     import anthropic
 
-    messaggi = costruisci_messaggi(domanda, storico)
     try:
         with client.messages.stream(
             model=MODELLO,
             max_tokens=TOKEN_MASSIMI,
+            output_config={"effort": IMPEGNO},
             system=[
                 {"type": "text", "text": ISTRUZIONI},
                 {
