@@ -346,7 +346,7 @@ function Chiamata({
     }
   }
 
-  const anniPossibili = [];
+  const anniPossibili: number[] = [];
   for (let n = pagina.anni_minimo; n <= pagina.anni_massimo; n += 1) {
     anniPossibili.push(n);
   }
@@ -447,7 +447,7 @@ function Correzione({
     }
   }
 
-  const anniPossibili = [];
+  const anniPossibili: number[] = [];
   for (let n = pagina.anni_minimo; n <= pagina.anni_massimo; n += 1) {
     anniPossibili.push(n);
   }

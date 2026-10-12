@@ -304,6 +304,13 @@ sara' di 18 o 27 giornate.
 
 ## Trappole gia' pagate (non ripeterle)
 
+- **`npx tsc --noEmit` non e' quello che gira in CI.** Lo script del progetto
+  e' `npm run build`, cioe' `tsc -b && vite build`: il `-b` usa i tsconfig
+  dell'app, piu' severi. Un `const x = [];` dentro una funzione passava il
+  `tsc --noEmit` lanciato a mano e faceva fallire la build con «implicitly has
+  an 'any[]' type» — su `main`, dopo il merge. Prima di spingere, lanciare i
+  comandi del progetto (`npm run build`), non quelli che si somigliano.
+
 - **`insert or replace` rende inutile un `unique`.** Le chiamate del draft
   hanno `unique (sala_id, numero)` in tutti e due gli schemi: e' quello che
   impedisce a due persone che premono insieme di prendere lo stesso posto. Ma
