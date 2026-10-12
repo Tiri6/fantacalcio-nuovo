@@ -926,6 +926,25 @@ export type StatoChat = {
 /** Un turno di conversazione. Lo storico lo tiene il browser. */
 export type MessaggioChat = { ruolo: "utente" | "assistente"; testo: string };
 
+export type Svincolabile = {
+  giocatore_id: number;
+  nome: string;
+  anni_residui: number;
+  anni_oltre_quello_in_corso: number;
+  ingaggio: number;
+  valore_residuo: number;
+  dead_money: number;
+  a_carico_quest_anno: number;
+};
+
+export type Svincoli = {
+  posso_svincolare: boolean;
+  quota_dead_money: number;
+  giocatori: Svincolabile[];
+};
+
+export type MotivoSvincolo = "riparazione" | "pre-asta" | "correzione";
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -1136,6 +1155,13 @@ export const api = {
     }),
   regolamento: () => chiama<PaginaRegolamento>("/regolamento"),
   statoChat: () => chiama<StatoChat>("/regolamento/chat"),
+  svincolabili: (squadra: number) =>
+    chiama<Svincoli>(`/squadre/${squadra}/svincoli`),
+  svincola: (squadra: number, giocatore_id: number, motivo: MotivoSvincolo) =>
+    chiama<{ messaggio: string; anni_liberati: number; dead_money: number }>(
+      `/squadre/${squadra}/svincoli`,
+      { method: "POST", body: JSON.stringify({ giocatore_id, motivo }) },
+    ),
   caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>
     chiama<{ data_uri: string }>("/immagini", {
       method: "POST",

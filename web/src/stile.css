@@ -3076,3 +3076,19 @@ a.bottone-principale:hover {
 .bolla.mia code {
   background: rgb(0 0 0 / 0.2);
 }
+
+/* I tre motivi di svincolo, uno sotto l'altro: la differenza fra loro è un
+   addebito, non una sfumatura, e vanno letti tutti prima di scegliere. */
+.scelte-motivo {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.scelte-motivo .interruttore {
+  align-items: flex-start;
+}
+
+.scelte-motivo .interruttore input {
+  margin-top: 2px;
+}
