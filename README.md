@@ -486,19 +486,54 @@ resta accesa, e il prezzo e' qualche euro al mese.
 Non cambia niente nel codice: stesso `Dockerfile`, stesso database Supabase.
 Cambia solo chi lo esegue. Il repository ha gia' un `fly.toml` pronto.
 
-**1. Installare `flyctl`** (una volta sola, sul tuo PC):
+> **Non incollare commenti sulla stessa riga di un comando.** La shell del
+> Mac (zsh, di suo) il cancelletto non lo tratta come commento: lo passa al
+> programma insieme a tutto quel che segue. `fly apps create nome # nota`
+> diventa undici argomenti e `fly` risponde «accepts between 0 and 1 arg(s),
+> received 11». Qui sotto i blocchi di comandi sono senza commenti apposta:
+> si incollano come stanno.
+
+**0. Mettersi nella cartella del progetto.** `flyctl` cerca `fly.toml` nella
+cartella da cui lo lanci: dalla *home* non trova niente e risponde «the
+config for your app is missing an app name». Quindi prima:
 
 ```bash
-# macOS / Linux
+cd ~/fantacalcio-nuovo
+git pull
+```
+
+(Il percorso e' quello dove hai clonato il repository: se non te lo ricordi,
+`find ~ -name fly.toml -maxdepth 4` te lo dice.)
+
+**1. Installare `flyctl`**, una volta sola. Su macOS o Linux:
+
+```bash
 curl -L https://fly.io/install.sh | sh
-# Windows, da PowerShell
+```
+
+Su Windows, da PowerShell:
+
+```powershell
 powershell -Command "iwr https://fly.io/install.ps1 -useb | iex"
 ```
 
-**2. Entrare e creare l'app:**
+Finito, chiudi e riapri il terminale: serve perche' `fly` finisca nel PATH.
+
+**2. Entrare.** Se non hai ancora un account:
 
 ```bash
-fly auth signup        # oppure `fly auth login` se hai gia' un account
+fly auth signup
+```
+
+Se ce l'hai gia':
+
+```bash
+fly auth login
+```
+
+**3. Creare l'app:**
+
+```bash
 fly apps create fantacalcio-nuovo
 ```
 
@@ -506,22 +541,26 @@ Il nome e' unico su tutto Fly. Se risponde che e' gia' preso, scegline un
 altro e **cambia la riga `app =` in `fly.toml`**: sono due posti che devono
 dire la stessa cosa.
 
-**3. I tre segreti.** Non vanno nel repository, mai. `fly secrets set` li
+**4. I tre segreti.** Non vanno nel repository, mai. `fly secrets set` li
 tiene da parte e li passa all'app come variabili d'ambiente:
 
 ```bash
-fly secrets set \
-  FANTA_SEGRETO_JWT="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')" \
-  SUPABASE_URL="https://....supabase.co" \
-  SUPABASE_KEY="sb_secret_..."
+fly secrets set FANTA_SEGRETO_JWT="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+fly secrets set SUPABASE_URL="https://IL-TUO-PROGETTO.supabase.co"
+fly secrets set SUPABASE_KEY="sb_secret_LA-TUA-CHIAVE"
 ```
+
+Tre comandi separati e non uno a capo: una riga spezzata, incollata in un
+terminale che se la rimette insieme a modo suo, e' un modo di perdere tempo
+su un errore che non c'entra niente. Le ultime due righe vanno riempite coi
+valori veri **prima** di premere invio.
 
 La chiave di Supabase e' la **`service_role`** (`sb_secret_…`), la stessa dei
 Secrets di Streamlit — non la `anon`/`publishable`, con cui la RLS blocca
 tutte le scritture. Il segreto delle sessioni dev'essere di almeno 32
 caratteri: sotto, l'app non parte di proposito.
 
-**4. Pubblicare:**
+**5. Pubblicare:**
 
 ```bash
 fly deploy
@@ -531,7 +570,7 @@ La prima volta costruisce l'immagine (qualche minuto: Node compila le pagine,
 poi Python si porta via solo il risultato). Alla fine stampa l'indirizzo,
 tipo `https://fantacalcio-nuovo.fly.dev`.
 
-**5. Controllare che legga i dati veri.** Apri `/api/salute`: deve rispondere
+**6. Controllare che legga i dati veri.** Apri `/api/salute`: deve rispondere
 
 ```json
 {"stato": "ok", "backend": "supabase"}

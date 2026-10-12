@@ -330,6 +330,18 @@ sara' di 18 o 27 giornate.
 
 ## Trappole gia' pagate (non ripeterle)
 
+- **Un commento sulla stessa riga di un comando, in zsh, non e' un commento.**
+  Sul Mac di Marco `fly apps create nome # nota` e' diventato undici
+  argomenti («accepts between 0 and 1 arg(s), received 11»): zsh interattivo
+  di suo ha `interactive_comments` spento. Nei README e nei messaggi, i
+  blocchi da incollare vanno **senza commenti in riga** — la spiegazione sta
+  prima o dopo il blocco, non dentro.
+- **`flyctl` cerca `fly.toml` nella cartella da cui lo lanci.** Dalla home
+  risponde «the config for your app is missing an app name», che sembra un
+  problema del file e invece e' un problema di dove sei. Prima `cd` nel
+  repository — e il file dev'esserci davvero: se sta su un ramo non ancora
+  unito, in locale non c'e'.
+
 - **`npx tsc --noEmit` non e' quello che gira in CI.** Lo script del progetto
   e' `npm run build`, cioe' `tsc -b && vite build`: il `-b` usa i tsconfig
   dell'app, piu' severi. Un `const x = [];` dentro una funzione passava il
