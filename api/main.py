@@ -26,6 +26,7 @@ from .rotte import (
     bacheca,
     campionato,
     cruscotto,
+    formazione,
     giocatori,
     identita,
     importazione,
@@ -97,6 +98,7 @@ app.include_router(identita.rotte, prefix="/api")
 app.include_router(squadre.rotte, prefix="/api")
 app.include_router(importazione.rotte, prefix="/api")
 app.include_router(scambi.rotte, prefix="/api")
+app.include_router(formazione.rotte, prefix="/api")
 
 
 @app.get("/api/salute", tags=["servizio"])

@@ -509,3 +509,96 @@ class TestDataUnder21:
 
         assert data_riferimento_u21("boh").month == 8
         assert data_riferimento_u21("boh").year == date.today().year
+
+
+class TestInizioGiornata:
+    """L'orario su cui si chiudono le formazioni.
+
+    Non e' presentazione: decide quando la gente smette di poter schierare.
+    Stava dentro `ui.py`, dietro Streamlit, dove l'API non poteva arrivarci.
+    """
+
+    @staticmethod
+    def _calendario(righe):
+        import pandas as pd
+
+        return pd.DataFrame(righe)
+
+    def test_prende_la_prima_partita_in_programma(self):
+        from datetime import datetime
+
+        from fantacalcio.competizioni import inizio_giornata
+
+        partite = self._calendario(
+            [
+                {
+                    "giornata": 1,
+                    "competizione": "CAMPIONATO",
+                    "inizio_previsto": "2026-09-20T15:00:00",
+                },
+                {
+                    "giornata": 1,
+                    "competizione": "CAMPIONATO",
+                    "inizio_previsto": "2026-09-20T12:30:00",
+                },
+            ]
+        )
+        assert inizio_giornata(partite, 1) == datetime(2026, 9, 20, 12, 30)
+
+    def test_una_giornata_senza_orario_non_blocca_niente(self):
+        """Senza data non e' una giornata programmata: si lascia aperto."""
+        from fantacalcio.competizioni import inizio_giornata
+
+        partite = self._calendario(
+            [{"giornata": 2, "competizione": "CAMPIONATO", "inizio_previsto": ""}]
+        )
+        assert inizio_giornata(partite, 2) is None
+
+    def test_la_competizione_conta(self):
+        """Coppa e campionato non cominciano insieme."""
+        from datetime import datetime
+
+        from fantacalcio.competizioni import inizio_giornata
+
+        partite = self._calendario(
+            [
+                {
+                    "giornata": 1,
+                    "competizione": "CAMPIONATO",
+                    "inizio_previsto": "2026-09-20T15:00:00",
+                },
+                {
+                    "giornata": 1,
+                    "competizione": "COPPA",
+                    "inizio_previsto": "2026-09-23T20:45:00",
+                },
+            ]
+        )
+        assert inizio_giornata(partite, 1, "COPPA") == datetime(2026, 9, 23, 20, 45)
+
+    def test_un_fuso_orario_si_toglie(self):
+        """Il confronto con `datetime.now()` e' senza fuso: mescolarli alza."""
+        from datetime import datetime
+
+        from fantacalcio.competizioni import inizio_giornata
+
+        partite = self._calendario(
+            [
+                {
+                    "giornata": 3,
+                    "competizione": "CAMPIONATO",
+                    "inizio_previsto": "2026-09-20T15:00:00Z",
+                }
+            ]
+        )
+        quando = inizio_giornata(partite, 3)
+        assert quando == datetime(2026, 9, 20, 15, 0)
+        assert quando.tzinfo is None
+
+    def test_un_calendario_vuoto_non_si_rompe(self):
+        import pandas as pd
+
+        from fantacalcio.competizioni import inizio_giornata
+
+        assert inizio_giornata(pd.DataFrame(), 1) is None
+        assert inizio_giornata(None, 1) is None

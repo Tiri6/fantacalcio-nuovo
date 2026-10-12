@@ -46,6 +46,21 @@
      su fondo chiaro una velatura bianca non si vede, serve il nero. */
   --alone: #12241a;
   --righe-campo: rgb(255 255 255 / 0.016);
+
+  /* Il prato. Non si ridefiniscono nel tema chiaro di proposito: un campo da
+     calcio e' verde a qualunque ora, e le maglie sopra devono restare
+     leggibili sullo stesso verde. Sono token lo stesso perche' le regole piu'
+     in basso non devono contenere colori: il giorno che la lega vuole il
+     campo blu, si cambia qui. */
+  --prato-alto: #1b5e34;
+  --prato-basso: #17512a;
+  --prato-riga: rgb(255 255 255 / 0.05);
+  --prato-bordo: rgb(255 255 255 / 0.25);
+  --prato-cerchio: rgb(255 255 255 / 0.22);
+  --maglia-sfondo: rgb(0 0 0 / 0.42);
+  --maglia-bordo: rgb(255 255 255 / 0.18);
+  --su-prato: #e9efe9;
+  --su-prato-tenue: rgb(233 239 233 / 0.65);
   /* Testata e menu non usano `--superficie` ma una velatura, perche' sotto
      ci scorre il contenuto e il `backdrop-filter` deve vederlo. */
   --velo-testata: rgb(10 15 12 / 0.82);
@@ -2564,4 +2579,201 @@ pre.sql {
   font-size: 12.5px;
   font-weight: 450;
   color: var(--testo-fioco);
+}
+
+/* --- formazione ---------------------------------------------------------- */
+
+.campo-gioco {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 10px;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    var(--prato-alto) 0%,
+    var(--prato-basso) 50%,
+    var(--prato-alto) 100%
+  );
+  border: 2px solid var(--prato-bordo);
+  border-radius: 14px;
+}
+
+/* Le righe chiare del prato appena tagliato. */
+.campo-gioco::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    var(--prato-riga) 0 24px,
+    transparent 24px 48px
+  );
+  pointer-events: none;
+}
+
+.campo-gioco .cerchio {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 92px;
+  height: 92px;
+  margin: -46px 0 0 -46px;
+  border: 2px solid var(--prato-cerchio);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.campo-gioco .reparto {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-evenly;
+  gap: 6px;
+}
+
+.campo-gioco .maglia {
+  flex: 0 1 96px;
+  min-width: 0;
+  padding: 6px 4px;
+  text-align: center;
+  background: var(--maglia-sfondo);
+  border: 1px solid var(--maglia-bordo);
+  border-radius: 10px;
+  color: var(--su-prato);
+}
+
+.campo-gioco .maglia .nome {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campo-gioco .maglia .ruolo {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--su-prato-tenue);
+}
+
+.campo-gioco .maglia.vuota {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+.schierate {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.schierata h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.schierata .suo-modulo {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--testo-tenue);
+}
+
+/* Le caselle del modulo: una riga per reparto, che va a capo da sola. */
+.reparto-scelta h3 {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--testo-tenue);
+}
+
+.caselle {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.caselle .campo + .campo {
+  margin-top: 0;
+}
+
+/* Chi gioca fuori ruolo si vede mentre lo scegli, non a giornata finita. */
+.caselle select.adattato {
+  border-color: var(--ambra);
+}
+
+.panchina-scelta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.panchina-scelta .interruttore.preso {
+  border-color: var(--verde-cupo);
+  color: var(--testo);
+}
+
+.panchina-scelta .ordine {
+  display: inline-block;
+  min-width: 18px;
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--verde-cupo);
+  color: var(--su-verde);
+  font-size: 11px;
+  text-align: center;
+}
+
+.panchina-scelta small {
+  margin-left: 5px;
+  color: var(--testo-fioco);
+}
+
+.riga-modulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.riga-modulo .didascalia {
+  flex: 1 1 260px;
+  margin: 0;
+}
+
+/* Un giocatore finito in due caselle: si vede subito quali sono. */
+.caselle select.doppio {
+  border-color: var(--rosso);
+}
+
+/* Il riquadro del blocco: titolo e spiegazione su due righe. Attaccati, si
+   leggeva «Nessun orario in calendarioFinche' non c'e' un calcio d'inizio». */
+.stato-blocco {
+  flex: 1 1 280px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.stato-blocco span {
+  font-size: 13px;
+  color: var(--testo-tenue);
+}
+
+.stato-blocco.aperta {
+  border-color: var(--verde-cupo);
+}
+
+.stato-blocco.chiusa {
+  border-color: var(--ambra);
 }

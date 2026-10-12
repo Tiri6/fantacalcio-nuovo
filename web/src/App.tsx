@@ -12,6 +12,7 @@ import { Albo } from "./pagine/Albo";
 import { Bacheca } from "./pagine/Bacheca";
 import { Campionato } from "./pagine/Campionato";
 import { Cruscotto } from "./pagine/Cruscotto";
+import { Formazione } from "./pagine/Formazione";
 import { Identita } from "./pagine/Identita";
 import { Importa } from "./pagine/Importa";
 import { Lega } from "./pagine/Lega";
@@ -44,6 +45,7 @@ const SEZIONI: { titolo: string; voci: Voce[] }[] = [
     voci: [
       { a: "/bacheca", icona: "📣", testo: "Bacheca" },
       { a: "/cruscotto", icona: "🏠", testo: "Cruscotto" },
+      { a: "/formazione", icona: "📋", testo: "Formazione" },
       { a: "/campionato", icona: "🏆", testo: "Campionato" },
       { a: "/albo", icona: "🏛️", testo: "Albo d'oro" },
     ],
@@ -142,6 +144,7 @@ function Intelaiatura() {
         <Routes>
           <Route path="/bacheca" element={<Bacheca />} />
           <Route path="/cruscotto" element={<Cruscotto />} />
+          <Route path="/formazione" element={<Formazione />} />
           <Route path="/campionato" element={<Campionato />} />
           <Route path="/albo" element={<Albo />} />
           <Route path="/squadre" element={<Squadre />} />

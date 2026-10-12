@@ -28,6 +28,7 @@ from .competizioni import (
     RegoleF1Rush,
     TipoCompetizione,
 )
+from .regole import ParametriLega
 
 # --- Codice d'invito --------------------------------------------------------
 #
@@ -835,3 +836,22 @@ def invito_per_email(inviti: list[Invito], lega_id: int, email: str) -> Invito |
         if invito.lega_id == lega_id and invito.email == cercata and invito.in_attesa:
             return invito
     return None
+
+
+def parametri_di_punteggio(base: ParametriLega, lega: Lega | None) -> ParametriLega:
+    """I parametri con cui si calcola una giornata in questa lega.
+
+    Le fasce dei gol e il modificatore difesa stanno nel regolamento, ma la
+    lega puo' averli cambiati per votazione: qui le due cose si incontrano
+    **una volta sola**, cosi' chi calcola non deve scegliere ogni volta quale
+    delle due guardare — ed e' il genere di scelta che due schermate fanno in
+    modi diversi senza che nessuno se ne accorga.
+    """
+    if lega is None:
+        return base
+    return replace(
+        base,
+        soglia_primo_gol=lega.opzioni.soglia_primo_gol,
+        passo_gol=lega.opzioni.passo_gol,
+        modificatore_difesa=lega.opzioni.modificatore_difesa,
+    )

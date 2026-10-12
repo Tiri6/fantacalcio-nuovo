@@ -680,6 +680,70 @@ export type EsitoRisultatiImport = EsitoFile & {
 
 export type RiepilogoImport = { messaggio: string };
 
+// --- Formazione -------------------------------------------------------------
+//
+// Le caselle arrivano gia' risolte: per ognuna, chi la occupa di diritto e chi
+// ci si adatterebbe pagando il malus. La tabella Mantra resta in Python.
+
+export type GiocatoreScelta = {
+  id: number;
+  nome: string;
+  ruoli: string[];
+};
+
+export type CasellaFormazione = {
+  indice: number;
+  etichetta: string;
+  reparto: string;
+  liberi: number[];
+  adattati: number[];
+};
+
+export type BloccoFormazioni = {
+  modificabile: boolean;
+  motivo: string;
+  inizio: string | null;
+  mancano_secondi: number | null;
+};
+
+export type SquadraInCampo = {
+  squadra_id: number;
+  squadra: string;
+  modulo: string;
+  reparti: GiocatoreScelta[][];
+  panchina: GiocatoreScelta[];
+};
+
+export type PaginaFormazione = {
+  giornata: number;
+  giornate_totali: number;
+  competizione: string;
+  competizioni: string[];
+  blocco: BloccoFormazioni;
+  mia_squadra_id: number | null;
+  posso_schierare: boolean;
+  avviso: string | null;
+  moduli: string[];
+  modulo: string;
+  modulo_ufficiale: boolean;
+  difensori: number;
+  centrocampisti: number;
+  attaccanti: number;
+  caselle: CasellaFormazione[];
+  titolari_richiesti: number;
+  panchinari: number;
+  adattamento_ammesso: boolean;
+  malus_adattamento: number;
+  modalita_sostituzioni: string;
+  rosa: GiocatoreScelta[];
+  titolari: number[];
+  panchina: number[];
+  squadre: SquadraInCampo[];
+  mancanti: string[];
+  schierate: number;
+  totali: number;
+};
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -840,6 +904,23 @@ export const api = {
     chiama<RiepilogoImport>("/importazione/risultati", {
       method: "POST",
       body: JSON.stringify({ contenuto_base64, nome }),
+    }),
+  formazione: (giornata: number, competizione: string, modulo: string) =>
+    chiama<PaginaFormazione>(
+      `/formazione?giornata=${giornata}` +
+        `&competizione=${encodeURIComponent(competizione)}` +
+        `&modulo=${encodeURIComponent(modulo)}`,
+    ),
+  schiera: (corpo: {
+    giornata: number;
+    competizione: string;
+    modulo: string;
+    titolari: number[];
+    panchina: number[];
+  }) =>
+    chiama<{ salvata: boolean; messaggio: string }>("/formazione", {
+      method: "POST",
+      body: JSON.stringify(corpo),
     }),
   caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>
     chiama<{ data_uri: string }>("/immagini", {
