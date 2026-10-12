@@ -10,10 +10,15 @@ import streamlit as st
 from fantacalcio import ui, vista
 from fantacalcio.data import archivio
 from fantacalcio.importazione import (
+    CAMPI_LISTONE,
+    CAMPI_RISULTATI,
+    NOTA_FORMATO,
+    CampoFile,
     anteprima_conformita,
     applica_listone,
     applica_risultati,
     applica_rose,
+    campi_rose,
     catalogo_giocatori,
     importa_listone,
     importa_risultati,
@@ -30,29 +35,30 @@ ui.intestazione(
 ui.barra_laterale()
 
 
-def tabella_formato(voci: list[tuple[str, bool, str, str]]) -> None:
+def tabella_formato(campi: tuple[CampoFile, ...]) -> None:
     """Che colonne vuole un file, dette prima di caricarlo e non dopo.
 
-    Ogni voce: nome della colonna, se e' obbligatoria, un esempio, e a cosa
-    serve. Le intestazioni si riconoscono dal nome e non dalla posizione,
-    quindi l'ordine nel file non conta: e' scritto sotto ogni tabella.
+    I campi arrivano da `fantacalcio.importazione`, che e' anche il modulo che
+    li legge: scritti qui a mano, un sinonimo nuovo avrebbe aggiornato il
+    lettore e lasciato questa tabella a mentire.
     """
     st.dataframe(
         pd.DataFrame(
             [
-                {"Colonna": n, "Obbl.": obbligatoria, "Esempio": esempio, "Serve a": nota}
-                for n, obbligatoria, esempio, nota in voci
+                {
+                    "Colonna": c.nome,
+                    "Obbl.": c.obbligatorio,
+                    "Esempio": c.esempio,
+                    "Serve a": c.nota,
+                }
+                for c in campi
             ]
         ),
         hide_index=True,
         use_container_width=True,
         column_config={"Obbl.": st.column_config.CheckboxColumn("Obbl.")},
     )
-    st.caption(
-        "L'ordine delle colonne non conta: si riconoscono dal nome, e i nomi "
-        "simili valgono lo stesso. Separatore `;` o `,`; gli importi si "
-        "possono scrivere `3.500.000`, `3,5M` o `€ 2.100.000`."
-    )
+    st.caption(NOTA_FORMATO)
 
 
 def tabella_problemi(problemi) -> pd.DataFrame:
@@ -80,29 +86,7 @@ with listone:
         "sulla prima riga e le intestazioni sulla seconda."
     )
     st.markdown("**Le colonne che legge**")
-    tabella_formato(
-        [
-            (
-                "Id",
-                True,
-                "2071",
-                "L'id ufficiale. E' quel che aggancia il "
-                "giocatore alla sua riga anche se il nome cambia grafia.",
-            ),
-            ("Nome", True, "Dybala", "Come lo scrive il listone."),
-            ("Squadra", True, "Roma", "La squadra di Serie A."),
-            ("RM", True, "A;Pc", "Ruoli Mantra, separati da ; o /."),
-            (
-                "R",
-                False,
-                "A",
-                "Ruolo Classic. Non si ricava dai Mantra: un "
-                "esterno «E» in Classic puo' essere D o C.",
-            ),
-            ("Qt.A M", False, "26", "Quotazione Mantra all'asta."),
-            ("FVM M", False, "70", "Fanta Valore di Mercato Mantra."),
-        ]
-    )
+    tabella_formato(CAMPI_LISTONE)
     st.info(
         "Il listone ufficiale **non contiene** le assegnazioni alle squadre "
         "della lega, gli anni di contratto, gli stipendi Capology, le "
@@ -177,52 +161,11 @@ with rose:
         "compila dopo il draft."
     )
     st.markdown("**Le colonne che legge**")
-    tabella_formato(
-        [
-            (
-                "squadra",
-                True,
-                "Tiri Team",
-                "La squadra della lega. Anche `fantasquadra`, `team`.",
-            ),
-            ("giocatore", True, "Dybala", "Anche `nome`, `calciatore`, `player`."),
-            (
-                "anni",
-                True,
-                "3",
-                "Anni di contratto. Anche `durata`, "
-                "`contratto`, `costo` — nell'export di Leghe Fantacalcio la "
-                "colonna «costo» contiene gli anni residui.",
-            ),
-            (
-                "ingaggio",
-                True,
-                "6000000",
-                "Stipendio lordo annuo, fonte Capology. Anche `stipendio`, `salario`.",
-            ),
-            (
-                "ruoli",
-                True,
-                "A/Pc",
-                "Ruoli Mantra. Si puo' omettere se il "
-                "listone e' gia' caricato: si ricava dal nome.",
-            ),
-            (
-                "club",
-                False,
-                "Roma",
-                "Squadra di Serie A. Anche questa si ricava dal listone.",
-            ),
-            ("nazionalita", False, "Argentina", "Serve al minimo italiani."),
-            ("datanascita", False, "15/11/1993", "Serve all'Under 21."),
-            (
-                "prolungato",
-                False,
-                "no",
-                "Se ha gia' usato il prolungamento da scambio (Lodo Corti).",
-            ),
-        ]
-    )
+    # Il catalogo si legge prima della tabella, non dopo il caricamento: con
+    # il listone dentro, «ruoli» e «club» sono facoltativi, e chi prepara il
+    # file deve saperlo mentre lo prepara.
+    catalogo = catalogo_giocatori(archivio())
+    tabella_formato(campi_rose(con_catalogo=bool(catalogo)))
     st.download_button(
         "Scarica il modello CSV",
         data=modello_rose(),
@@ -234,7 +177,6 @@ with rose:
     if file_rose is None:
         st.info("Carica il CSV per vedere l'anteprima.", icon="👆")
     else:
-        catalogo = catalogo_giocatori(archivio())
         if catalogo:
             st.caption(
                 f"Listone caricato ({len(catalogo)} giocatori): puoi omettere "
@@ -348,15 +290,7 @@ with risultati:
         f"{ui.parametri().passo_gol:.0f})."
     )
     st.markdown("**Le colonne che legge**")
-    tabella_formato(
-        [
-            ("giornata", True, "1", "Numero di giornata del fantacampionato."),
-            ("casa", True, "Tiri Team", "Squadra di casa."),
-            ("trasferta", True, "Padel United", "Squadra ospite."),
-            ("punticasa", True, "72,5", "Fantapunti della squadra di casa."),
-            ("puntitrasferta", True, "66", "Fantapunti della squadra ospite."),
-        ]
-    )
+    tabella_formato(CAMPI_RISULTATI)
     st.download_button(
         "Scarica il modello CSV",
         data=modello_risultati(),

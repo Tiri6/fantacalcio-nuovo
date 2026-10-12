@@ -6,10 +6,16 @@ import pytest
 
 from fantacalcio.data import carica_rose
 from fantacalcio.importazione import (
+    CAMPI_RISULTATI,
+    CAMPI_ROSE,
+    COLONNE_RISULTATI,
     COLONNE_ROSE,
+    OBBLIGATORIE_RISULTATI,
+    OBBLIGATORIE_ROSE,
     anteprima_conformita,
     applica_risultati,
     applica_rose,
+    campi_rose,
     importa_risultati,
     importa_rose,
     leggi_data,
@@ -569,3 +575,56 @@ class TestRoseRisolteDalListone:
         )
         assert not esito.importabile
         assert "obbligatorie mancanti" in esito.errori[0].messaggio
+
+
+class TestLaTabellaDeiFormati:
+    """La tabella che si mostra prima di caricare, e il lettore, devono dire
+    la stessa cosa.
+
+    E' la copia che diverge piu' facilmente: documentare una colonna che il
+    lettore non conosce manda a riempirla per niente, e dimenticarne una
+    obbligatoria fa scoprire il requisito dall'errore. Nessuna delle due si
+    nota guardando il codice.
+    """
+
+    FILE = (
+        ("rose", CAMPI_ROSE, COLONNE_ROSE, OBBLIGATORIE_ROSE),
+        ("risultati", CAMPI_RISULTATI, COLONNE_RISULTATI, OBBLIGATORIE_RISULTATI),
+    )
+
+    @staticmethod
+    def _chiave_per_sinonimo(sinonimi: dict) -> dict:
+        return {
+            normalizza_intestazione(nome): chiave
+            for chiave, gruppo in sinonimi.items()
+            for nome in gruppo
+        }
+
+    @pytest.mark.parametrize("nome,campi,sinonimi,_obbligatorie", FILE)
+    def test_ogni_colonna_documentata_la_riconosce_il_lettore(
+        self, nome, campi, sinonimi, _obbligatorie
+    ):
+        riconosciute = self._chiave_per_sinonimo(sinonimi)
+        for campo in campi:
+            assert normalizza_intestazione(campo.nome) in riconosciute, (
+                f"{nome}: la colonna «{campo.nome}» e' documentata ma il "
+                f"lettore non la conosce"
+            )
+
+    @pytest.mark.parametrize("nome,campi,sinonimi,obbligatorie", FILE)
+    def test_gli_obbligatori_sono_quelli_che_il_lettore_pretende(
+        self, nome, campi, sinonimi, obbligatorie
+    ):
+        riconosciute = self._chiave_per_sinonimo(sinonimi)
+        documentati = {
+            riconosciute[normalizza_intestazione(c.nome)] for c in campi if c.obbligatorio
+        }
+        assert documentati == set(obbligatorie), nome
+
+    def test_col_listone_ruoli_e_club_diventano_facoltativi(self):
+        """La stessa condizione che applica `importa_rose` col catalogo."""
+        obbligatori = {c.nome for c in campi_rose(con_catalogo=True) if c.obbligatorio}
+        assert obbligatori == {"squadra", "giocatore", "ingaggio", "anni"}
+
+    def test_senza_listone_restano_quelli_di_sempre(self):
+        assert campi_rose() == CAMPI_ROSE

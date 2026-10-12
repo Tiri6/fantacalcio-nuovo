@@ -13,6 +13,7 @@ import { Bacheca } from "./pagine/Bacheca";
 import { Campionato } from "./pagine/Campionato";
 import { Cruscotto } from "./pagine/Cruscotto";
 import { Identita } from "./pagine/Identita";
+import { Importa } from "./pagine/Importa";
 import { Lega } from "./pagine/Lega";
 import { Listone } from "./pagine/Listone";
 import { Profilo } from "./pagine/Profilo";
@@ -20,6 +21,7 @@ import { Scambi } from "./pagine/Scambi";
 import { Squadra } from "./pagine/Squadra";
 import { Squadre } from "./pagine/Squadre";
 import { ConSessione, useSessione } from "./sessione";
+import type { ChiSono } from "./api";
 
 /**
  * Le voci stanno in sezioni, non in fila.
@@ -28,7 +30,15 @@ import { ConSessione, useSessione } from "./sessione";
  * un elenco in cui non si trova niente. Le sezioni sono le stesse di
  * Streamlit — chi passa da un sito all'altro ritrova le cose dov'erano.
  */
-const SEZIONI = [
+type Voce = {
+  a: string;
+  icona: string;
+  testo: string;
+  /** Quando c'e', la voce compare solo se torna vero. */
+  soloSe?: (utente: ChiSono) => boolean;
+};
+
+const SEZIONI: { titolo: string; voci: Voce[] }[] = [
   {
     titolo: "Lega",
     voci: [
@@ -54,28 +64,46 @@ const SEZIONI = [
     titolo: "Impostazioni",
     voci: [
       { a: "/profilo", icona: "👤", testo: "Il mio profilo" },
+      // Riscrive rose, catalogo e risultati di tutti: e' del presidente
+      // (art. 1), e a chi non la puo' usare non si mostra.
+      {
+        a: "/importa",
+        icona: "📥",
+        testo: "Importa dati",
+        soloSe: (u) => u.puo_importare,
+      },
       { a: "/lega", icona: "⚙️", testo: "La lega" },
     ],
   },
 ];
 
-function Navigazione({ onScelto }: { onScelto: () => void }) {
+function Navigazione({
+  utente,
+  onScelto,
+}: {
+  utente: ChiSono;
+  onScelto: () => void;
+}) {
   return (
     <nav className="navigazione">
       {SEZIONI.map((sezione) => (
         <div key={sezione.titolo} className="sezione">
           <h2>{sezione.titolo}</h2>
-          {sezione.voci.map((voce) => (
-            <NavLink
-              key={voce.a}
-              to={voce.a}
-              onClick={onScelto}
-              className={({ isActive }) => (isActive ? "voce attiva" : "voce")}
-            >
-              <span className="icona">{voce.icona}</span>
-              {voce.testo}
-            </NavLink>
-          ))}
+          {sezione.voci
+            .filter((voce) => !voce.soloSe || voce.soloSe(utente))
+            .map((voce) => (
+              <NavLink
+                key={voce.a}
+                to={voce.a}
+                onClick={onScelto}
+                className={({ isActive }) =>
+                  isActive ? "voce attiva" : "voce"
+                }
+              >
+                <span className="icona">{voce.icona}</span>
+                {voce.testo}
+              </NavLink>
+            ))}
         </div>
       ))}
     </nav>
@@ -107,7 +135,7 @@ function Intelaiatura() {
       </header>
 
       <aside className="fianco">
-        <Navigazione onScelto={() => setMenuAperto(false)} />
+        <Navigazione utente={utente} onScelto={() => setMenuAperto(false)} />
       </aside>
 
       <main>
@@ -122,6 +150,7 @@ function Intelaiatura() {
           <Route path="/identita" element={<Identita />} />
           <Route path="/scambi" element={<Scambi />} />
           <Route path="/profilo" element={<Profilo />} />
+          <Route path="/importa" element={<Importa />} />
           <Route path="/lega" element={<Lega />} />
           {/* La bacheca è la pagina d'ingresso: chi entra vuole sapere cosa
               è successo, non leggere una tabella di contratti. */}

@@ -15,7 +15,7 @@ import difflib
 import io
 import re
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -72,6 +72,127 @@ OBBLIGATORIE_RISULTATI = (
 
 # Cortesia per chi arriva dal fantacalcio classico: i ruoli si traducono.
 RUOLI_CLASSICI = {"P": "Por", "D": "Dc", "C": "C", "A": "A"}
+
+
+# ---------------------------------------------------------------------------
+# Che colonne vuole ogni file, dette una volta sola
+# ---------------------------------------------------------------------------
+#
+# La spiegazione sta accanto al codice che legge il file, non nelle pagine:
+# Streamlit e React la chiedono e la mostrano. Scritta a mano da due parti,
+# una colonna nuova o un sinonimo in piu' avrebbero aggiornato una tabella e
+# lasciato l'altra a mentire.
+
+
+@dataclass(frozen=True)
+class CampoFile:
+    """Una colonna, come la si spiega a chi deve preparare il file."""
+
+    nome: str
+    obbligatorio: bool
+    esempio: str
+    nota: str
+
+
+CAMPI_LISTONE = (
+    CampoFile(
+        "Id",
+        True,
+        "2071",
+        "L'id ufficiale. E' quel che aggancia il giocatore alla sua riga "
+        "anche se il nome cambia grafia.",
+    ),
+    CampoFile("Nome", True, "Dybala", "Come lo scrive il listone."),
+    CampoFile("Squadra", True, "Roma", "La squadra di Serie A."),
+    CampoFile("RM", True, "A;Pc", "Ruoli Mantra, separati da ; o /."),
+    CampoFile(
+        "R",
+        False,
+        "A",
+        "Ruolo Classic. Non si ricava dai Mantra: un esterno «E» in Classic "
+        "puo' essere D o C.",
+    ),
+    CampoFile("Qt.A M", False, "26", "Quotazione Mantra all'asta."),
+    CampoFile("FVM M", False, "70", "Fanta Valore di Mercato Mantra."),
+)
+
+CAMPI_ROSE = (
+    CampoFile(
+        "squadra",
+        True,
+        "Tiri Team",
+        "La squadra della lega. Anche «fantasquadra», «team».",
+    ),
+    CampoFile("giocatore", True, "Dybala", "Anche «nome», «calciatore», «player»."),
+    CampoFile(
+        "anni",
+        True,
+        "3",
+        "Anni di contratto. Anche «durata», «contratto», «costo» — "
+        "nell'export di Leghe Fantacalcio la colonna «costo» contiene gli "
+        "anni residui.",
+    ),
+    CampoFile(
+        "ingaggio",
+        True,
+        "6000000",
+        "Stipendio lordo annuo, fonte Capology. Anche «stipendio», «salario».",
+    ),
+    CampoFile(
+        "ruoli",
+        True,
+        "A/Pc",
+        "Ruoli Mantra. Si puo' omettere se il listone e' gia' caricato: si "
+        "ricava dal nome.",
+    ),
+    CampoFile(
+        "club",
+        False,
+        "Roma",
+        "Squadra di Serie A. Anche questa si ricava dal listone.",
+    ),
+    CampoFile("nazionalita", False, "Argentina", "Serve al minimo italiani."),
+    CampoFile("datanascita", False, "15/11/1993", "Serve all'Under 21."),
+    CampoFile(
+        "prolungato",
+        False,
+        "no",
+        "Se ha gia' usato il prolungamento da scambio (Lodo Corti).",
+    ),
+)
+
+CAMPI_RISULTATI = (
+    CampoFile("giornata", True, "1", "Numero di giornata del fantacampionato."),
+    CampoFile("casa", True, "Tiri Team", "Squadra di casa."),
+    CampoFile("trasferta", True, "Padel United", "Squadra ospite."),
+    CampoFile("punticasa", True, "72,5", "Fantapunti della squadra di casa."),
+    CampoFile("puntitrasferta", True, "66", "Fantapunti della squadra ospite."),
+)
+
+# Come si scrive il file, al di la' delle singole colonne. Vale per tutti e
+# tre, ed e' la cosa che la gente sbaglia piu' spesso.
+NOTA_FORMATO = (
+    "L'ordine delle colonne non conta: si riconoscono dal nome, e i nomi "
+    "simili valgono lo stesso. Separatore «;» o «,»; gli importi si possono "
+    "scrivere 3.500.000, 3,5M o € 2.100.000."
+)
+
+
+def campi_rose(con_catalogo: bool = False) -> tuple[CampoFile, ...]:
+    """Le colonne delle rose, sapendo se il listone e' gia' caricato.
+
+    Con il listone dentro, «ruoli» e «club» diventano facoltativi: il nome
+    basta a ricavarli, ed e' la stessa condizione che applica `importa_rose`.
+    Chiederli obbligatori quando non lo sono manderebbe a riempire due
+    colonne per niente.
+    """
+    if not con_catalogo:
+        return CAMPI_ROSE
+    facoltativi = {"ruoli", "club"}
+    return tuple(
+        replace(campo, obbligatorio=False) if campo.nome in facoltativi else campo
+        for campo in CAMPI_ROSE
+    )
 
 
 @dataclass(frozen=True)

@@ -2449,3 +2449,119 @@ pre.sql {
 .tabella td .pastiglia {
   margin-left: 8px;
 }
+
+/* --- importazione -------------------------------------------------------- */
+
+/* Il file si scglie da un `input[type=file]` nascosto dietro la sua etichetta:
+   l'aspetto nativo cambia da browser a browser ed e' l'unico comando della
+   pagina che stonerebbe. L'input resta nel DOM e resta raggiungibile da
+   tastiera, non e' `display: none`. */
+.scegli-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 15px 0;
+  padding: 22px;
+  background: var(--sfondo-alto);
+  border: 1px dashed var(--bordo-vivo);
+  border-radius: var(--raggio-piccolo);
+  color: var(--testo-tenue);
+  font-size: 14px;
+  font-weight: 540;
+  cursor: pointer;
+  transition:
+    border-color 0.15s var(--passo),
+    color 0.15s var(--passo);
+}
+
+.scegli-file:hover,
+.scegli-file:focus-within {
+  border-color: var(--verde);
+  color: var(--testo);
+}
+
+.scegli-file input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+/* Il formato e i problemi stanno in un `details`: chiusi non rubano la
+   pagina, e gli errori si aprono da soli perche' sono il motivo per cui si
+   sta guardando. */
+.formato,
+.problemi {
+  margin: 13px 0;
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  background: var(--sfondo-alto);
+}
+
+.formato > summary,
+.problemi > summary {
+  padding: 11px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--testo-tenue);
+  cursor: pointer;
+}
+
+.formato > summary:hover,
+.problemi > summary:hover {
+  color: var(--testo);
+}
+
+/* Il bordo rosso basta a dire che li' c'e' qualcosa da correggere. Niente
+   sfondo colorato: non esiste un token per un rosso di sfondo, e
+   `--rosso-tenue` e' il rosso del *testo* — sul tema scuro e' un rosa
+   chiaro, che dietro una scritta rossa non si legge. */
+.problemi.gravi {
+  border-color: var(--rosso);
+}
+
+.problemi.gravi > summary {
+  color: var(--rosso);
+}
+
+.formato .tabella-contenitore,
+.problemi .tabella-contenitore {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--bordo);
+  border-radius: 0;
+}
+
+.formato .didascalia {
+  margin: 0;
+  padding: 10px 14px;
+}
+
+/* Le note spiegano, quindi vanno a capo: `.tabella td` tiene tutto su una
+   riga, che per una colonna di prosa vuol dire tagliarla. */
+.formato .tabella td:last-child,
+.problemi .tabella td:last-child {
+  white-space: normal;
+  min-width: 22ch;
+}
+
+/* L'interruttore con la sua spiegazione sotto: senza, «Sostituisci le rose
+   esistenti» e il perche' finiscono attaccati sulla stessa riga. */
+.interruttore:has(small) {
+  display: flex;
+  align-items: flex-start;
+  margin: 15px 0;
+}
+
+.interruttore:has(small) input {
+  margin-top: 3px;
+}
+
+.interruttore small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  font-weight: 450;
+  color: var(--testo-fioco);
+}
