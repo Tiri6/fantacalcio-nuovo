@@ -311,6 +311,31 @@ class Rosa:
             slot_u21_congelato=self.slot_u21_congelato,
         ).collega(indice)
 
+    def con_giocatore(self, giocatore: Giocatore, anni: int) -> Rosa:
+        """Nuova rosa con un giocatore in piu', senza toccare questa.
+
+        Il gemello di `senza_giocatore`, e sta qui per lo stesso motivo: e'
+        l'unico punto che sa quali campi di una rosa vanno portati avanti —
+        portiere d'emergenza, indisponibili, slot Under 21 congelato. Scritta
+        altrove, si dimenticherebbe di uno e lo si scoprirebbe da un conto
+        sbagliato.
+        """
+        return Rosa(
+            squadra=self.squadra,
+            contratti=[
+                *self.contratti,
+                Contratto(
+                    giocatore_id=giocatore.id,
+                    squadra_id=self.squadra.id,
+                    anni_residui=anni,
+                ),
+            ],
+            dead_money=list(self.dead_money),
+            portiere_emergenza_id=self.portiere_emergenza_id,
+            portieri_indisponibili=self.portieri_indisponibili,
+            slot_u21_congelato=self.slot_u21_congelato,
+        ).collega({**self._indice, giocatore.id: giocatore})
+
     def senza_giocatore(self, giocatore_id: int) -> Rosa:
         """Nuova rosa senza quel giocatore (il Dead Money va aggiunto a parte)."""
         return Rosa(
