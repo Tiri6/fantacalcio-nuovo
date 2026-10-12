@@ -376,3 +376,62 @@ class TestQuandoScattaLaValidazione:
                 "scheda",
                 self.ClienteCheNonDeveServire(),
             )
+
+
+class TestComeSiChiamaIlModello:
+    """Modello e impegno viaggiano nella richiesta, e sono scritti.
+
+    L'impegno non e' un dettaglio: il valore di partenza cambia da modello a
+    modello, quindi lasciandolo implicito un cambio di modello cambierebbe
+    anche quanto a fondo ragiona — e la bolletta — senza che nessuno l'abbia
+    deciso.
+    """
+
+    class FintoFlusso:
+        def __init__(self, visto):
+            self.visto = visto
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        @property
+        def text_stream(self):
+            return iter(["ok"])
+
+    class FintoClient:
+        def __init__(self):
+            self.visto = {}
+
+            prova = self
+
+            class Messaggi:
+                def stream(self, **kwargs):
+                    prova.visto = kwargs
+                    return TestComeSiChiamaIlModello.FintoFlusso(kwargs)
+
+            self.messages = Messaggi()
+
+    def test_manda_modello_e_impegno(self):
+        from fantacalcio.assistente import IMPEGNO, MODELLO, rispondi
+
+        finto = self.FintoClient()
+        assert list(rispondi("Quanti anni?", [], "scheda", finto)) == ["ok"]
+
+        assert finto.visto["model"] == MODELLO
+        assert finto.visto["output_config"] == {"effort": IMPEGNO}
+
+    def test_la_scheda_viaggia_in_un_blocco_in_cache(self):
+        """Cambia solo quando la lega cambia le regole: dalla seconda domanda
+        in poi non si paga piu'."""
+        from fantacalcio.assistente import rispondi
+
+        finto = self.FintoClient()
+        list(rispondi("Quanti anni?", [], "LA SCHEDA", finto))
+
+        blocchi = finto.visto["system"]
+        in_cache = [b for b in blocchi if b.get("cache_control")]
+        assert len(in_cache) == 1
+        assert in_cache[0]["text"] == "LA SCHEDA"

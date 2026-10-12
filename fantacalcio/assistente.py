@@ -35,7 +35,14 @@ from .regole import ETICHETTE_RUOLO, ParametriLega
 
 # Il modello e il nome del secret che tiene la chiave. Sono qui e non nella
 # vista perche' la pagina non deve sapere con chi parla.
-MODELLO = "claude-opus-5"
+MODELLO = "claude-opus-5-5"
+
+# Quanto a fondo ragionare. Su questo modello il valore di partenza sarebbe
+# «medium», mentre sul precedente era «high»: scriverlo invece di lasciarlo
+# implicito evita che cambiando modello cambi anche il comportamento senza che
+# nessuno l'abbia deciso. «medium» basta: la risposta sta in un paragrafo e la
+# scheda del regolamento gliela diamo noi, non deve ricostruirsela.
+IMPEGNO = "medium"
 CHIAVE_SECRET = "ANTHROPIC_API_KEY"
 
 # Quanto lunga puo' essere una domanda, e quanti messaggi di storia si
@@ -409,6 +416,7 @@ def _flusso(messaggi: list[dict], scheda: str, client) -> Iterator[str]:
         with client.messages.stream(
             model=MODELLO,
             max_tokens=TOKEN_MASSIMI,
+            output_config={"effort": IMPEGNO},
             system=[
                 {"type": "text", "text": ISTRUZIONI},
                 {
