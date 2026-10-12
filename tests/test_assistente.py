@@ -342,3 +342,37 @@ def test_il_dossier_dice_che_i_prolungamenti_non_si_fanno_piu():
 def test_col_lodo_che_li_riaccende_il_dossier_torna_a_spiegarli():
     testo = scheda(ParametriLega(prolungamenti_ammessi=True))
     assert "Lodo Longoni" in testo
+
+
+class TestQuandoScattaLaValidazione:
+    """`rispondi` deve alzare **chiamandola**, non scorrendola.
+
+    Era una funzione generatrice, quindi non eseguiva niente finche' non la si
+    scorreva: il controllo sulla domanda scattava a risposta gia' cominciata.
+    In HTTP vuol dire con lo stato 200 gia' mandato, in Streamlit dentro
+    `write_stream` — in tutti e due i casi troppo tardi per dire «scrivi una
+    domanda», e al suo posto si vedeva un errore tecnico.
+    """
+
+    class ClienteCheNonDeveServire:
+        def __getattr__(self, nome):
+            raise AssertionError(
+                "con una domanda vuota non si deve nemmeno toccare il client"
+            )
+
+    def test_una_domanda_vuota_alza_subito(self):
+        from fantacalcio.assistente import DomandaNonValida, rispondi
+
+        with pytest.raises(DomandaNonValida):
+            rispondi("   ", [], "scheda", self.ClienteCheNonDeveServire())
+
+    def test_una_domanda_troppo_lunga_alza_subito(self):
+        from fantacalcio.assistente import LIMITE_DOMANDA, DomandaNonValida, rispondi
+
+        with pytest.raises(DomandaNonValida):
+            rispondi(
+                "a" * (LIMITE_DOMANDA + 1),
+                [],
+                "scheda",
+                self.ClienteCheNonDeveServire(),
+            )

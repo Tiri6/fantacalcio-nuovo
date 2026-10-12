@@ -2967,3 +2967,112 @@ input[type="range"] {
   width: 100%;
   accent-color: var(--verde);
 }
+
+/* --- regolamento e chat --------------------------------------------------- */
+
+.gruppo-regole {
+  margin-bottom: 26px;
+}
+
+.gruppo-regole h2 {
+  margin-bottom: 8px;
+}
+
+/* La tabella del regolamento non ha intestazione: sono coppie voce/valore. */
+.gruppo-regole .tabella tr:first-child td {
+  border-top: 0;
+}
+
+.gruppo-regole .tabella td:first-child {
+  width: 55%;
+  white-space: normal;
+  color: var(--testo-tenue);
+}
+
+a.bottone-principale {
+  display: inline-block;
+  margin-bottom: 22px;
+  padding: 11px 18px;
+  border-radius: var(--raggio-piccolo);
+  background: var(--verde-cupo);
+  color: var(--su-verde);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+a.bottone-principale:hover {
+  background: var(--verde);
+}
+
+.scheda-chat {
+  max-height: 320px;
+  overflow: auto;
+  padding: 12px 14px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.esempi {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+  align-items: flex-start;
+}
+
+.conversazione {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.bolla {
+  max-width: min(680px, 92%);
+  padding: 12px 15px;
+  border-radius: var(--raggio);
+  background: var(--superficie);
+  border: 1px solid var(--bordo);
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+.bolla.mia {
+  justify-self: end;
+  background: var(--verde-cupo);
+  border-color: var(--verde-cupo);
+  color: var(--su-verde);
+}
+
+/* Il Markdown dentro una bolla non deve aggiungere margini sopra e sotto. */
+.bolla > div > :first-child {
+  margin-top: 0;
+}
+
+.bolla > div > :last-child {
+  margin-bottom: 0;
+}
+
+.bolla p {
+  margin: 0 0 8px;
+}
+
+.bolla ul,
+.bolla ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+
+.bolla code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--sfondo-alto);
+  font-size: 12.5px;
+}
+
+.bolla.mia code {
+  background: rgb(0 0 0 / 0.2);
+}

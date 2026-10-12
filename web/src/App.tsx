@@ -12,6 +12,7 @@ import { Albo } from "./pagine/Albo";
 import { Bacheca } from "./pagine/Bacheca";
 import { Calendario } from "./pagine/Calendario";
 import { Campionato } from "./pagine/Campionato";
+import { ChatRegolamento } from "./pagine/ChatRegolamento";
 import { Coppa } from "./pagine/Coppa";
 import { Cruscotto } from "./pagine/Cruscotto";
 import { F1Rush } from "./pagine/F1Rush";
@@ -22,6 +23,7 @@ import { Importa } from "./pagine/Importa";
 import { Lega } from "./pagine/Lega";
 import { Listone } from "./pagine/Listone";
 import { Profilo } from "./pagine/Profilo";
+import { Regolamento } from "./pagine/Regolamento";
 import { Scambi } from "./pagine/Scambi";
 import { Squadra } from "./pagine/Squadra";
 import { Squadre } from "./pagine/Squadre";
@@ -68,6 +70,8 @@ const SEZIONI: { titolo: string; voci: Voce[] }[] = [
       },
       { a: "/calendario", icona: "📅", testo: "Calendario" },
       { a: "/albo", icona: "🏛️", testo: "Albo d'oro" },
+      { a: "/regolamento", icona: "📖", testo: "Regolamento" },
+      { a: "/regolamento/chat", icona: "💬", testo: "Chat sul regolamento" },
     ],
   },
   {
@@ -170,6 +174,8 @@ function Intelaiatura() {
           <Route path="/coppa" element={<Coppa />} />
           <Route path="/f1-rush" element={<F1Rush />} />
           <Route path="/calendario" element={<Calendario />} />
+          <Route path="/regolamento" element={<Regolamento />} />
+          <Route path="/regolamento/chat" element={<ChatRegolamento />} />
           <Route path="/albo" element={<Albo />} />
           <Route path="/squadre" element={<Squadre />} />
           <Route path="/squadre/:id" element={<Squadra />} />

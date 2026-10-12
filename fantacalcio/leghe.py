@@ -855,3 +855,180 @@ def parametri_di_punteggio(base: ParametriLega, lega: Lega | None) -> ParametriL
         passo_gol=lega.opzioni.passo_gol,
         modificatore_difesa=lega.opzioni.modificatore_difesa,
     )
+
+
+# ---------------------------------------------------------------------------
+# Il regolamento applicato, in righe
+# ---------------------------------------------------------------------------
+#
+# La pagina «Regolamento» non e' altro che gruppi di «voce -> valore». Stavano
+# scritti dentro la vista Streamlit: riscriverli nell'API avrebbe voluto dire
+# due elenchi da aggiornare a ogni lodo, e il secondo sarebbe rimasto indietro
+# in silenzio — e' esattamente quello che `scheda_regolamento` evita per la
+# chat. Qui si costruiscono una volta, e le due interfacce li mostrano.
+
+
+@dataclass(frozen=True)
+class VoceRegolamento:
+    voce: str
+    valore: str
+
+
+@dataclass(frozen=True)
+class GruppoRegolamento:
+    titolo: str
+    voci: tuple[VoceRegolamento, ...]
+    nota: str = ""
+
+
+def _milioni(importo: float) -> str:
+    return f"{importo / 1_000_000:.0f} milioni"
+
+
+def prospetto_regolamento(
+    parametri: ParametriLega,
+    opzioni: OpzioniLega,
+    data_u21,
+) -> tuple[GruppoRegolamento, ...]:
+    """I valori che il gestionale applica davvero, raggruppati per articolo.
+
+    Prende i parametri gia' risolti invece di andarseli a prendere: la data
+    Under 21 la sa chi chiama (la lega la fissa al 31 agosto), e cosi' la
+    funzione resta pura e si prova senza database.
+    """
+    v = VoceRegolamento
+    p = parametri
+
+    lega = [
+        v("Modalita'", opzioni.modalita.etichetta),
+        v("Partecipanti", str(opzioni.partecipanti)),
+        v("Formato del campionato", opzioni.formato.etichetta),
+        v("Giornate", str(opzioni.giornate_totali)),
+        v("Assegnazione dei giocatori", opzioni.tipo_asta.etichetta),
+        v("Anni di contratto (massimo)", str(opzioni.anni_contratto_massimi)),
+        v("Budget cap annuale", f"{opzioni.budget_cap_milioni:.0f} milioni"),
+        v(
+            "Limiti per ruolo",
+            (
+                f"{opzioni.rosa_portieri} Por · {opzioni.rosa_difensori} Dif · "
+                f"{opzioni.rosa_centrocampisti} Cen · {opzioni.rosa_attaccanti} Att"
+                if opzioni.limiti_per_ruolo and opzioni.rosa_totale
+                else "nessun limite per ruolo"
+            ),
+        ),
+        v(
+            "Minimo giocatori italiani",
+            str(opzioni.minimo_italiani) if opzioni.minimo_italiani else "nessun vincolo",
+        ),
+        v(
+            "Minimo Under 21 italiani",
+            str(opzioni.minimo_u21_italiani)
+            if opzioni.minimo_u21_italiani
+            else "nessun vincolo",
+        ),
+        v(
+            "Scambi per stagione",
+            "illimitati"
+            if opzioni.scambi_illimitati
+            else f"{opzioni.scambi_per_stagione} per squadra",
+        ),
+        v("Under 21: data di riferimento", data_u21.strftime("%d/%m/%Y")),
+        v("Primo gol", f"{opzioni.soglia_primo_gol:g} punti"),
+        v("Gol successivi", f"uno ogni {opzioni.passo_gol:g} punti"),
+        v(
+            "Competizioni",
+            " · ".join(f"{c.icona} {c.etichetta}" for c in opzioni.competizioni),
+        ),
+    ]
+
+    gruppi = [
+        GruppoRegolamento(
+            "Le scelte di questa lega",
+            tuple(lega),
+            "Decise creando la lega. Valgono insieme al regolamento: dove i "
+            "numeri differiscono, comanda quello scelto qui.",
+        ),
+        GruppoRegolamento(
+            "Composizione rosa (art. 2)",
+            (
+                v("Giocatori minimi", str(p.rosa_minimo)),
+                v("Giocatori massimi", str(p.rosa_massimo_base)),
+                v("Massimo con espansione Under 21", str(p.rosa_massimo_assoluto)),
+                v("Portieri massimi", str(p.portieri_massimo)),
+                v("Portieri minimi", str(p.portieri_minimo)),
+                v("Slot Under 21 massimi", str(p.slot_u21_massimi)),
+                v("Eta' limite Under 21", str(p.eta_limite_u21)),
+                v("Monte anni", str(p.monte_anni)),
+                v(
+                    "Anni per contratto",
+                    f"da {p.contratto_anni_minimo} a {p.contratto_anni_massimo}",
+                ),
+            ),
+        ),
+        GruppoRegolamento(
+            "Regola «1/3»: contratti annuali obbligatori",
+            tuple(
+                v(f"{s.rosa_da}-{s.rosa_a} giocatori", str(s.minimo_annuali))
+                for s in p.soglie_annuali
+            ),
+        ),
+        GruppoRegolamento(
+            "Economia (art. 4 e 7)",
+            (
+                v("Salary Cap", _milioni(p.salary_cap)),
+                v("Salary Floor", _milioni(p.salary_floor)),
+                v("Salary Floor attivo", "Si'" if p.salary_floor_attivo else "No"),
+                v(
+                    "Dead Money da svincolo",
+                    f"{p.quota_dead_money:.0%} del valore residuo",
+                ),
+                v("Fonte ingaggi", "Capology"),
+            ),
+        ),
+        GruppoRegolamento(
+            "Mercato e scambi (art. 5, 6 e 8)",
+            (
+                v("Giornate per gironcino", str(p.giornate_per_gironcino)),
+                v(
+                    "Prolungamenti e riduzioni di durata",
+                    "ammessi" if p.prolungamenti_ammessi else "non ammessi (art. 8)",
+                ),
+                *(
+                    (
+                        v(
+                            "Prolungamenti per squadra a stagione (Lodo Longoni)",
+                            str(p.prolungamenti_per_squadra_a_stagione),
+                        ),
+                        v(
+                            "Prolungamenti per giocatore in lega (Lodo Corti)",
+                            str(p.prolungamenti_per_giocatore_in_lega),
+                        ),
+                    )
+                    if p.prolungamenti_ammessi
+                    else ()
+                ),
+                v(
+                    "Preavviso di ratifica di uno scambio",
+                    f"{p.ore_ratifica_scambio} ore",
+                ),
+            ),
+        ),
+        GruppoRegolamento(
+            "Punteggio (art. 1)",
+            (
+                v("Modalita'", opzioni.modalita.etichetta),
+                v("Fonte voti", "Statistico + Redazione"),
+                v("Primo gol a", f"{p.soglia_primo_gol:.0f} punti"),
+                v("Poi un gol ogni", f"{p.passo_gol:.0f} punti"),
+                v(
+                    "Modificatore di difesa",
+                    "Attivo" if p.modificatore_difesa else "Disattivo",
+                ),
+                v(
+                    "Malus per chi gioca fuori posizione",
+                    f"−{abs(p.malus_adattamento):g}",
+                ),
+            ),
+        ),
+    ]
+    return tuple(gruppi)

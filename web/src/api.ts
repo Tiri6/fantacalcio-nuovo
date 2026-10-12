@@ -896,6 +896,36 @@ export type PaginaF1 = {
   squadre: string[];
 };
 
+// --- Regolamento e chat -----------------------------------------------------
+
+export type VoceRegolamento = { voce: string; valore: string };
+
+export type GruppoRegolamento = {
+  titolo: string;
+  nota: string;
+  voci: VoceRegolamento[];
+};
+
+export type PaginaRegolamento = {
+  gruppi: GruppoRegolamento[];
+  ruoli_mantra: { sigla: string; nome: string }[];
+  coppa: string | null;
+  f1_rush: string | null;
+  chat_attiva: boolean;
+};
+
+export type StatoChat = {
+  attiva: boolean;
+  scheda: string;
+  domande_di_esempio: string[];
+  limite_domanda: number;
+  posso_configurare: boolean;
+  nome_secret: string;
+};
+
+/** Un turno di conversazione. Lo storico lo tiene il browser. */
+export type MessaggioChat = { ruolo: "utente" | "assistente"; testo: string };
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -1104,9 +1134,80 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ squadra }),
     }),
+  regolamento: () => chiama<PaginaRegolamento>("/regolamento"),
+  statoChat: () => chiama<StatoChat>("/regolamento/chat"),
   caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>
     chiama<{ data_uri: string }>("/immagini", {
       method: "POST",
       body: JSON.stringify({ contenuto_base64, tipo_mime }),
     }),
 };
+
+/**
+ * Chiede una regola e consegna la risposta **a pezzi**, man mano che arrivano.
+ *
+ * Non passa da `chiama` perché quella aspetta un JSON intero: qui il corpo è
+ * una riga JSON per pezzo (`application/x-ndjson`), e il punto è mostrarli
+ * mentre arrivano — una domanda di regolamento ha una risposta breve ma il
+ * modello ci mette qualche secondo, e senza streaming la pagina resta muta e
+ * sembra rotta.
+ *
+ * `onErrore` è separato da `onPezzo` di proposito: un guasto a metà risposta
+ * arriva quando lo stato HTTP è già stato mandato, e deve restare
+ * distinguibile da quello che ha detto il modello.
+ */
+export async function chiediAlRegolamento(
+  testo: string,
+  storico: MessaggioChat[],
+  onPezzo: (pezzo: string) => void,
+  onErrore: (messaggio: string) => void,
+): Promise<void> {
+  const risposta = await fetch("/api/regolamento/chat", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ testo, storico }),
+  });
+
+  if (!risposta.ok) {
+    let dettaglio = `Errore ${risposta.status}`;
+    try {
+      const corpo = await risposta.json();
+      if (typeof corpo?.detail === "string") dettaglio = corpo.detail;
+    } catch {
+      /* risposta senza corpo JSON: tengo il messaggio generico */
+    }
+    throw new ErroreApi(risposta.status, dettaglio);
+  }
+
+  const lettore = risposta.body?.getReader();
+  if (!lettore) throw new ErroreApi(500, "Risposta senza corpo.");
+
+  const decodifica = new TextDecoder();
+  let avanzo = "";
+
+  function consuma(blocco: string, ultimo: boolean) {
+    avanzo += blocco;
+    const righe = avanzo.split("\n");
+    // L'ultima riga può essere spezzata a metà fra due blocchi: resta
+    // nell'avanzo finché non arriva il resto.
+    avanzo = ultimo ? "" : (righe.pop() ?? "");
+    for (const riga of righe) {
+      if (!riga.trim()) continue;
+      try {
+        const letta = JSON.parse(riga);
+        if (typeof letta.testo === "string") onPezzo(letta.testo);
+        else if (typeof letta.errore === "string") onErrore(letta.errore);
+      } catch {
+        /* riga illeggibile: meglio saltarla che rompere la risposta */
+      }
+    }
+  }
+
+  for (;;) {
+    const { done, value } = await lettore.read();
+    if (done) break;
+    consuma(decodifica.decode(value, { stream: true }), false);
+  }
+  consuma(decodifica.decode(), true);
+}
