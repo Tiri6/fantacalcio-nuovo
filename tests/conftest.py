@@ -18,6 +18,7 @@ tocchi — continua a chiamare il costruttore vero: sono tre test in
 from __future__ import annotations
 
 import shutil
+from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
 
@@ -102,6 +103,49 @@ def rosa() -> Rosa:
 def classifica() -> list[str]:
     """Classifica della stagione precedente, dalla 1a alla 10a."""
     return [f"Squadra {i}" for i in range(1, 11)]
+
+
+# --- scrypt a costo da test -------------------------------------------------
+
+
+@pytest.fixture(scope="session", autouse=True)
+def scrypt_da_test() -> Iterator[int]:
+    """Abbassa il costo di scrypt per tutta la sessione di test.
+
+    In produzione `COSTO_N` sta a 2^14 di proposito: ~100 ms per verifica,
+    impercettibili a chi entra e cari a chi tenta a forza bruta. Nei test
+    quella lentezza e' tutto il costo: ogni `entra()` di un test dell'API e'
+    una verifica, e i test dell'API ne fanno centinaia — era la voce piu'
+    grossa della suite, piu' di tutto il resto insieme.
+
+    Si abbassa **prima** che `modello_demo` costruisca il database, cosi' le
+    cifrature finte e le verifiche usano lo stesso parametro: scrypt con un
+    `n` diverso da' un digest diverso, e le password di demo non entrerebbero
+    piu'. Il valore vero resta provato in `test_autenticazione`, che cifra e
+    verifica senza passare da qui.
+
+    Rende il costo vero, per chi deve rimetterlo: vedi `scrypt_di_produzione`.
+    """
+    from fantacalcio import autenticazione
+
+    vero = autenticazione.COSTO_N
+    autenticazione.COSTO_N = 2**4
+    yield vero
+    autenticazione.COSTO_N = vero
+
+
+@pytest.fixture
+def scrypt_di_produzione(scrypt_da_test: int, monkeypatch) -> None:
+    """Rimette il costo vero di scrypt per la durata di un test.
+
+    Serve a chi confronta un hash nato **in un altro processo** — uno script
+    lanciato con `subprocess`, che il costo abbassato non lo vede: scrypt con
+    un `n` diverso da' un digest diverso, e la verifica fallirebbe per il
+    motivo sbagliato.
+    """
+    from fantacalcio import autenticazione
+
+    monkeypatch.setattr(autenticazione, "COSTO_N", scrypt_da_test)
 
 
 # --- il database di demo ----------------------------------------------------

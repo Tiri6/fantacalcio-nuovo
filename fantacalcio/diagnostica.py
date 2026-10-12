@@ -14,6 +14,16 @@ from dataclasses import dataclass
 # Cosa il codice si aspetta di trovare. Le colonne elencate sono quelle
 # **scritte** dall'app: se manca una di queste, un salvataggio fallisce.
 ATTESO: dict[str, tuple[str, ...]] = {
+    "sale": (
+        "id",
+        "lega_id",
+        "tipo",
+        "stato",
+        "stagione",
+        "chiamate_previste",
+        "secondi_per_chiamata",
+    ),
+    "chiamate": ("id", "sala_id", "numero", "squadra_id", "giocatore_id", "anni"),
     "leghe": ("id", "nome", "codice_invito", "admin_id", "stagione", "opzioni"),
     "inviti": ("id", "lega_id", "email", "codice", "stato"),
     "annunci": (

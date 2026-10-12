@@ -795,3 +795,124 @@ class TestSvincoloRegistrato:
         assert rosa.dimensione == 0
         assert rosa.dead_money_totale == 3_000_000.0
         assert rosa.dead_money[0].nome_giocatore == "Tale 1"
+
+
+class TestLaSalaSuDatabase:
+    """Andata e ritorno della sala e del suo registro."""
+
+    @staticmethod
+    def _sala(arch):
+        from fantacalcio.data import carica_squadre, salva_sala
+        from fantacalcio.sala import TipoSala, apri, comincia
+
+        squadre = sorted(carica_squadre(arch))
+        sala = comincia(apri(1, 1, TipoSala.SETTEMBRE, "2026/27", 2, squadre, squadre))
+        salva_sala(arch, sala)
+        return sala, squadre
+
+    def test_la_sala_torna_com_era(self, archivio_demo):
+        from fantacalcio.data import carica_sale
+        from fantacalcio.sala import StatoSala, TipoSala
+
+        sala, squadre = self._sala(archivio_demo)
+
+        riletta = carica_sale(archivio_demo, lega_id=1)[0]
+
+        assert riletta.tipo is TipoSala.SETTEMBRE
+        assert riletta.stato is StatoSala.IN_CORSO
+        assert riletta.chiamate_previste == sala.chiamate_previste
+        assert riletta.squadre == tuple(squadre)
+        assert riletta.round_totali == 2
+
+    def test_una_chiamata_scrive_anche_il_contratto(self, archivio_demo):
+        from fantacalcio.data import (
+            carica_chiamate,
+            carica_rose,
+            salva_chiamata,
+            svincolati,
+        )
+        from fantacalcio.sala import Scelta
+
+        sala, _ = self._sala(archivio_demo)
+        prima = sala.chiamate_previste[0]
+        libero = sorted(svincolati(archivio_demo))[0]
+        quante = len(carica_rose(archivio_demo)[prima].contratti)
+
+        salva_chiamata(
+            archivio_demo, sala.id, Scelta(1, prima, libero, anni=3, quando="ora")
+        )
+
+        registro = carica_chiamate(archivio_demo, sala.id)
+        assert [s.giocatore_id for s in registro] == [libero]
+        assert registro[0].anni == 3
+        rosa = carica_rose(archivio_demo)[prima]
+        assert len(rosa.contratti) == quante + 1
+        assert rosa.contratto_di(libero).anni_residui == 3
+
+    def test_correggere_gli_anni_tocca_registro_e_contratto(self, archivio_demo):
+        """Lasciarne indietro uno vorrebbe dire una finestra che si riapre su
+        un valore che non e' piu' quello."""
+        from fantacalcio.data import (
+            aggiorna_anni_chiamata,
+            carica_chiamate,
+            carica_rose,
+            salva_chiamata,
+            svincolati,
+        )
+        from fantacalcio.sala import Scelta
+
+        sala, _ = self._sala(archivio_demo)
+        prima = sala.chiamate_previste[0]
+        libero = sorted(svincolati(archivio_demo))[0]
+        salva_chiamata(
+            archivio_demo, sala.id, Scelta(1, prima, libero, anni=3, quando="ora")
+        )
+
+        aggiorna_anni_chiamata(archivio_demo, sala.id, prima, libero, 5)
+
+        assert carica_chiamate(archivio_demo, sala.id)[0].anni == 5
+        rosa = carica_rose(archivio_demo)[prima]
+        assert rosa.contratto_di(libero).anni_residui == 5
+
+    def test_le_chiamate_di_un_altra_sala_non_si_mescolano(self, archivio_demo):
+        from fantacalcio.data import carica_chiamate, salva_chiamata, svincolati
+        from fantacalcio.sala import Scelta
+
+        sala, _ = self._sala(archivio_demo)
+        prima = sala.chiamate_previste[0]
+        liberi = sorted(svincolati(archivio_demo))[:2]
+        salva_chiamata(
+            archivio_demo, sala.id, Scelta(1, prima, liberi[0], anni=1, quando="ora")
+        )
+        salva_chiamata(
+            archivio_demo, 99, Scelta(1, prima, liberi[1], anni=1, quando="ora")
+        )
+
+        assert len(carica_chiamate(archivio_demo, sala.id)) == 1
+        assert len(carica_chiamate(archivio_demo, 99)) == 1
+
+    def test_due_chiamate_con_lo_stesso_numero_non_passano(self, archivio_demo):
+        """Il vincolo che regge la sala: `unique (sala_id, numero)`.
+
+        E' quello, e non un controllo in Python, che impedisce a due persone
+        che premono nello stesso istante di prendere lo stesso posto: fra il
+        controllo e la scrittura ci passa l'altra richiesta, fra la scrittura e
+        se stessa no.
+        """
+        import pytest
+
+        from fantacalcio.data import salva_chiamata, svincolati
+        from fantacalcio.sala import Scelta
+
+        sala, squadre = self._sala(archivio_demo)
+        liberi = sorted(svincolati(archivio_demo))
+        assert len(liberi) >= 2, "la demo deve avere almeno due svincolati"
+
+        salva_chiamata(
+            archivio_demo, sala.id, Scelta(1, squadre[0], liberi[0], 1, "2026-09-15")
+        )
+
+        with pytest.raises(Exception):  # noqa: B017 - i backend alzano tipi diversi
+            salva_chiamata(
+                archivio_demo, sala.id, Scelta(1, squadre[1], liberi[1], 1, "2026-09-15")
+            )

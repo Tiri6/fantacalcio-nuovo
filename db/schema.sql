@@ -258,6 +258,42 @@ create table if not exists scambi_movimenti (
 -- ---------------------------------------------------------------------------
 -- Aggiornamento di un database gia' esistente
 -- ---------------------------------------------------------------------------
+-- --------------------------------------------------------------------------
+-- La sala del draft
+-- --------------------------------------------------------------------------
+--
+-- `chiamate_previste` e' l'ordine congelato all'apertura, una squadra per
+-- chiamata, separate da virgola. Congelato e non ricalcolato: l'ordine dei
+-- round di riparazione dipende dalla classifica, e una giornata calcolata a
+-- sala aperta riordinerebbe i turni a meta' draft.
+create table if not exists sale (
+    id                      bigserial primary key,
+    lega_id                 bigint references leghe(id) on delete cascade,
+    tipo                    text not null default 'SETTEMBRE',
+    stato                   text not null default 'aperta',
+    stagione                text not null default '',
+    chiamate_previste       text not null default '',
+    secondi_per_chiamata    integer,
+    aperta_il               timestamptz not null default now(),
+    cominciata_il           timestamptz,
+    chiusa_il               timestamptz
+);
+
+-- Il registro delle chiamate: in sola aggiunta, mai riscritto. `numero` e'
+-- unico nella sala, ed e' quello che impedisce a due persone che premono
+-- insieme di prendere lo stesso posto: la seconda scrittura viene rifiutata
+-- dal database, non da un controllo che qualcuno puo' dimenticare.
+create table if not exists chiamate (
+    id              bigserial primary key,
+    sala_id         bigint not null references sale(id) on delete cascade,
+    numero          integer not null,
+    squadra_id      bigint not null references squadre(id) on delete cascade,
+    giocatore_id    bigint not null references giocatori(id) on delete cascade,
+    anni            integer not null default 1,
+    quando          timestamptz not null default now(),
+    unique (sala_id, numero)
+);
+
 -- `create table if not exists` non tocca una tabella che c'e' gia': su un
 -- database creato prima delle leghe multiple le colonne nuove non
 -- comparirebbero, e l'app fallirebbe alla prima scrittura. Questi ALTER sono
@@ -405,6 +441,8 @@ alter table giocatori   enable row level security;
 alter table contratti   enable row level security;
 alter table dead_money  enable row level security;
 alter table formazioni  enable row level security;
+alter table sale        enable row level security;
+alter table chiamate    enable row level security;
 alter table voti        enable row level security;
 alter table calendario  enable row level security;
 alter table parametri   enable row level security;
@@ -425,7 +463,9 @@ begin
         'calendario', 'parametri', 'lodi', 'scambi', 'scambi_movimenti',
         -- Formazioni e voti si leggono: nel fantacalcio la formazione degli
         -- altri e' pubblica, e i voti sono gli stessi per tutti.
-        'formazioni', 'voti'
+        'formazioni', 'voti',
+        -- La sala del draft la guardano tutti: e' il suo senso.
+        'sale', 'chiamate'
     ]
     loop
         execute format('drop policy if exists "lettura pubblica" on %I', t);

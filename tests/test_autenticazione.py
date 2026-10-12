@@ -492,7 +492,7 @@ class TestRegistrazioneCompleta:
 class TestSbloccoDaSql:
     """Lo script di emergenza deve produrre una password che il sito accetta."""
 
-    def test_l_hash_generato_verifica_la_password(self):
+    def test_l_hash_generato_verifica_la_password(self, scrypt_di_produzione):
         import re
         import subprocess
         import sys
