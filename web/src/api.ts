@@ -1057,6 +1057,23 @@ export const api = {
       body: JSON.stringify(corpo),
     }),
   esci: () => chiama<void>("/esci", { method: "POST" }),
+  // Le due strade per rientrare, le uniche due rotte oltre ad accesso e
+  // registrazione che rispondono a chi non ha una sessione.
+  rientraConCodice: (corpo: {
+    nome_utente: string;
+    codice: string;
+    nuova: string;
+    conferma: string;
+  }) =>
+    chiama<void>("/recupero/codice", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  chiediAlPresidente: (nome_utente: string) =>
+    chiama<void>("/recupero/richiesta", {
+      method: "POST",
+      body: JSON.stringify({ nome_utente }),
+    }),
   squadre: () => chiama<Squadra[]>("/squadre"),
   squadra: (id: number) => chiama<SquadraInDettaglio>(`/squadre/${id}`),
   listone: () => chiama<Listone>("/giocatori"),
