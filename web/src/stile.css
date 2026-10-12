@@ -3239,3 +3239,13 @@ a.bottone-principale:hover {
     grid-template-columns: 1fr auto;
   }
 }
+
+/* I conti di un import del listone: quanti stipendi, quante date di nascita,
+   quante nazionalita'. Verdi quando ci sono, spenti quando mancano — sono le
+   tre cose da cui dipende se Salary Cap e Under 21 funzionano. */
+.conti-import {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}

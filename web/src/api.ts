@@ -595,6 +595,7 @@ export type FormatiImport = {
   campi_listone: CampoFile[];
   campi_rose: CampoFile[];
   campi_risultati: CampoFile[];
+  modello_listone: string;
   modello_rose: string;
   modello_risultati: string;
   soglia_primo_gol: number;
@@ -662,11 +663,21 @@ export type RigaListoneImport = {
   ruoli: string[];
   quotazione: number | null;
   fvm: number | null;
+  /** I tre che l'xlsx ufficiale non ha e il CSV completo sì. */
+  ingaggio: number;
+  nazionalita: string;
+  data_nascita: string | null;
 };
 
 export type EsitoListoneImport = EsitoFile & {
   righe: RigaListoneImport[];
   club: number;
+  con_stipendio: number;
+  con_data_nascita: number;
+  con_nazionalita: number;
+  senza_stipendio: string[];
+  /** Cosa ha riconosciuto il lettore: si accettano due formati. */
+  fonti: string[];
 };
 
 export type RigaRisultatoImport = {
@@ -1168,10 +1179,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ contenuto_base64, nome }),
     }),
-  importaListone: (contenuto_base64: string, nome: string) =>
+  importaListone: (
+    contenuto_base64: string,
+    nome: string,
+    sostituisci = false,
+  ) =>
     chiama<RiepilogoImport>("/importazione/listone", {
       method: "POST",
-      body: JSON.stringify({ contenuto_base64, nome }),
+      body: JSON.stringify({ contenuto_base64, nome, sostituisci }),
     }),
   anteprimaRose: (contenuto_base64: string, nome: string) =>
     chiama<EsitoRoseImport>("/importazione/rose/anteprima", {

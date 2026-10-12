@@ -792,6 +792,15 @@ MODELLO_CSV_LISTONE = (
 
 
 def leggi_listone_csv(contenuto: bytes | str) -> list[RigaListone]:
+    """Le righe del listone, per chi dei problemi non sa che farsene.
+
+    Chi invece deve mostrarli — l'anteprima dell'import, che serve proprio a
+    dire cosa succedera' prima di scrivere — chiama `legge_listone_csv`.
+    """
+    return legge_listone_csv(contenuto)[0]
+
+
+def legge_listone_csv(contenuto: bytes | str) -> tuple[list[RigaListone], list[str]]:
     """Il listone completo da un unico foglio, come lo si prepara in Excel.
 
     Obbligatorie: **id giocatore**, **nome** (o cognome) e **ruolo mantra**.
@@ -886,7 +895,11 @@ def leggi_listone_csv(contenuto: bytes | str) -> list[RigaListone]:
     if not righe:
         dettaglio = f" Primi problemi: {'; '.join(problemi[:3])}." if problemi else ""
         raise FonteNonRaggiungibile(f"Nessuna riga leggibile nel file.{dettaglio}")
-    return righe
+    # I problemi tornano **insieme** alle righe buone, non solo quando non ne
+    # resta nessuna: un file con quaranta id storti ne importava
+    # quattrocentosessanta in silenzio, e i quaranta mancanti si scoprivano a
+    # draft cominciato.
+    return righe, problemi
 
 
 def _leggi_data(valore) -> date | None:
@@ -937,6 +950,10 @@ class EsitoAggiornamento:
     righe: list[RigaListone] = field(default_factory=list)
     fonti: list[StatoFonte] = field(default_factory=list)
     senza_stipendio: list[str] = field(default_factory=list)
+    # Le righe del file che non sono entrate, una frase per ciascuna. Chi
+    # carica deve poterle leggere **prima** di scrivere: un listone a cui
+    # mancano quaranta giocatori si scopre altrimenti a draft cominciato.
+    problemi: list[str] = field(default_factory=list)
     stagione: str = ""
     quando: datetime | None = None
 
@@ -1083,14 +1100,19 @@ def consolida(
     quotazioni: bytes,
     stipendi: Iterable[Stipendio] = (),
     ingaggi_correnti: dict[int, float] | None = None,
+    gia_letto=None,
 ) -> tuple[list[RigaListone], list[str]]:
     """Listone + stipendi in una lista sola. Torna anche chi e' rimasto senza.
 
     `ingaggi_correnti` (per id ufficiale) tiene in piedi quel che si sapeva
     gia': se Capology non risponde per un giocatore, il suo ingaggio non
     diventa zero.
+
+    `gia_letto` e' l'`EsitoImportazione` dell'xlsx, se chi chiama l'ha gia'
+    aperto: serve a chi vuole **anche** i problemi riga per riga, che qui
+    dentro si perderebbero, senza per questo leggere il file due volte.
     """
-    esito = importa_listone(quotazioni)
+    esito = gia_letto if gia_letto is not None else importa_listone(quotazioni)
     if not esito.righe:
         messaggio = esito.problemi[0].messaggio if esito.problemi else "listone vuoto"
         raise FonteNonRaggiungibile(f"Listone non leggibile: {messaggio}")
@@ -1266,7 +1288,7 @@ def aggiorna_da_file(
     # Un CSV porta gia' gli stipendi dentro: il file a parte non serve.
     if quotazioni[:2] != b"PK":
         try:
-            righe = leggi_listone_csv(quotazioni)
+            righe, esito.problemi = legge_listone_csv(quotazioni)
         except FonteNonRaggiungibile as errore:
             esito.fonti.append(
                 StatoFonte("Listone (CSV caricato)", "", False, str(errore))
@@ -1310,7 +1332,12 @@ def aggiorna_da_file(
             )
 
     try:
-        righe, senza = consolida(quotazioni, letti, ingaggi_correnti)
+        letto = importa_listone(quotazioni)
+        esito.problemi = [
+            f"riga {p.riga} ({p.campo}): {p.messaggio}" if p.riga else p.messaggio
+            for p in letto.problemi
+        ]
+        righe, senza = consolida(quotazioni, letti, ingaggi_correnti, gia_letto=letto)
     except FonteNonRaggiungibile as errore:
         esito.fonti.insert(
             0, StatoFonte("Listone (file caricato)", "", False, str(errore))

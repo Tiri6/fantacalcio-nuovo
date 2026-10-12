@@ -372,14 +372,16 @@ class TestIlListone:
         assert risposta.status_code == 200
         assert "catalogo" in risposta.json()["messaggio"]
 
-    def test_un_file_che_non_e_excel_lo_dice(self, client):
+    def test_un_file_che_non_e_ne_l_uno_ne_l_altro_lo_dice(self, client):
+        """Si accettano due formati, quindi il rifiuto deve dire cosa si
+        aspettava: «non e' un Excel» a chi aveva in mano un CSV non serviva."""
         entra(client)
         dati = client.post(
             "/api/importazione/listone/anteprima",
-            json=caricato("sono un csv, non xlsx"),
+            json=caricato("non sono niente di leggibile"),
         ).json()
         assert dati["importabile"] is False
-        assert any("Excel" in e["messaggio"] for e in dati["errori"])
+        assert any("id giocatore" in e["messaggio"] for e in dati["errori"])
 
     def test_il_listone_non_tocca_le_rose(self, client):
         """Aggiorna ruoli, club e quotazioni: contratti e ingaggi no."""
@@ -391,3 +393,137 @@ class TestIlListone:
         per_nome = {g["nome"]: g["anni_residui"] for g in dopo}
         for giocatore in prima:
             assert per_nome[giocatore["nome"]] == giocatore["anni_residui"]
+
+
+class TestIlListoneInUnFileSolo:
+    """Il CSV con dentro stipendi, date di nascita e nazionalita'.
+
+    E' la ragione per cui si accettano due formati. L'xlsx ufficiale di
+    Fantacalcio.it porta anagrafica, ruoli e quotazioni e **nient'altro**:
+    senza stipendio il Salary Cap resta a zero, senza data di nascita lo
+    status Under 21 non si puo' determinare, e sono due terzi del regolamento.
+    """
+
+    CSV = (
+        "id giocatore;nome giocatore;cognome giocatore;squadra di provenienza;"
+        "ruolo classic;ruolo mantra;data di nascita;nazionalita;stipendio lordo\n"
+        "2071;Paulo;Dybala;Roma;A;A/Pc;15/11/1993;Argentina;6000000\n"
+        "555;Nicolo;Barella;Inter;C;M/C;07/02/1997;Italia;9000000\n"
+    )
+
+    def test_l_anteprima_conta_cosa_porta_il_file(self, client):
+        entra(client)
+
+        dati = client.post(
+            "/api/importazione/listone/anteprima", json=caricato(self.CSV)
+        ).json()
+
+        assert dati["lette"] == 2
+        assert dati["importabile"] is True
+        assert dati["con_stipendio"] == 2
+        assert dati["con_data_nascita"] == 2
+        assert dati["con_nazionalita"] == 2
+        assert dati["righe"][0]["ingaggio"] == 6_000_000
+        assert dati["righe"][0]["data_nascita"] == "1993-11-15"
+        assert dati["righe"][0]["nazionalita"] == "Argentina"
+
+    def test_dice_che_file_ha_riconosciuto(self, client):
+        """Due formati accettati vuol dire che chi carica deve vedere per quale
+        dei due e' stato preso il suo."""
+        entra(client)
+
+        dati = client.post(
+            "/api/importazione/listone/anteprima", json=caricato(self.CSV)
+        ).json()
+
+        assert any("CSV" in f for f in dati["fonti"])
+
+    def test_i_tre_dati_arrivano_davvero_in_archivio(self, client):
+        from datetime import date
+
+        from fantacalcio.data import archivio, carica_giocatori
+
+        entra(client)
+        risposta = client.post("/api/importazione/listone", json=caricato(self.CSV))
+
+        assert risposta.status_code == 200
+        per_ufficiale = {g.id_ufficiale: g for g in carica_giocatori(archivio()).values()}
+        dybala = per_ufficiale[2071]
+        assert dybala.ingaggio == 6_000_000
+        assert dybala.data_nascita == date(1993, 11, 15)
+        assert dybala.nazionalita == "Argentina"
+        # E con la data di nascita lo status Under 21 si puo' finalmente
+        # calcolare: e' tutto il punto di caricarla.
+        assert dybala.eta_al(date(2026, 8, 31)) == 32
+
+    def test_una_riga_rotta_e_un_avviso_non_un_errore(self, client):
+        """Le altre quattrocentonovantanove entrano lo stesso, ma quella che
+        manca si deve poter leggere prima di scrivere."""
+        entra(client)
+        rotto = self.CSV + "xx;Chi;Sa;Roma;C;M;;;\n"
+
+        dati = client.post(
+            "/api/importazione/listone/anteprima", json=caricato(rotto)
+        ).json()
+
+        assert dati["importabile"] is True
+        assert dati["lette"] == 2
+        assert len(dati["avvisi"]) == 1
+        assert "id non numerico" in dati["avvisi"][0]["messaggio"]
+
+    def test_ricaricare_l_xlsx_non_azzera_gli_stipendi(self, client):
+        """L'xlsx lo stipendio non ce l'ha: se ricaricarlo lo cancellasse,
+        il Salary Cap di tutta la lega tornerebbe a zero a ogni aggiornamento
+        di quotazioni."""
+        from fantacalcio.data import archivio, carica_giocatori
+
+        entra(client)
+        client.post("/api/importazione/listone", json=caricato(self.CSV))
+
+        client.post(
+            "/api/importazione/listone",
+            json=caricato(listone_xlsx([(2071, "A", "A;Pc", "Dybala", "Roma", 30, 80)])),
+        )
+
+        dybala = next(
+            g for g in carica_giocatori(archivio()).values() if g.id_ufficiale == 2071
+        )
+        assert dybala.ingaggio == 6_000_000
+        assert dybala.quotazione == 30  # la quotazione invece si aggiorna
+
+    def test_di_partenza_unisce_e_non_cancella(self, client):
+        from fantacalcio.data import archivio, carica_giocatori
+
+        entra(client)
+        quanti_prima = len(carica_giocatori(archivio()))
+
+        client.post("/api/importazione/listone", json=caricato(self.CSV))
+
+        assert len(carica_giocatori(archivio())) >= quanti_prima
+
+    def test_sostituendo_resta_solo_quel_che_c_e_nel_file(self, client):
+        """Serve quando il file precedente era sbagliato. Cancella anche i
+        contratti di chi sparisce, ed e' per questo che non e' il modo
+        normale di aggiornare."""
+        from fantacalcio.data import archivio, carica_giocatori
+
+        entra(client)
+
+        risposta = client.post(
+            "/api/importazione/listone",
+            json=caricato(self.CSV, sostituisci=True),
+        )
+
+        assert risposta.status_code == 200
+        assert "cancellati" in risposta.json()["messaggio"]
+        assert len(carica_giocatori(archivio())) == 2
+
+    def test_il_modello_del_csv_si_scarica(self, client):
+        """Il formato va mostrato, non indovinato: e' un file che si prepara
+        a mano in Excel."""
+        entra(client)
+
+        formati = client.get("/api/importazione").json()
+
+        assert "stipendio lordo" in formati["modello_listone"]
+        assert "data di nascita" in formati["modello_listone"]
