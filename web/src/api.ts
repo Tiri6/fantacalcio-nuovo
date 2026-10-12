@@ -572,6 +572,114 @@ export type EsitoProposta = {
   inviata: boolean;
 };
 
+// --- Importazione -----------------------------------------------------------
+//
+// Le colonne non sono scritte qui: le manda il server, che le prende dallo
+// stesso modulo che legge i file. Una tabella scritta nella pagina sarebbe la
+// copia che diverge al primo sinonimo nuovo.
+
+export type CampoFile = {
+  nome: string;
+  obbligatorio: boolean;
+  esempio: string;
+  nota: string;
+};
+
+export type FormatiImport = {
+  posso_importare: boolean;
+  giocatori_in_catalogo: number;
+  nota_formato: string;
+  campi_listone: CampoFile[];
+  campi_rose: CampoFile[];
+  campi_risultati: CampoFile[];
+  modello_rose: string;
+  modello_risultati: string;
+  soglia_primo_gol: number;
+  passo_gol: number;
+};
+
+export type ProblemaFile = {
+  riga: number;
+  colonna: string;
+  valore: string;
+  messaggio: string;
+};
+
+export type EsitoFile = {
+  lette: number;
+  errori: ProblemaFile[];
+  avvisi: ProblemaFile[];
+  intestazioni_ignorate: string[];
+  importabile: boolean;
+};
+
+export type ViolazioneImport = {
+  codice: string;
+  articolo: string;
+  messaggio: string;
+  bloccante: boolean;
+};
+
+export type StatoRosaImport = {
+  squadra: string;
+  dimensione: number;
+  limite_dimensione: number;
+  slot_u21: number;
+  portieri: number;
+  anni_impegnati: number;
+  monte_anni: number;
+  contratti_annuali: number;
+  annuali_richiesti: number;
+  spesa_salariale: number;
+  limite_cap: number;
+  spazio_salariale: number;
+  conforme: boolean;
+  violazioni: ViolazioneImport[];
+};
+
+export type RigaRosaImport = {
+  riga: number;
+  squadra: string;
+  giocatore: string;
+  club: string;
+  ruoli: string[];
+  anni: number;
+  ingaggio: number;
+};
+
+export type EsitoRoseImport = EsitoFile & {
+  righe: RigaRosaImport[];
+  squadre: StatoRosaImport[];
+};
+
+export type RigaListoneImport = {
+  id_ufficiale: number;
+  nome: string;
+  club: string;
+  ruoli: string[];
+  quotazione: number | null;
+  fvm: number | null;
+};
+
+export type EsitoListoneImport = EsitoFile & {
+  righe: RigaListoneImport[];
+  club: number;
+};
+
+export type RigaRisultatoImport = {
+  giornata: number;
+  casa: string;
+  trasferta: string;
+  punti_casa: number;
+  punti_trasferta: number;
+};
+
+export type EsitoRisultatiImport = EsitoFile & {
+  righe: RigaRisultatoImport[];
+};
+
+export type RiepilogoImport = { messaggio: string };
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -702,6 +810,37 @@ export const api = {
     chiama<void>(`/albo/${id}`, { method: "DELETE" }),
   cruscotto: (momento: string) =>
     chiama<Cruscotto>(`/cruscotto?momento=${encodeURIComponent(momento)}`),
+  formatiImport: () => chiama<FormatiImport>("/importazione"),
+  anteprimaListone: (contenuto_base64: string, nome: string) =>
+    chiama<EsitoListoneImport>("/importazione/listone/anteprima", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, nome }),
+    }),
+  importaListone: (contenuto_base64: string, nome: string) =>
+    chiama<RiepilogoImport>("/importazione/listone", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, nome }),
+    }),
+  anteprimaRose: (contenuto_base64: string, nome: string) =>
+    chiama<EsitoRoseImport>("/importazione/rose/anteprima", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, nome }),
+    }),
+  importaRose: (contenuto_base64: string, nome: string, sostituisci: boolean) =>
+    chiama<RiepilogoImport>("/importazione/rose", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, nome, sostituisci }),
+    }),
+  anteprimaRisultati: (contenuto_base64: string, nome: string) =>
+    chiama<EsitoRisultatiImport>("/importazione/risultati/anteprima", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, nome }),
+    }),
+  importaRisultati: (contenuto_base64: string, nome: string) =>
+    chiama<RiepilogoImport>("/importazione/risultati", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, nome }),
+    }),
   caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>
     chiama<{ data_uri: string }>("/immagini", {
       method: "POST",

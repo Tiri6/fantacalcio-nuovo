@@ -28,6 +28,7 @@ from .rotte import (
     cruscotto,
     giocatori,
     identita,
+    importazione,
     lega,
     onboarding,
     profilo,
@@ -94,6 +95,7 @@ app.include_router(lega.rotte, prefix="/api")
 app.include_router(profilo.rotte, prefix="/api")
 app.include_router(identita.rotte, prefix="/api")
 app.include_router(squadre.rotte, prefix="/api")
+app.include_router(importazione.rotte, prefix="/api")
 app.include_router(scambi.rotte, prefix="/api")
 
 

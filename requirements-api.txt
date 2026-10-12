@@ -7,3 +7,8 @@ pydantic>=2.6
 PyJWT>=2.8
 pandas>=2.0
 supabase>=2.4
+
+# Il listone ufficiale e' un .xlsx, e lo legge `importa_listone`. Senza,
+# l'import del listone muore in produzione e solo li': in sviluppo
+# openpyxl c'e' comunque, se lo porta requirements.txt per Streamlit.
+openpyxl>=3.1

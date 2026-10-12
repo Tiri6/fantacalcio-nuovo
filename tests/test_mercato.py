@@ -114,6 +114,12 @@ class TestChiPuoSvincolare:
 
 class TestSvincolo:
     def test_libera_subito_gli_anni(self, rosa):
+        """Art. 7: «Il taglio libera spazio immediato nel budget dei 66 anni e
+        permette di recuperare gli anni assegnabili».
+
+        Gli anni e i soldi vanno in direzioni opposte, ed e' il punto facile da
+        sbagliare: l'ingaggio resta a carico fino a fine stagione, gli anni no.
+        """
         anni_prima = rosa.anni_impegnati
         bersaglio = rosa.contratti[-1]
 
