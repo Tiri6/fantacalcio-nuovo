@@ -3249,3 +3249,30 @@ a.bottone-principale:hover {
   gap: 8px;
   margin: 12px 0;
 }
+
+/* --- il modulo delle regole di lega -------------------------------------- */
+
+/* Quaranta caselle: in colonna sarebbero un chilometro, e chi cerca «passo
+   gol» scorrerebbe tutto. In griglia si trovano a colpo d'occhio. */
+.caselle-regole {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+  align-items: end;
+  padding: 4px 2px 10px;
+}
+
+/* I moduli ammessi sono sedici: prendono tutta la riga. */
+.campo-largo {
+  grid-column: 1 / -1;
+}
+
+.scelte-multiple {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scelte-multiple .pastiglia {
+  cursor: pointer;
+}

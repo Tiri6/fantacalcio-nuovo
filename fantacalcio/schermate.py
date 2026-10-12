@@ -84,6 +84,7 @@ from .leghe import (
     StatoInvito,
     TipoAsta,
     aggiorna_opzioni,
+    avvisi_sulle_regole,
     crea_invito,
     crea_lega,
     differenze,
@@ -1492,51 +1493,8 @@ def modulo_modifica_regole(utente: Utente, lega: Lega) -> None:
 
 
 def _avvisi_sulle_regole(lega: Lega, nuove: OpzioniLega, iscritte: int) -> None:
-    """Le conseguenze che il salvataggio non rifiuta ma che conviene sapere.
-
-    Non sono errori: sono cambiamenti legittimi che pero' toccano roba gia'
-    salvata, e vale la pena dirli prima invece di lasciarli scoprire.
-    """
-    avvisi: list[str] = []
-
-    if iscritte > nuove.partecipanti:
-        avvisi.append(
-            f"La lega ha **{iscritte} squadre** iscritte e staresti mettendo "
-            f"il tetto a {nuove.partecipanti}: il salvataggio lo rifiutera'."
-        )
-
-    tolti = [m for m in lega.opzioni.moduli_ammessi if m not in nuove.moduli_ammessi]
-    if tolti:
-        avvisi.append(
-            "Moduli tolti: **"
-            + ", ".join(tolti)
-            + "**. Chi li aveva gia' usati trovera' la formazione da rifare."
-        )
-
-    if nuove.panchinari < lega.opzioni.panchinari:
-        avvisi.append(
-            f"La panchina passa da {lega.opzioni.panchinari} a "
-            f"**{nuove.panchinari}**: le formazioni salvate con piu' panchinari "
-            f"vanno risistemate."
-        )
-
-    if (
-        nuove.soglia_primo_gol != lega.opzioni.soglia_primo_gol
-        or nuove.passo_gol != lega.opzioni.passo_gol
-    ):
-        avvisi.append(
-            "Cambiano le fasce di gol: le giornate **gia' calcolate** restano "
-            "come sono, le prossime useranno le fasce nuove. Se vuoi "
-            "riallineare anche il passato, ricalcola quelle giornate."
-        )
-
-    if nuove.modalita is not lega.opzioni.modalita:
-        avvisi.append(
-            f"Stai passando a **{nuove.modalita.etichetta}**: cambiano i ruoli "
-            f"con cui si schiera, e i moduli con loro."
-        )
-
-    for avviso in avvisi:
+    """Gli avvisi li calcola il dominio: qui si mostrano e basta."""
+    for avviso in avvisi_sulle_regole(lega.opzioni, nuove, iscritte):
         st.warning(avviso, icon="⚠️")
 
 

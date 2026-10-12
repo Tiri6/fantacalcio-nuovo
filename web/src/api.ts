@@ -602,6 +602,42 @@ export type FormatiImport = {
   passo_gol: number;
 };
 
+/* --- le regole di lega, come modulo ------------------------------------- */
+
+export type ValoreRegola = string | number | boolean | string[] | null;
+
+export type SceltaRegola = { valore: string; etichetta: string };
+
+export type CampoRegola = {
+  nome: string;
+  etichetta: string;
+  /** intero | decimale | booleano | scelta | multi | testo */
+  tipo: string;
+  valore: ValoreRegola;
+  scelte: SceltaRegola[];
+  /** Vero quando «nessun limite» è una risposta ammessa. */
+  opzionale: boolean;
+  /** "" o "milioni": come si legge il numero, già convertito. */
+  unita: string;
+};
+
+export type GruppoRegole = { titolo: string; campi: CampoRegola[] };
+
+export type PaginaRegole = {
+  posso_modificare: boolean;
+  stagione: string;
+  squadre_iscritte: number;
+  gruppi: GruppoRegole[];
+  /** Quel che da qui non si tocca, col motivo. */
+  escluse: { nome: string; motivo: string }[];
+};
+
+export type CambiamentiRegole = {
+  cambia: string[];
+  avvisi: string[];
+  errore: string;
+};
+
 export type ProblemaFile = {
   riga: number;
   colonna: string;
@@ -1162,6 +1198,17 @@ export const api = {
   generaCodiceRecupero: () =>
     chiama<{ codice: string }>("/profilo/codice-recupero", { method: "POST" }),
   lega: () => chiama<DatiLega>("/lega"),
+  regole: () => chiama<PaginaRegole>("/lega/regole"),
+  anteprimaRegole: (valori: Record<string, ValoreRegola>, stagione: string) =>
+    chiama<CambiamentiRegole>("/lega/regole/anteprima", {
+      method: "POST",
+      body: JSON.stringify({ valori, stagione }),
+    }),
+  cambiaRegole: (valori: Record<string, ValoreRegola>, stagione: string) =>
+    chiama<PaginaRegole>("/lega/regole", {
+      method: "PUT",
+      body: JSON.stringify({ valori, stagione }),
+    }),
   invita: (email: string) =>
     chiama<DatiLega>("/lega/inviti", {
       method: "POST",

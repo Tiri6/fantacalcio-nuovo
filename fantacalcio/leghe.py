@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import re
 import secrets
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field, is_dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -731,6 +731,31 @@ ETICHETTE_OPZIONI: dict[str, str] = {
     "bonus": "Bonus e malus",
     "regole_coppa": "Regole della Coppa Italia",
     "regole_f1_rush": "Regole della F1 Rush Finale",
+    # I campi dentro i tre oggetti annidati. Si cercano col nome corto
+    # («assist»), perche' e' quello che resta dopo il punto.
+    "gol_segnato": "Gol segnato",
+    "gol_su_rigore": "Gol su rigore",
+    "gol_subito": "Gol subito",
+    "assist": "Assist",
+    "rigore_parato": "Rigore parato",
+    "rigore_sbagliato": "Rigore sbagliato",
+    "autogol": "Autogol",
+    "ammonizione": "Ammonizione",
+    "espulsione": "Espulsione",
+    "portiere_imbattuto": "Portiere imbattuto",
+    "regole_coppa.formato": "Formato della coppa",
+    "squadre_ammesse": "Squadre ammesse",
+    "gironi": "Gironi",
+    "qualificate_per_girone": "Qualificate per girone",
+    "dopo_il_campionato": "Si gioca a fine campionato",
+    "prima_giornata": "Primo turno alla giornata",
+    "ogni_quante_giornate": "Un turno ogni quante giornate",
+    "teste_di_serie": "Teste di serie",
+    "spareggio_ai_fantapunti": "Spareggio ai fantapunti",
+    "finale_in_campo_neutro": "Finale in campo neutro",
+    "criterio": "Criterio della F1 Rush",
+    "giornate_serie_a": "Giornate di Serie A",
+    "punti_per_posizione": "Punti di tappa",
 }
 
 
@@ -762,11 +787,76 @@ def differenze(prima: OpzioniLega, dopo: OpzioniLega) -> list[str]:
         nuovo = getattr(dopo, campo)
         if vecchio == nuovo:
             continue
+        # Bonus, coppa e F1 Rush sono oggetti: stamparli interi vorrebbe dire
+        # mettere davanti a chi salva due righe di `Bonus(gol_segnato=3.0,
+        # ...)` da confrontare a occhio. Si scende di un livello e si dice
+        # solo il campo che e' cambiato davvero.
+        if is_dataclass(vecchio) and type(vecchio) is type(nuovo):
+            for interno in type(vecchio).__dataclass_fields__:
+                dentro_prima = getattr(vecchio, interno)
+                dentro_dopo = getattr(nuovo, interno)
+                if dentro_prima == dentro_dopo:
+                    continue
+                cambiate.append(
+                    f"{_etichetta_di(f'{campo}.{interno}')}: "
+                    f"{_leggibile(dentro_prima)} → {_leggibile(dentro_dopo)}"
+                )
+            continue
         etichetta = ETICHETTE_OPZIONI.get(campo, campo.replace("_", " ").capitalize())
         if campo == "budget_cap":
             vecchio, nuovo = f"{vecchio / 1e6:g}M", f"{nuovo / 1e6:g}M"
         cambiate.append(f"{etichetta}: {_leggibile(vecchio)} → {_leggibile(nuovo)}")
     return cambiate
+
+
+def avvisi_sulle_regole(
+    opzioni: OpzioniLega, nuove: OpzioniLega, squadre_iscritte: int = 0
+) -> list[str]:
+    """Le conseguenze che il salvataggio non rifiuta, ma che conviene sapere.
+
+    Non sono errori: sono cambiamenti legittimi che pero' toccano roba gia'
+    salvata — formazioni schierate, giornate calcolate — e vale la pena dirli
+    prima invece di lasciarli scoprire a giornata in corso.
+    """
+    avvisi: list[str] = []
+
+    if squadre_iscritte > nuove.partecipanti:
+        avvisi.append(
+            f"La lega ha {squadre_iscritte} squadre iscritte e staresti "
+            f"mettendo il tetto a {nuove.partecipanti}: il salvataggio lo "
+            f"rifiutera'."
+        )
+
+    tolti = [m for m in opzioni.moduli_ammessi if m not in nuove.moduli_ammessi]
+    if tolti:
+        avvisi.append(
+            f"Moduli tolti: {', '.join(tolti)}. Chi li aveva gia' usati "
+            f"trovera' la formazione da rifare."
+        )
+
+    if nuove.panchinari < opzioni.panchinari:
+        avvisi.append(
+            f"La panchina passa da {opzioni.panchinari} a {nuove.panchinari}: "
+            f"le formazioni salvate con piu' panchinari vanno risistemate."
+        )
+
+    if (
+        nuove.soglia_primo_gol != opzioni.soglia_primo_gol
+        or nuove.passo_gol != opzioni.passo_gol
+    ):
+        avvisi.append(
+            "Cambiano le fasce di gol: le giornate gia' calcolate restano come "
+            "sono, le prossime useranno le fasce nuove. Per riallineare anche "
+            "il passato bisogna ricalcolare quelle giornate."
+        )
+
+    if nuove.modalita is not opzioni.modalita:
+        avvisi.append(
+            f"Stai passando a {nuove.modalita.etichetta}: cambiano i ruoli con "
+            f"cui si schiera, e i moduli con loro."
+        )
+
+    return avvisi
 
 
 def trova_per_codice(leghe: dict[int, Lega], codice: str) -> Lega | None:
@@ -1048,3 +1138,318 @@ def prospetto_regolamento(
         ),
     ]
     return tuple(gruppi)
+
+
+# ---------------------------------------------------------------------------
+# Le regole come modulo: una descrizione che il sito disegna da sola
+# ---------------------------------------------------------------------------
+#
+# Il modulo per cambiare le regole non si scrive a mano casella per casella.
+# Sarebbe una terza copia dell'elenco delle opzioni — dopo la dataclass e le
+# etichette — e la terza copia e' quella che si dimentica: un'opzione aggiunta
+# domani resterebbe invisibile, e nessuno se ne accorgerebbe finche' qualcuno
+# non la cerca. Qui si descrive, e chi disegna il modulo segue la descrizione.
+#
+# E' lo stesso patto del dossier della chat sul regolamento: un parametro
+# nuovo arriva da solo, e un test parametrizzato lo pretende.
+
+# I gruppi, nell'ordine in cui si leggono. Un campo che non sta qui dentro non
+# si puo' cambiare dal sito: `FUORI_MODULO` dice quali e perche'.
+GRUPPI_OPZIONI: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "Generali",
+        (
+            "modalita",
+            "partecipanti",
+            "formato",
+            "giornate_totali",
+            "punti_vittoria",
+            "punti_pareggio",
+        ),
+    ),
+    (
+        "Rosa e mercato",
+        (
+            "tipo_asta",
+            "anni_contratto_massimi",
+            "budget_cap",
+            "rosa_portieri",
+            "rosa_difensori",
+            "rosa_centrocampisti",
+            "rosa_attaccanti",
+            "minimo_italiani",
+            "minimo_u21_italiani",
+            "scambi_per_stagione",
+            "modifica_anni_dopo_draft",
+            "draft_serpente",
+        ),
+    ),
+    (
+        "Formazione",
+        (
+            "moduli_ammessi",
+            "panchinari",
+            "sostituzioni_automatiche",
+            "modalita_sostituzioni",
+            "sostituzioni_massime",
+            "capitano",
+            "vice_capitano",
+        ),
+    ),
+    (
+        "Punteggio",
+        (
+            "voto_minimo_senza_voto",
+            "soglia_primo_gol",
+            "passo_gol",
+            "bonus.gol_segnato",
+            "bonus.gol_su_rigore",
+            "bonus.gol_subito",
+            "bonus.assist",
+            "bonus.rigore_parato",
+            "bonus.rigore_sbagliato",
+            "bonus.autogol",
+            "bonus.ammonizione",
+            "bonus.espulsione",
+            "bonus.portiere_imbattuto",
+        ),
+    ),
+    (
+        "Modificatori di reparto",
+        ("modificatore_difesa", "modificatore_centrocampo", "modificatore_attacco"),
+    ),
+    (
+        "Competizioni",
+        (
+            "coppa_italia",
+            "regole_coppa.formato",
+            "regole_coppa.squadre_ammesse",
+            "regole_coppa.gironi",
+            "regole_coppa.qualificate_per_girone",
+            "regole_coppa.dopo_il_campionato",
+            "regole_coppa.prima_giornata",
+            "regole_coppa.ogni_quante_giornate",
+            "regole_coppa.teste_di_serie",
+            "regole_coppa.spareggio_ai_fantapunti",
+            "regole_coppa.finale_in_campo_neutro",
+            "f1_rush",
+            "regole_f1_rush.criterio",
+            "regole_f1_rush.giornate_serie_a",
+            "regole_f1_rush.punti_per_posizione",
+        ),
+    ),
+)
+
+# I campi che dal modulo restano fuori, con il motivo. Il motivo si mostra:
+# un'opzione che esiste e non si vede sembra un pezzo rotto del sito.
+FUORI_MODULO: dict[str, str] = {
+    "ordine_draft": (
+        "L'ordine di chiamata lo decide la Draft Room, che lo congela "
+        "all'apertura: cambiarlo qui non toccherebbe una sala gia' aperta."
+    ),
+    "fasce_difesa": (
+        "Le fasce dei modificatori sono le tabelle dell'articolo 1: si "
+        "accendono e si spengono, non si riscrivono per votazione."
+    ),
+    "fasce_centrocampo": (
+        "Come le fasce di difesa: si accende il modificatore, non la tabella."
+    ),
+    "fasce_attacco": (
+        "Come le fasce di difesa: si accende il modificatore, non la tabella."
+    ),
+}
+
+# I tre oggetti annidati — bonus, regole della coppa, regole della F1 Rush —
+# non stanno ne' qui ne' fra i gruppi col loro nome: ci stanno i loro campi,
+# uno per uno, scritti «bonus.assist».
+
+
+@dataclass(frozen=True)
+class SceltaOpzione:
+    """Una delle voci ammesse per un campo a scelta."""
+
+    valore: str
+    etichetta: str
+
+
+# Le caselle che si scrivono in un'unita' diversa da quella in cui si
+# conservano. Il Salary Cap sta in euro — i decimali su cifre a nove zeri
+# sono un modo per perdere euro — ma nessuno lo dice in euro: la lega vota
+# «cento milioni», e scrivere 100000000 a mano e' un modo per sbagliare uno
+# zero senza accorgersene.
+IN_MILIONI = ("budget_cap",)
+
+
+@dataclass(frozen=True)
+class CampoOpzione:
+    """Una casella del modulo, con dentro tutto quel che serve a disegnarla."""
+
+    nome: str
+    etichetta: str
+    # intero | decimale | booleano | scelta | multi | testo
+    tipo: str
+    valore: object
+    scelte: tuple[SceltaOpzione, ...] = ()
+    # Vero quando il campo ammette «nessun limite»: i tetti per ruolo lo fanno.
+    opzionale: bool = False
+    # Come si legge il numero: "" o "milioni". Chi disegna il modulo lo
+    # scrive accanto alla casella, e il valore qui dentro e' gia' convertito.
+    unita: str = ""
+
+
+@dataclass(frozen=True)
+class GruppoOpzioni:
+    titolo: str
+    campi: tuple[CampoOpzione, ...]
+
+
+def _annotazione(nome: str) -> str:
+    """Il tipo scritto nella dataclass, come testo."""
+    radice, _, resto = nome.partition(".")
+    if not resto:
+        campo = OpzioniLega.__dataclass_fields__.get(radice)
+        return str(campo.type) if campo else ""
+    contenitore = type(getattr(OpzioniLega(), radice))
+    campo = contenitore.__dataclass_fields__.get(resto)
+    return str(campo.type) if campo else ""
+
+
+def _valore_di(opzioni: OpzioniLega, nome: str):
+    radice, _, resto = nome.partition(".")
+    valore = getattr(opzioni, radice)
+    return getattr(valore, resto) if resto else valore
+
+
+def _etichetta_di(nome: str) -> str:
+    if nome in ETICHETTE_OPZIONI:
+        return ETICHETTE_OPZIONI[nome]
+    ultimo = nome.rpartition(".")[2]
+    return ETICHETTE_OPZIONI.get(ultimo, ultimo.replace("_", " ").capitalize())
+
+
+def descrivi_opzioni(opzioni: OpzioniLega) -> list[GruppoOpzioni]:
+    """Le regole di questa lega, raccontate come un modulo da compilare.
+
+    Il tipo di ogni casella si ricava dal valore che ha adesso — un Enum porta
+    con se' le sue voci, un booleano e' un interruttore — e non da una tabella
+    scritta a mano che il giorno dopo dice un'altra cosa.
+    """
+    gruppi: list[GruppoOpzioni] = []
+    for titolo, nomi in GRUPPI_OPZIONI:
+        campi: list[CampoOpzione] = []
+        for nome in nomi:
+            valore = _valore_di(opzioni, nome)
+            scelte: tuple[SceltaOpzione, ...] = ()
+            opzionale = "None" in _annotazione(nome)
+
+            if isinstance(valore, bool):
+                tipo = "booleano"
+            elif isinstance(valore, Enum):
+                tipo = "scelta"
+                scelte = tuple(
+                    SceltaOpzione(v.name, getattr(v, "etichetta", v.name))
+                    for v in type(valore)
+                )
+                valore = valore.name
+            elif nome == "moduli_ammessi":
+                # Le scelte dipendono dalla modalita', che e' un'altra casella
+                # dello stesso modulo: Mantra e Classic hanno moduli diversi.
+                tipo = "multi"
+                scelte = tuple(
+                    SceltaOpzione(m, m) for m in moduli_disponibili(opzioni.modalita)
+                )
+                valore = list(valore)
+            elif isinstance(valore, tuple | list):
+                # Una scala di numeri (i punti di tappa della F1 Rush): si
+                # scrive come la si legge, «25, 18, 15, …».
+                tipo = "testo"
+                valore = ", ".join(str(v) for v in valore)
+            elif isinstance(valore, int) and not isinstance(valore, bool):
+                tipo = "intero"
+            elif isinstance(valore, float):
+                tipo = "decimale"
+            elif valore is None:
+                tipo = "intero"
+            else:
+                tipo = "testo"
+
+            unita = ""
+            if nome in IN_MILIONI:
+                unita, valore = "milioni", float(valore) / 1_000_000
+
+            campi.append(
+                CampoOpzione(
+                    nome=nome,
+                    etichetta=_etichetta_di(nome),
+                    tipo=tipo,
+                    valore=valore,
+                    scelte=scelte,
+                    opzionale=opzionale,
+                    unita=unita,
+                )
+            )
+        gruppi.append(GruppoOpzioni(titolo, tuple(campi)))
+    return gruppi
+
+
+def _converti(nome: str, grezzo, adesso):
+    """Il valore che arriva dal modulo, riportato al tipo che aveva."""
+    if nome in IN_MILIONI:
+        return float(grezzo) * 1_000_000
+    if isinstance(adesso, bool):
+        return bool(grezzo)
+    if isinstance(adesso, Enum):
+        try:
+            return type(adesso)[str(grezzo)]
+        except KeyError as errore:
+            raise LegaNonValida(
+                f"«{grezzo}» non e' un valore ammesso per {_etichetta_di(nome)}."
+            ) from errore
+    if nome == "moduli_ammessi":
+        return tuple(str(m) for m in grezzo)
+    if isinstance(adesso, tuple):
+        pezzi = [p.strip() for p in str(grezzo).replace(";", ",").split(",")]
+        try:
+            return tuple(int(p) for p in pezzi if p)
+        except ValueError as errore:
+            raise LegaNonValida(
+                f"{_etichetta_di(nome)}: servono numeri separati da virgola."
+            ) from errore
+    if grezzo in (None, "") and "None" in _annotazione(nome):
+        return None
+    if isinstance(adesso, float):
+        return float(grezzo)
+    if isinstance(adesso, int) or adesso is None:
+        return int(grezzo)
+    return str(grezzo)
+
+
+def con_valori(opzioni: OpzioniLega, valori: dict) -> OpzioniLega:
+    """Le opzioni con dentro i valori del modulo, e nient'altro.
+
+    Un nome che il modulo non conosce **ferma tutto**: una casella scritta
+    male verrebbe ignorata in silenzio, e chi l'ha compilata crederebbe di
+    aver cambiato una regola che invece e' rimasta com'era.
+
+    I controlli veri restano dove sono sempre stati — `__post_init__` di
+    `OpzioniLega` e `aggiorna_opzioni` — e le loro eccezioni passano di qui
+    senza essere mascherate.
+    """
+    ammessi = {nome for _, nomi in GRUPPI_OPZIONI for nome in nomi}
+    sconosciuti = sorted(set(valori) - ammessi)
+    if sconosciuti:
+        raise LegaNonValida(f"Opzioni che non esistono: {', '.join(sconosciuti)}.")
+
+    piatti: dict[str, object] = {}
+    annidati: dict[str, dict[str, object]] = {}
+    for nome, grezzo in valori.items():
+        convertito = _converti(nome, grezzo, _valore_di(opzioni, nome))
+        radice, _, resto = nome.partition(".")
+        if resto:
+            annidati.setdefault(radice, {})[resto] = convertito
+        else:
+            piatti[radice] = convertito
+
+    for radice, campi in annidati.items():
+        piatti[radice] = replace(getattr(opzioni, radice), **campi)
+    return replace(opzioni, **piatti)

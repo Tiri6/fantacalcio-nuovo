@@ -754,3 +754,184 @@ class TestParametriDiPunteggio:
 
         assert uniti.monte_anni == base.monte_anni
         assert uniti.salary_cap == base.salary_cap
+
+
+class TestLeRegoleComeModulo:
+    """La descrizione da cui il sito disegna il modulo delle regole.
+
+    Il punto di tutto: un'opzione aggiunta domani deve comparire nel sito
+    **da sola**. Scrivere le caselle a mano vorrebbe dire una terza copia
+    dell'elenco delle opzioni — dopo la dataclass e le etichette — e la terza
+    copia e' quella che si dimentica.
+    """
+
+    def test_ogni_opzione_sta_in_un_gruppo_o_e_esclusa_col_motivo(self):
+        """Il test che tiene in piedi il patto: aggiungere un campo a
+        `OpzioniLega` senza metterlo da qualche parte fa fallire questo."""
+        from fantacalcio.leghe import FUORI_MODULO, GRUPPI_OPZIONI, OpzioniLega
+
+        nei_gruppi = {
+            nome.partition(".")[0] for _, nomi in GRUPPI_OPZIONI for nome in nomi
+        }
+        tutti = set(OpzioniLega.__dataclass_fields__)
+
+        assert tutti - nei_gruppi - set(FUORI_MODULO) == set()
+        # Chi e' escluso lo e' per un motivo scritto, non per dimenticanza.
+        assert all(FUORI_MODULO.values())
+        assert nei_gruppi & set(FUORI_MODULO) == set()
+
+    def test_il_tipo_si_ricava_dal_valore(self):
+        from fantacalcio.leghe import OpzioniLega, descrivi_opzioni
+
+        campi = {c.nome: c for g in descrivi_opzioni(OpzioniLega()) for c in g.campi}
+
+        assert campi["partecipanti"].tipo == "intero"
+        assert campi["budget_cap"].tipo == "decimale"
+        assert campi["coppa_italia"].tipo == "booleano"
+        assert campi["modalita"].tipo == "scelta"
+        assert campi["moduli_ammessi"].tipo == "multi"
+
+    def test_un_enum_si_porta_dietro_le_sue_voci(self):
+        from fantacalcio.leghe import OpzioniLega, descrivi_opzioni
+
+        campi = {c.nome: c for g in descrivi_opzioni(OpzioniLega()) for c in g.campi}
+        sostituzioni = campi["modalita_sostituzioni"]
+
+        assert sostituzioni.valore == "BASIC"
+        assert [s.valore for s in sostituzioni.scelte] == ["EASY", "BASIC", "MASTER"]
+        assert all(s.etichetta for s in sostituzioni.scelte)
+
+    def test_i_moduli_dipendono_dalla_modalita(self):
+        """Mantra e Classic hanno moduli diversi: offrire gli altri vorrebbe
+        dire far scegliere una cosa che poi `OpzioniLega` rifiuta."""
+        from dataclasses import replace
+
+        from fantacalcio.leghe import Modalita, OpzioniLega, descrivi_opzioni
+
+        def moduli(opzioni):
+            campi = {c.nome: c for g in descrivi_opzioni(opzioni) for c in g.campi}
+            return [s.valore for s in campi["moduli_ammessi"].scelte]
+
+        mantra = moduli(OpzioniLega())
+        classic = moduli(
+            replace(
+                OpzioniLega(),
+                modalita=Modalita.CLASSIC,
+                moduli_ammessi=("4-4-2",),
+            )
+        )
+
+        assert mantra != classic
+        assert "3-4-1-2" in mantra
+
+    def test_un_tetto_per_ruolo_puo_non_esserci(self):
+        from fantacalcio.leghe import OpzioniLega, descrivi_opzioni
+
+        campi = {c.nome: c for g in descrivi_opzioni(OpzioniLega()) for c in g.campi}
+
+        assert campi["rosa_portieri"].opzionale is True
+        assert campi["partecipanti"].opzionale is False
+
+    def test_i_campi_annidati_si_vedono_uno_per_uno(self):
+        from fantacalcio.leghe import OpzioniLega, descrivi_opzioni
+
+        campi = {c.nome: c for g in descrivi_opzioni(OpzioniLega()) for c in g.campi}
+
+        assert campi["bonus.assist"].valore == 1.0
+        assert campi["bonus.assist"].etichetta == "Assist"
+        assert campi["regole_coppa.gironi"].valore == 2
+
+
+class TestApplicareIlModulo:
+    def test_rimette_i_valori_al_loro_tipo(self):
+        from fantacalcio.leghe import (
+            ModalitaSostituzioni,
+            OpzioniLega,
+            con_valori,
+        )
+
+        nuove = con_valori(
+            OpzioniLega(),
+            {
+                "partecipanti": 12,
+                "coppa_italia": True,
+                "modalita_sostituzioni": "MASTER",
+                "bonus.assist": 2.0,
+                "regole_f1_rush.punti_per_posizione": "25, 18, 15",
+            },
+        )
+
+        assert nuove.partecipanti == 12
+        assert nuove.coppa_italia is True
+        assert nuove.modalita_sostituzioni is ModalitaSostituzioni.MASTER
+        assert nuove.bonus.assist == 2.0
+        assert nuove.regole_f1_rush.punti_per_posizione == (25, 18, 15)
+
+    def test_quel_che_non_si_tocca_resta(self):
+        from fantacalcio.leghe import OpzioniLega, con_valori
+
+        prima = OpzioniLega()
+        dopo = con_valori(prima, {"partecipanti": 12})
+
+        assert dopo.moduli_ammessi == prima.moduli_ammessi
+        assert dopo.bonus == prima.bonus
+
+    def test_un_nome_sconosciuto_ferma_tutto(self):
+        """Ignorarlo in silenzio vorrebbe dire far credere a chi compila di
+        aver cambiato una regola che invece e' rimasta com'era."""
+        from fantacalcio.leghe import LegaNonValida, OpzioniLega, con_valori
+
+        with pytest.raises(LegaNonValida, match="non esistono"):
+            con_valori(OpzioniLega(), {"partecipantii": 12})
+
+    def test_un_tetto_per_ruolo_si_puo_togliere(self):
+        """«Nessun limite» e' una scelta legittima: il fantacalcio
+        manageriale spesso non impone quanti difensori avere."""
+        from fantacalcio.leghe import OpzioniLega, con_valori
+
+        assert con_valori(OpzioniLega(), {"rosa_portieri": ""}).rosa_portieri is None
+
+    def test_una_voce_inventata_per_un_enum_lo_dice(self):
+        from fantacalcio.leghe import LegaNonValida, OpzioniLega, con_valori
+
+        with pytest.raises(LegaNonValida, match="non e' un valore ammesso"):
+            con_valori(OpzioniLega(), {"modalita": "SUBBUTEO"})
+
+    def test_i_controlli_di_sempre_restano(self):
+        """`con_valori` non valida: costruisce. A dire di no e' `OpzioniLega`,
+        dov'e' sempre stato."""
+        from fantacalcio.leghe import LegaNonValida, OpzioniLega, con_valori
+
+        with pytest.raises(LegaNonValida):
+            con_valori(OpzioniLega(), {"partecipanti": 1})
+
+    def test_le_differenze_scendono_dentro_gli_oggetti(self):
+        """Prima stampava due righe di `Bonus(gol_segnato=3.0, ...)` da
+        confrontare a occhio: e' la riga che si legge prima di salvare."""
+        from fantacalcio.leghe import OpzioniLega, con_valori, differenze
+
+        prima = OpzioniLega()
+        dopo = con_valori(prima, {"bonus.assist": 2.0})
+
+        assert differenze(prima, dopo) == ["Assist: 1 → 2"]
+
+    def test_il_salary_cap_si_scrive_in_milioni(self):
+        """Nessuno lo dice in euro: la lega vota «cento milioni», e scrivere
+        100000000 a mano e' un modo per sbagliare uno zero."""
+        from fantacalcio.leghe import OpzioniLega, con_valori, descrivi_opzioni
+
+        campi = {c.nome: c for g in descrivi_opzioni(OpzioniLega()) for c in g.campi}
+
+        assert campi["budget_cap"].valore == 100.0
+        assert campi["budget_cap"].unita == "milioni"
+        assert con_valori(OpzioniLega(), {"budget_cap": 80}).budget_cap == 80_000_000
+
+    def test_il_formato_della_coppa_non_si_chiama_come_quello_del_campionato(self):
+        """Due campi diversi che si chiamano `formato`: senza il nome intero
+        la coppa ereditava l'etichetta del campionato."""
+        from fantacalcio.leghe import OpzioniLega, descrivi_opzioni
+
+        campi = {c.nome: c for g in descrivi_opzioni(OpzioniLega()) for c in g.campi}
+
+        assert campi["regole_coppa.formato"].etichetta == "Formato della coppa"
+        assert campi["formato"].etichetta == "Formato del campionato"
