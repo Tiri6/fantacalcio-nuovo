@@ -502,8 +502,19 @@ cd ~/fantacalcio-nuovo
 git pull
 ```
 
-(Il percorso e' quello dove hai clonato il repository: se non te lo ricordi,
-`find ~ -name fly.toml -maxdepth 4` te lo dice.)
+Il percorso e' quello dove hai clonato il repository. Se non te lo ricordi:
+
+```bash
+find ~ -maxdepth 4 -type d -name fantacalcio-nuovo
+```
+
+Se non esce niente, il repository su questo computer non c'e' ancora:
+
+```bash
+cd ~
+git clone https://github.com/Tiri6/fantacalcio-nuovo.git
+cd fantacalcio-nuovo
+```
 
 **1. Installare `flyctl`**, una volta sola. Su macOS o Linux:
 
