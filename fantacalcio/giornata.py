@@ -304,3 +304,20 @@ def calcola_giornata(
             )
         )
     return esito
+
+
+def abbinamento(giocatori) -> tuple[dict[str, int], dict[int, int]]:
+    """Le due chiavi per riconoscere un giocatore in un file di voti.
+
+    La prima va dal nome normalizzato all'id interno, la seconda dall'id del
+    listone ufficiale allo stesso id. L'id e' piu' sicuro del nome, ma non
+    tutti i file dei voti ce l'hanno, quindi servono tutte e due.
+    """
+    from .importazione import normalizza_nome_giocatore
+
+    valori = giocatori.values() if hasattr(giocatori, "values") else giocatori
+    valori = list(valori)
+    return (
+        {normalizza_nome_giocatore(g.nome): g.id for g in valori},
+        {g.id_ufficiale: g.id for g in valori if g.id_ufficiale},
+    )

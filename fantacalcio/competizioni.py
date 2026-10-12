@@ -558,3 +558,36 @@ def conta_per_competizione(titoli: list[Titolo]) -> dict[TipoCompetizione, int]:
         tipo: sum(1 for t in titoli if t.competizione is tipo)
         for tipo in TipoCompetizione
     }
+
+
+def inizio_giornata(partite, giornata: int, competizione: str = "CAMPIONATO"):
+    """Quando comincia una giornata, se sta in calendario.
+
+    E' l'orario su cui si chiudono le formazioni, quindi non e' un dettaglio
+    di presentazione: torna `None` quando la giornata non e' stata
+    programmata, e li' non si blocca niente — impedire di schierare per una
+    data che nessuno ha fissato sarebbe peggio che lasciare aperto.
+
+    Prende il calendario gia' letto (un DataFrame) invece di andarselo a
+    prendere: cosi' la stessa funzione serve la pagina Streamlit, che ce
+    l'ha in cache, e l'API, che lo rilegge a ogni richiesta.
+    """
+    from datetime import datetime
+
+    if partite is None or partite.empty or "inizio_previsto" not in partite.columns:
+        return None
+    scelte = partite[partite["giornata"].astype("Int64") == int(giornata)]
+    if "competizione" in scelte.columns:
+        scelte = scelte[scelte["competizione"].astype(str) == competizione]
+    orari = [str(v) for v in scelte["inizio_previsto"].tolist() if v and str(v) != "nan"]
+    letti = []
+    for grezzo in orari:
+        try:
+            letti.append(datetime.fromisoformat(grezzo.replace("Z", "+00:00")))
+        except ValueError:
+            continue
+    if not letti:
+        return None
+    # La giornata comincia con la prima partita in programma.
+    primo = min(letti)
+    return primo.replace(tzinfo=None) if primo.tzinfo else primo

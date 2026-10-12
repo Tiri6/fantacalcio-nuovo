@@ -57,6 +57,9 @@ export type ChiSono = {
   puo_importare: boolean;
   puo_svincolare: boolean;
   puo_scrivere_in_bacheca: boolean;
+  /** Le voci di menu di Coppa e F1 Rush dipendono da questi due. */
+  gioca_coppa: boolean;
+  gioca_f1_rush: boolean;
 };
 
 export type Squadra = {
@@ -680,6 +683,268 @@ export type EsitoRisultatiImport = EsitoFile & {
 
 export type RiepilogoImport = { messaggio: string };
 
+// --- Formazione -------------------------------------------------------------
+//
+// Le caselle arrivano gia' risolte: per ognuna, chi la occupa di diritto e chi
+// ci si adatterebbe pagando il malus. La tabella Mantra resta in Python.
+
+export type GiocatoreScelta = {
+  id: number;
+  nome: string;
+  ruoli: string[];
+};
+
+export type CasellaFormazione = {
+  indice: number;
+  etichetta: string;
+  reparto: string;
+  liberi: number[];
+  adattati: number[];
+};
+
+export type BloccoFormazioni = {
+  modificabile: boolean;
+  motivo: string;
+  inizio: string | null;
+  mancano_secondi: number | null;
+};
+
+export type SquadraInCampo = {
+  squadra_id: number;
+  squadra: string;
+  modulo: string;
+  reparti: GiocatoreScelta[][];
+  panchina: GiocatoreScelta[];
+};
+
+export type PaginaFormazione = {
+  giornata: number;
+  giornate_totali: number;
+  competizione: string;
+  competizioni: string[];
+  blocco: BloccoFormazioni;
+  mia_squadra_id: number | null;
+  posso_schierare: boolean;
+  avviso: string | null;
+  moduli: string[];
+  modulo: string;
+  modulo_ufficiale: boolean;
+  difensori: number;
+  centrocampisti: number;
+  attaccanti: number;
+  caselle: CasellaFormazione[];
+  titolari_richiesti: number;
+  panchinari: number;
+  adattamento_ammesso: boolean;
+  malus_adattamento: number;
+  modalita_sostituzioni: string;
+  rosa: GiocatoreScelta[];
+  titolari: number[];
+  panchina: number[];
+  squadre: SquadraInCampo[];
+  mancanti: string[];
+  schierate: number;
+  totali: number;
+};
+
+// --- Giornata ---------------------------------------------------------------
+
+export type InCampoLetto = {
+  id: number;
+  nome: string;
+  ruoli: string[];
+  punti: number | null;
+  entrato: boolean;
+  senza_voto: boolean;
+  adattato: boolean;
+};
+
+export type TabellinoLetto = {
+  totale: number;
+  gol: number;
+  modificatore_difesa: number;
+  malus_adattamento: number;
+  malus_emergenza: number;
+  adattati: number;
+  sostituzioni: string[];
+  senza_voto_rimasti: string[];
+};
+
+export type SquadraDellaPartita = {
+  squadra_id: number;
+  squadra: string;
+  modulo: string | null;
+  ha_schierato: boolean;
+  reparti: InCampoLetto[][];
+  panchina: string[];
+  tabellino: TabellinoLetto | null;
+};
+
+export type PartitaLetta = {
+  id: number;
+  stato: "salvata" | "provvisoria" | "da giocare";
+  gol_casa: number | null;
+  gol_trasferta: number | null;
+  punti_casa: number | null;
+  punti_trasferta: number | null;
+  casa: SquadraDellaPartita;
+  trasferta: SquadraDellaPartita;
+};
+
+export type PaginaGiornata = {
+  giornata: number;
+  giornate: number[];
+  competizione: string;
+  competizioni: string[];
+  partite: PartitaLetta[];
+  formazioni_salvate: number;
+  voti_caricati: number;
+  calendario_vuoto: boolean;
+  posso_calcolare: boolean;
+  modello_voti: string;
+  senza_formazione: string[];
+};
+
+export type VotiLetti = {
+  messaggio: string;
+  salvati: number;
+  senza_voto: number;
+  non_abbinati: string[];
+};
+
+export type GiornataCalcolata = {
+  messaggio: string;
+  calcolate: number;
+  saltate: number;
+  avvisi: string[];
+};
+
+// --- Calendario, Coppa, F1 Rush ---------------------------------------------
+
+export type PartitaInCalendario = {
+  giornata: number;
+  casa: string;
+  trasferta: string;
+  gol_casa: number | null;
+  gol_trasferta: number | null;
+  punti_casa: number | null;
+  punti_trasferta: number | null;
+};
+
+export type Weekend = {
+  numero: number;
+  serie_a: number;
+  nella_lega: string;
+};
+
+export type PaginaCalendario = {
+  squadre: string[];
+  giornate_disputate: number;
+  giornate_totali: number;
+  partite_giocate: number;
+  partite: PartitaInCalendario[];
+  senza_partite: boolean;
+  weekend: Weekend[];
+  gioca_coppa: boolean;
+};
+
+export type FaseDiCoppa = { fase: string; quando: string; stato: string };
+
+export type PaginaCoppa = {
+  si_gioca: boolean;
+  formato: string;
+  squadre_ammesse: number;
+  a_gironi: boolean;
+  gironi: number;
+  squadre_per_girone: number;
+  giornate_di_girone: number;
+  qualificate_per_girone: number;
+  squadre_a_eliminazione: number;
+  turni: number;
+  nomi_turni: string[];
+  prima_giornata: number;
+  ogni_quante_giornate: number;
+  teste_di_serie: boolean;
+  spareggio_ai_fantapunti: boolean;
+  tabellone: FaseDiCoppa[];
+  ammesse: string[];
+  accoppiamenti: [string, string][];
+};
+
+export type RigaF1 = {
+  posizione: number;
+  squadra: string;
+  punti: number;
+  vittorie_di_tappa: number;
+  fantapunti: number;
+};
+
+export type TappaF1 = { titolo: string; podio: string[] };
+
+export type PaginaF1 = {
+  si_gioca: boolean;
+  giornate_serie_a: number;
+  prima_giornata: number;
+  ultima_giornata: number;
+  criterio: string;
+  punti_per_posizione: number[];
+  classifica: RigaF1[];
+  tappe: TappaF1[];
+  senza_giornate_serie_a: boolean;
+  vincitrice: string | null;
+  posso_assegnare: boolean;
+  squadre: string[];
+};
+
+// --- Regolamento e chat -----------------------------------------------------
+
+export type VoceRegolamento = { voce: string; valore: string };
+
+export type GruppoRegolamento = {
+  titolo: string;
+  nota: string;
+  voci: VoceRegolamento[];
+};
+
+export type PaginaRegolamento = {
+  gruppi: GruppoRegolamento[];
+  ruoli_mantra: { sigla: string; nome: string }[];
+  coppa: string | null;
+  f1_rush: string | null;
+  chat_attiva: boolean;
+};
+
+export type StatoChat = {
+  attiva: boolean;
+  scheda: string;
+  domande_di_esempio: string[];
+  limite_domanda: number;
+  posso_configurare: boolean;
+  nome_secret: string;
+};
+
+/** Un turno di conversazione. Lo storico lo tiene il browser. */
+export type MessaggioChat = { ruolo: "utente" | "assistente"; testo: string };
+
+export type Svincolabile = {
+  giocatore_id: number;
+  nome: string;
+  anni_residui: number;
+  anni_oltre_quello_in_corso: number;
+  ingaggio: number;
+  valore_residuo: number;
+  dead_money: number;
+  a_carico_quest_anno: number;
+};
+
+export type Svincoli = {
+  posso_svincolare: boolean;
+  quota_dead_money: number;
+  giocatori: Svincolabile[];
+};
+
+export type MotivoSvincolo = "riparazione" | "pre-asta" | "correzione";
+
 export const api = {
   entra: (nome_utente: string, password: string) =>
     chiama<ChiSono>("/accesso", {
@@ -841,9 +1106,134 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ contenuto_base64, nome }),
     }),
+  formazione: (giornata: number, competizione: string, modulo: string) =>
+    chiama<PaginaFormazione>(
+      `/formazione?giornata=${giornata}` +
+        `&competizione=${encodeURIComponent(competizione)}` +
+        `&modulo=${encodeURIComponent(modulo)}`,
+    ),
+  schiera: (corpo: {
+    giornata: number;
+    competizione: string;
+    modulo: string;
+    titolari: number[];
+    panchina: number[];
+  }) =>
+    chiama<{ salvata: boolean; messaggio: string }>("/formazione", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  giornata: (giornata: number, competizione: string) =>
+    chiama<PaginaGiornata>(
+      `/giornata?giornata=${giornata}&competizione=${encodeURIComponent(competizione)}`,
+    ),
+  caricaVoti: (corpo: {
+    giornata: number;
+    testo?: string;
+    contenuto_base64?: string;
+  }) =>
+    chiama<VotiLetti>("/giornata/voti", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  calcolaGiornata: (giornata: number, competizione: string) =>
+    chiama<GiornataCalcolata>(
+      `/giornata/calcola?giornata=${giornata}` +
+        `&competizione=${encodeURIComponent(competizione)}`,
+      { method: "POST" },
+    ),
+  calendario: (prima_serie_a: number, fino_a: number) =>
+    chiama<PaginaCalendario>(
+      `/calendario?prima_serie_a=${prima_serie_a}&fino_a=${fino_a}`,
+    ),
+  coppa: () => chiama<PaginaCoppa>("/coppa"),
+  f1Rush: () => chiama<PaginaF1>("/f1-rush"),
+  assegnaF1: (squadra: string) =>
+    chiama<PaginaF1>("/f1-rush/vincitrice", {
+      method: "POST",
+      body: JSON.stringify({ squadra }),
+    }),
+  regolamento: () => chiama<PaginaRegolamento>("/regolamento"),
+  statoChat: () => chiama<StatoChat>("/regolamento/chat"),
+  svincolabili: (squadra: number) =>
+    chiama<Svincoli>(`/squadre/${squadra}/svincoli`),
+  svincola: (squadra: number, giocatore_id: number, motivo: MotivoSvincolo) =>
+    chiama<{ messaggio: string; anni_liberati: number; dead_money: number }>(
+      `/squadre/${squadra}/svincoli`,
+      { method: "POST", body: JSON.stringify({ giocatore_id, motivo }) },
+    ),
   caricaImmagine: (contenuto_base64: string, tipo_mime: string) =>
     chiama<{ data_uri: string }>("/immagini", {
       method: "POST",
       body: JSON.stringify({ contenuto_base64, tipo_mime }),
     }),
 };
+
+/**
+ * Chiede una regola e consegna la risposta **a pezzi**, man mano che arrivano.
+ *
+ * Non passa da `chiama` perché quella aspetta un JSON intero: qui il corpo è
+ * una riga JSON per pezzo (`application/x-ndjson`), e il punto è mostrarli
+ * mentre arrivano — una domanda di regolamento ha una risposta breve ma il
+ * modello ci mette qualche secondo, e senza streaming la pagina resta muta e
+ * sembra rotta.
+ *
+ * `onErrore` è separato da `onPezzo` di proposito: un guasto a metà risposta
+ * arriva quando lo stato HTTP è già stato mandato, e deve restare
+ * distinguibile da quello che ha detto il modello.
+ */
+export async function chiediAlRegolamento(
+  testo: string,
+  storico: MessaggioChat[],
+  onPezzo: (pezzo: string) => void,
+  onErrore: (messaggio: string) => void,
+): Promise<void> {
+  const risposta = await fetch("/api/regolamento/chat", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ testo, storico }),
+  });
+
+  if (!risposta.ok) {
+    let dettaglio = `Errore ${risposta.status}`;
+    try {
+      const corpo = await risposta.json();
+      if (typeof corpo?.detail === "string") dettaglio = corpo.detail;
+    } catch {
+      /* risposta senza corpo JSON: tengo il messaggio generico */
+    }
+    throw new ErroreApi(risposta.status, dettaglio);
+  }
+
+  const lettore = risposta.body?.getReader();
+  if (!lettore) throw new ErroreApi(500, "Risposta senza corpo.");
+
+  const decodifica = new TextDecoder();
+  let avanzo = "";
+
+  function consuma(blocco: string, ultimo: boolean) {
+    avanzo += blocco;
+    const righe = avanzo.split("\n");
+    // L'ultima riga può essere spezzata a metà fra due blocchi: resta
+    // nell'avanzo finché non arriva il resto.
+    avanzo = ultimo ? "" : (righe.pop() ?? "");
+    for (const riga of righe) {
+      if (!riga.trim()) continue;
+      try {
+        const letta = JSON.parse(riga);
+        if (typeof letta.testo === "string") onPezzo(letta.testo);
+        else if (typeof letta.errore === "string") onErrore(letta.errore);
+      } catch {
+        /* riga illeggibile: meglio saltarla che rompere la risposta */
+      }
+    }
+  }
+
+  for (;;) {
+    const { done, value } = await lettore.read();
+    if (done) break;
+    consuma(decodifica.decode(value, { stream: true }), false);
+  }
+  consuma(decodifica.decode(), true);
+}
