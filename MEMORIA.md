@@ -8,6 +8,13 @@ serve chiedere "leggi la memoria", basta dire cosa si vuole fare.
 
 > Aggiornare con `/memoria` a fine sessione, prima del push.
 
+**Fonte unica di verita'.** Questo file vale anche per la chat di progetto
+"Fantacalcio Nuovo Asta 2026/2027" su claude.ai, che lo legge da
+<https://raw.githubusercontent.com/Tiri6/fantacalcio-nuovo/main/MEMORIA.md>.
+Una decisione presa in chat entra nella tabella *Decisioni prese* qui sotto,
+non solo nella memoria della chat; una decisione presa nel codice si vede in
+chat perche' la chat rilegge questo file.
+
 ---
 
 ## In una riga
@@ -15,7 +22,7 @@ serve chiedere "leggi la memoria", basta dire cosa si vuole fare.
 Gestionale della lega: contratti, monte anni, Salary Cap/Floor, draft, scambi.
 Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 
-**Ultimo aggiornamento:** 13 ottobre 2026 — Streamlit dismesso. Il sito e' React + FastAPI su Fly.io, con la Draft Room, il listone completo (stipendi, nascita, nazionalita'), il recupero password, le regole di lega modificabili, il ricalcolo Under 21, la Lottery dell'articolo 3 e le assegnazioni.
+**Ultimo aggiornamento:** 13 ottobre 2026 — Streamlit dismesso: il sito e' React + FastAPI su Fly.io, con la Draft Room, il listone completo (stipendi, nascita, nazionalita'), il recupero password, le regole di lega modificabili, il ricalcolo Under 21, la Lottery dell'articolo 3 e le assegnazioni. Da oggi questo file e' la memoria condivisa anche con la chat di progetto.
 
 ---
 
