@@ -402,3 +402,83 @@ class TestCambiareLeRegole:
 
         assert risposta.status_code == 200
         assert risposta.json()["stagione"] == "2027/28"
+
+
+class TestIlRicalcoloDegliUnder21:
+    """L'articolo 2: i posti Under 21 si fissano una volta l'anno.
+
+    «Si ricalcola una sola volta l'anno, prima dell'asta di Settembre, e resta
+    invariato per l'intera stagione»: togliere un Under a dicembre non deve
+    stringere la rosa a gennaio. Il congelamento e' quello che lo garantisce,
+    e dal sito nuovo non si poteva fare.
+    """
+
+    def test_una_riga_per_squadra(self, client):
+        entra(client)
+
+        dati = client.get("/api/lega/under21").json()
+
+        assert len(dati["righe"]) == 10
+        assert dati["massimi"] == 3
+        assert dati["riferimento"].endswith("-08-31")
+
+    def test_prima_del_ricalcolo_i_posti_si_contano_dal_vivo(self, client):
+        entra(client)
+
+        dati = client.get("/api/lega/under21").json()
+
+        assert dati["mai_ricalcolato"] is True
+        assert all(r["congelati"] is None for r in dati["righe"])
+
+    def test_ricalcolare_congela_quel_che_c_e_adesso(self, client):
+        entra(client)
+
+        dopo = client.post("/api/lega/under21").json()
+
+        assert dopo["mai_ricalcolato"] is False
+        for riga in dopo["righe"]:
+            assert riga["congelati"] == min(riga["in_rosa"], dopo["massimi"])
+
+    def test_dopo_il_congelamento_un_under_in_meno_non_stringe_la_rosa(self, client):
+        """E' tutta la ragione dell'articolo: il limite resta quello di
+        settembre anche quando l'Under non c'e' piu'."""
+        from fantacalcio.data import archivio, carica_rose
+
+        entra(client)
+        client.post("/api/lega/under21")
+        prima = {
+            r["squadra_id"]: r for r in client.get("/api/lega/under21").json()["righe"]
+        }
+        con_under = next((id_ for id_, r in prima.items() if r["in_rosa"] > 0), None)
+        if con_under is None:
+            import pytest
+
+            pytest.skip("Nessuna squadra di demo ha Under 21 in rosa")
+
+        rosa = carica_rose(archivio())[con_under]
+        under = next(
+            g
+            for g in rosa.giocatori
+            if g.under_21(
+                __import__("datetime").date(2026, 8, 31),
+                __import__(
+                    "fantacalcio.regole", fromlist=["ParametriLega"]
+                ).ParametriLega(),
+            )
+        )
+        client.post(
+            f"/api/squadre/{con_under}/svincoli",
+            json={"giocatore_id": under.id, "motivo": "pre-asta"},
+        )
+
+        dopo = {
+            r["squadra_id"]: r for r in client.get("/api/lega/under21").json()["righe"]
+        }
+        assert dopo[con_under]["in_rosa"] == prima[con_under]["in_rosa"] - 1
+        assert dopo[con_under]["congelati"] == prima[con_under]["congelati"]
+        assert dopo[con_under]["limite_rosa"] == prima[con_under]["limite_rosa"]
+
+    def test_chi_non_amministra_non_ricalcola(self, client):
+        entra(client, "luca")
+
+        assert client.post("/api/lega/under21").status_code == 403

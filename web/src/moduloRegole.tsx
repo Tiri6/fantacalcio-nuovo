@@ -4,8 +4,10 @@ import {
   api,
   type CampoRegola,
   type PaginaRegole,
+  type PaginaUnder21,
   type ValoreRegola,
 } from "./api";
+import { useCarica } from "./carica";
 
 /**
  * Il modulo con cui si cambiano le regole di lega.
@@ -299,6 +301,114 @@ export function ModuloRegole({
       >
         {inCorso ? "Salvo…" : "💾 Salva le regole nuove"}
       </button>
+    </>
+  );
+}
+
+/**
+ * Il ricalcolo annuale degli Under 21 (art. 2).
+ *
+ * «Si ricalcola una sola volta l'anno, prima dell'asta di Settembre, e resta
+ * invariato per l'intera stagione»: togliere un Under a dicembre non deve
+ * stringere la rosa a gennaio. Il congelamento è quello che lo garantisce, e
+ * finché nessuno lo fa i posti si contano dal vivo — la tabella mostra tutti
+ * e due i numeri apposta, perché la differenza fra loro è la regola.
+ */
+export function Under21() {
+  const caricato = useCarica(() => api.under21(), []);
+  const [nuovo, setNuovo] = useState<PaginaUnder21 | null>(null);
+  const [errore, setErrore] = useState<string | null>(null);
+  const [fatto, setFatto] = useState<string | null>(null);
+  const [inCorso, setInCorso] = useState(false);
+
+  const dato = nuovo ?? caricato.dato;
+  if (caricato.inCorso) return <div className="fantasma" />;
+  if (caricato.errore) return <div className="errore">{caricato.errore}</div>;
+  if (!dato) return null;
+
+  async function ricalcola() {
+    setErrore(null);
+    setInCorso(true);
+    try {
+      const esito = await api.ricalcolaUnder21();
+      setNuovo(esito);
+      setFatto(
+        `Under 21 ricalcolati per ${esito.righe.length} squadre: i limiti di ` +
+          `rosa restano questi per tutta la stagione.`,
+      );
+    } catch (e) {
+      setErrore(
+        e instanceof ErroreApi
+          ? e.message
+          : "Non riesco a contattare il server.",
+      );
+    } finally {
+      setInCorso(false);
+    }
+  }
+
+  const quando = new Date(dato.riferimento).toLocaleDateString("it-IT");
+
+  return (
+    <>
+      <p className="didascalia">
+        Il numero di Under 21 — e quindi il limite massimo di rosa — si
+        ricalcola{" "}
+        <strong>una sola volta l'anno, prima dell'asta di Settembre</strong>, e
+        resta fermo per tutta la stagione: svincoli o cessioni di Under in corso
+        d'anno non lo cambiano. Si guarda al {quando}, e i posti in più sono al
+        massimo {dato.massimi}.
+      </p>
+
+      {fatto && <div className="conferma">{fatto}</div>}
+      {errore && (
+        <div className="errore" role="alert">
+          {errore}
+        </div>
+      )}
+
+      <div className="tabella-contenitore">
+        <table className="tabella">
+          <thead>
+            <tr>
+              <th>Squadra</th>
+              <th className="numerica">Under 21 in rosa</th>
+              <th className="numerica">Posti congelati</th>
+              <th className="numerica">Limite rosa</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dato.righe.map((r) => (
+              <tr key={r.squadra_id}>
+                <td className="forte">{r.squadra}</td>
+                <td className="numerica">{r.in_rosa}</td>
+                <td className="numerica">
+                  {r.congelati === null ? (
+                    <span className="tenue">— mai ricalcolato —</span>
+                  ) : (
+                    r.congelati
+                  )}
+                </td>
+                <td className="numerica">{r.limite_rosa}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {dato.posso_ricalcolare && (
+        <>
+          <p className="didascalia">
+            Da fare <strong>una volta sola</strong>, prima dell'asta di
+            Settembre. Rifarlo a stagione in corso riscriverebbe i limiti con la
+            fotografia di oggi, che è esattamente quello che la regola vuole
+            evitare.
+          </p>
+          <button className="principale" onClick={ricalcola} disabled={inCorso}>
+            {inCorso ? "Ricalcolo…" : "Ricalcola e congela per la stagione"}
+          </button>
+        </>
+      )}
     </>
   );
 }

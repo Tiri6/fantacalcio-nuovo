@@ -7,7 +7,7 @@ import {
   type Partecipante,
 } from "../api";
 import { useCarica } from "../carica";
-import { ModuloRegole } from "../moduloRegole";
+import { ModuloRegole, Under21 } from "../moduloRegole";
 
 /**
  * «Come si entra qui dentro?» e «con che regole giochiamo?».
@@ -325,7 +325,13 @@ function Partecipanti({ righe }: { righe: Partecipante[] }) {
   );
 }
 
-const SCHEDE = ["Chi c'è", "Regole", "Punteggio", "Cambia le regole"] as const;
+const SCHEDE = [
+  "Chi c'è",
+  "Regole",
+  "Punteggio",
+  "Under 21",
+  "Cambia le regole",
+] as const;
 
 export function Lega() {
   const { dato, errore, inCorso } = useCarica(() => api.lega(), []);
@@ -495,6 +501,8 @@ export function Lega() {
           </button>
         ))}
       </div>
+
+      {scheda === "Under 21" && <Under21 />}
 
       {scheda === "Cambia le regole" &&
         (regole.dato?.posso_modificare ? (

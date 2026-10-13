@@ -632,6 +632,23 @@ export type PaginaRegole = {
   escluse: { nome: string; motivo: string }[];
 };
 
+export type RigaU21 = {
+  squadra_id: number;
+  squadra: string;
+  in_rosa: number;
+  /** `null` finché nessuno ha mai ricalcolato: prima si contano dal vivo. */
+  congelati: number | null;
+  limite_rosa: number;
+};
+
+export type PaginaUnder21 = {
+  riferimento: string;
+  massimi: number;
+  posso_ricalcolare: boolean;
+  mai_ricalcolato: boolean;
+  righe: RigaU21[];
+};
+
 export type CambiamentiRegole = {
   cambia: string[];
   avvisi: string[];
@@ -1199,6 +1216,9 @@ export const api = {
     chiama<{ codice: string }>("/profilo/codice-recupero", { method: "POST" }),
   lega: () => chiama<DatiLega>("/lega"),
   regole: () => chiama<PaginaRegole>("/lega/regole"),
+  under21: () => chiama<PaginaUnder21>("/lega/under21"),
+  ricalcolaUnder21: () =>
+    chiama<PaginaUnder21>("/lega/under21", { method: "POST" }),
   anteprimaRegole: (valori: Record<string, ValoreRegola>, stagione: string) =>
     chiama<CambiamentiRegole>("/lega/regole/anteprima", {
       method: "POST",

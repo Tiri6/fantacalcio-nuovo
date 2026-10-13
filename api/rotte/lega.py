@@ -34,6 +34,7 @@ from fantacalcio.data import (
     carica_richieste_password,
     carica_rose,
     carica_squadre,
+    congela_slot_u21,
     prossimo_id,
     salva_credenziali,
     salva_invito,
@@ -685,3 +686,92 @@ def cambia_regole(richiesta: DaCambiare, utente: UtenteDentro) -> Regole:
 
     salva_lega(ctx.arch, aggiornata)
     return _modulo_regole(ctx, utente, aggiornata)
+
+
+# ---------------------------------------------------------------------------
+# Il ricalcolo annuale degli Under 21 (art. 2)
+# ---------------------------------------------------------------------------
+
+
+class RigaU21(BaseModel):
+    squadra_id: int
+    squadra: str
+    in_rosa: int
+    # `None` finche' nessuno ha mai ricalcolato: prima del primo congelamento
+    # i posti si contano dal vivo, ed e' giusto che si veda la differenza.
+    congelati: int | None
+    limite_rosa: int
+
+
+class Under21(BaseModel):
+    riferimento: str
+    massimi: int
+    posso_ricalcolare: bool
+    mai_ricalcolato: bool
+    righe: list[RigaU21]
+
+
+def _under21(ctx: Contesto, utente, lega) -> Under21:
+    rose = carica_rose(ctx.arch)
+    nostre = {
+        id_: r
+        for id_, r in rose.items()
+        if r.squadra.lega_id is None or r.squadra.lega_id == lega.id
+    }
+    righe = [
+        RigaU21(
+            squadra_id=id_,
+            squadra=rosa.squadra.nome,
+            in_rosa=rosa.u21_in_rosa(ctx.riferimento_u21, ctx.parametri),
+            congelati=rosa.slot_u21_congelato,
+            limite_rosa=ctx.parametri.rosa_massimo(
+                rosa.slot_u21(ctx.riferimento_u21, ctx.parametri)
+            ),
+        )
+        for id_, rosa in sorted(nostre.items(), key=lambda v: v[1].squadra.nome.lower())
+    ]
+    return Under21(
+        riferimento=ctx.riferimento_u21.isoformat(),
+        massimi=ctx.parametri.slot_u21_massimi,
+        posso_ricalcolare=puo_modificare_regole(utente, lega) or utente.puo_importare,
+        mai_ricalcolato=all(r.congelati is None for r in righe),
+        righe=righe,
+    )
+
+
+@rotte.get("/lega/under21", response_model=Under21)
+def under21(utente: UtenteDentro) -> Under21:
+    """Quanti Under 21 ha ogni squadra, e quanti posti le valgono."""
+    ctx, lega = _lega_di(utente)
+    return _under21(ctx, utente, lega)
+
+
+@rotte.post("/lega/under21", response_model=Under21)
+def ricalcola_under21(utente: UtenteDentro) -> Under21:
+    """Fissa i posti Under 21 per tutta la stagione (art. 2).
+
+    **Da fare una volta sola, prima dell'asta di Settembre.** Rifarlo a
+    stagione in corso riscriverebbe i limiti con la fotografia di oggi, che e'
+    esattamente quello che la regola vuole evitare: svincoli e cessioni di
+    Under in corso d'anno non devono stringere la rosa di nessuno.
+    """
+    ctx, lega = _lega_di(utente)
+    if not (puo_modificare_regole(utente, lega) or utente.puo_importare):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Il ricalcolo degli Under 21 lo fa chi amministra la lega.",
+        )
+
+    rose = carica_rose(ctx.arch)
+    for id_, rosa in rose.items():
+        if rosa.squadra.lega_id not in (None, lega.id):
+            continue
+        congela_slot_u21(
+            ctx.arch,
+            id_,
+            min(
+                rosa.u21_in_rosa(ctx.riferimento_u21, ctx.parametri),
+                ctx.parametri.slot_u21_massimi,
+            ),
+        )
+    return _under21(ctx, utente, lega)
