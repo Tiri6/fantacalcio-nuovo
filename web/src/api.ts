@@ -551,6 +551,8 @@ export type ScambioLetto = {
   note: string;
   creato_il: string;
   giornata_efficacia: number | null;
+  /** Da che giornata avrebbe effetto ratificando adesso (art. 8). */
+  efficacia_proposta: number;
   /** Cosa puo' fare chi guarda: lo decide il dominio, non il browser. */
   posso_accettare: boolean;
   posso_rifiutare: boolean;

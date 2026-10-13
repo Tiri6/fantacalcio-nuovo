@@ -303,3 +303,13 @@ class TestIProlungamenti:
 
         assert esito["inviata"] is False
         assert any("prolung" in v["messaggio"].lower() for v in esito["violazioni"])
+
+    def test_dice_da_che_giornata_avrebbe_effetto(self, client):
+        """L'articolo 8 vuole 24 ore di preavviso: chi ratifica deve
+        leggerlo, non indovinarlo. Su Streamlit lo leggeva, qui no."""
+        entra(client)
+
+        pagina = client.get("/api/scambi").json()
+
+        for scambio in pagina["scambi"]:
+            assert scambio["efficacia_proposta"] >= 1

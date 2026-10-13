@@ -46,7 +46,12 @@ function Scheda({
 }) {
   const [errore, setErrore] = useState<string | null>(null);
   const [inCorso, setInCorso] = useState(false);
-  const [giornata, setGiornata] = useState<string>("");
+  // Parte da quel che dice il server: l'articolo 8 vuole ventiquattr'ore di
+  // preavviso, e se la proposta e' arrivata tardi lo scambio vale dalla
+  // giornata dopo. Si puo' cambiare, ma il numero giusto e' gia' li'.
+  const [giornata, setGiornata] = useState<string>(
+    String(scambio.efficacia_proposta),
+  );
 
   async function decidi(
     azione: "accetta" | "rifiuta" | "annulla" | "ratifica",
@@ -148,6 +153,10 @@ function Scheda({
           )}
           {scambio.posso_ratificare && (
             <>
+              <span className="didascalia">
+                Avrebbe effetto dalla {scambio.efficacia_proposta}ª giornata
+                (art. 8: 24 ore di preavviso).
+              </span>
               <input
                 className="giornata"
                 type="number"

@@ -18,7 +18,8 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from fantacalcio.data import carica_rose, prossimo_id
+from fantacalcio.competizioni import inizio_giornata
+from fantacalcio.data import calendario_dettagliato, carica_rose, prossimo_id
 from fantacalcio.mercato import PropostaScambio, stato_mercato
 from fantacalcio.scambi import (
     Scambio,
@@ -29,6 +30,7 @@ from fantacalcio.scambi import (
     applica_alle_rose,
     carica_scambi,
     conta_conclusi,
+    giornata_di_efficacia,
     proponi,
     ratifica,
     rifiuta,
@@ -74,6 +76,10 @@ class ScambioLetto(BaseModel):
     note: str
     creato_il: str
     giornata_efficacia: int | None
+    # Da che giornata avrebbe effetto se si ratificasse adesso (art. 8: serve
+    # un preavviso di 24 ore sul calcio d'inizio). La regola sta nel dominio,
+    # e chi ratifica la deve **leggere**, non indovinare.
+    efficacia_proposta: int
     # Cosa puo' fare **chi sta guardando**, deciso dal dominio e non dedotto
     # dal front-end: se la regola cambia, cambia in un posto solo.
     posso_accettare: bool
@@ -123,6 +129,23 @@ def _violazioni_di(ctx, scambio: Scambio) -> list[ViolazioneLetta]:
     ]
 
 
+def _efficacia(ctx, scambio: Scambio) -> int:
+    """Da che giornata avrebbe effetto, ratificando adesso.
+
+    L'articolo 8 vuole ventiquattr'ore di preavviso sul calcio d'inizio: uno
+    scambio comunicato dopo non vale per la giornata imminente. La regola sta
+    in `giornata_di_efficacia`, e chi ratifica la deve leggere invece di
+    indovinarla — su Streamlit la leggeva, qui no.
+    """
+    prossima = giornate_disputate(ctx) + 1
+    return giornata_di_efficacia(
+        scambio,
+        prossima,
+        inizio_giornata(calendario_dettagliato(ctx.arch), prossima),
+        ctx.parametri,
+    )
+
+
 def _leggi(ctx, scambio: Scambio, utente, nomi: dict[int, str]) -> ScambioLetto:
     violazioni = _violazioni_di(ctx, scambio)
     blocca = any(v.bloccante for v in violazioni)
@@ -155,6 +178,7 @@ def _leggi(ctx, scambio: Scambio, utente, nomi: dict[int, str]) -> ScambioLetto:
         note=scambio.note,
         creato_il=scambio.creato_il.strftime("%d/%m/%Y %H:%M"),
         giornata_efficacia=scambio.giornata_efficacia,
+        efficacia_proposta=_efficacia(ctx, scambio),
         posso_accettare=proposto and riceve,
         posso_rifiutare=proposto and riceve,
         posso_annullare=scambio.stato.aperto and propone,
