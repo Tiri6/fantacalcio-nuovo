@@ -41,6 +41,7 @@ from fantacalcio.data import (
     salva_sala,
     svincolati,
 )
+from fantacalcio.draft import PESI_FASCIA, sorteggia_lottery
 from fantacalcio.sala import (
     Sala,
     SalaNonAmmessa,
@@ -493,6 +494,73 @@ def correggi_anni(richiesta: DaCorreggere, utente: UtenteDentro) -> EsitoChiamat
         fatta=True,
         messaggio=f"Contratto portato a {richiesta.anni} {anni}.",
         violazioni=[],
+    )
+
+
+# ---------------------------------------------------------------------------
+# La Lottery dell'articolo 3
+# ---------------------------------------------------------------------------
+
+
+class SquadraEstratta(BaseModel):
+    squadra_id: int
+    squadra: str
+    # La fascia di partenza: «bassa» sono le peggio classificate, quelle che
+    # si giocano le pick 1-5. Si mostra perche' spiega il risultato.
+    fascia: str
+
+
+class Lottery(BaseModel):
+    ordine: list[SquadraEstratta]
+    pesi: list[int]
+    spiegazione: str
+
+
+@rotte.post("/sala/lottery", response_model=Lottery)
+def estrai_lottery(utente: UtenteDentro) -> Lottery:
+    """Estrae l'ordine di chiamata come lo vuole l'articolo 3.
+
+    **Non e' un mescolamento.** Sono due estrazioni distinte, una per fascia,
+    con i pesi dell'articolo — alla peggio classificata della fascia spetta il
+    50%, poi a scalare — e la seconda meta' della classifica si gioca le pick
+    1-5. Mescolare a caso darebbe a tutti la stessa probabilita', che e'
+    esattamente la cosa che la Lottery esiste per non fare.
+
+    Non salva niente: l'ordine estratto si guarda, e poi si apre la sala con
+    quello. Se la lega la Lottery la fa in altro modo — un'urna vera, una
+    diretta — si trascrive e basta.
+    """
+    ctx = _solo_chi_amministra(utente)
+    rose = carica_rose(ctx.arch)
+    per_nome = {r.squadra.nome: id_ for id_, r in rose.items()}
+
+    tabella = classifica(ctx.arch)
+    nomi = [n for n in tabella["Squadra"] if n in per_nome] if not tabella.empty else []
+    # Chi non ha ancora giocato non compare in classifica: si accoda, perche'
+    # una squadra fuori dalla Lottery e' una squadra che non chiama mai.
+    nomi += [r.squadra.nome for r in rose.values() if r.squadra.nome not in nomi]
+
+    try:
+        esito = sorteggia_lottery(nomi)
+    except ValueError as errore:
+        raise HTTPException(status_code=NON_ELABORABILE, detail=str(errore)) from errore
+
+    bassa = set(esito.fascia_bassa)
+    return Lottery(
+        ordine=[
+            SquadraEstratta(
+                squadra_id=per_nome[n],
+                squadra=n,
+                fascia="bassa" if n in bassa else "alta",
+            )
+            for n in esito.ordine
+        ],
+        pesi=list(PESI_FASCIA[: len(nomi) // 2]),
+        spiegazione=(
+            f"Due estrazioni distinte (art. 3): le pick 1-{len(nomi) // 2} fra "
+            f"le ultime {len(nomi) // 2} classificate, le altre fra le prime. "
+            f"Dentro ogni fascia la peggio classificata ha il peso piu' alto."
+        ),
     )
 
 

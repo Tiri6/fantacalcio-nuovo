@@ -1089,6 +1089,19 @@ export type EsitoChiamata = {
   violazioni: ViolazioneDiSala[];
 };
 
+export type SquadraEstratta = {
+  squadra_id: number;
+  squadra: string;
+  /** "bassa" sono le peggio classificate: si giocano le pick 1-5. */
+  fascia: string;
+};
+
+export type Lottery = {
+  ordine: SquadraEstratta[];
+  pesi: number[];
+  spiegazione: string;
+};
+
 export type NuovaSala = {
   tipo: "SETTEMBRE" | "RIPARAZIONE";
   round_totali: number;
@@ -1354,6 +1367,7 @@ export const api = {
         ? "/sala"
         : `/sala?versione=${encodeURIComponent(versione)}`,
     ),
+  estraiLottery: () => chiama<Lottery>("/sala/lottery", { method: "POST" }),
   apriSala: (corpo: NuovaSala) =>
     chiama<PaginaSala>("/sala", {
       method: "POST",

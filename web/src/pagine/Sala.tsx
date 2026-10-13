@@ -4,6 +4,7 @@ import {
   api,
   type ChiamataLetta,
   type GiocatoreLibero,
+  type Lottery,
   type PaginaSala,
   type TurnoLetto,
   type ViolazioneDiSala,
@@ -78,6 +79,7 @@ function Apertura({ onAperta }: { onAperta: (p: PaginaSala) => void }) {
   const [conTimer, setConTimer] = useState(false);
   const [secondi, setSecondi] = useState(90);
   const [ordine, setOrdine] = useState<number[]>([]);
+  const [lottery, setLottery] = useState<Lottery | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
   const [inCorso, setInCorso] = useState(false);
   const squadre = useCarica(() => api.squadre(), []);
@@ -86,14 +88,28 @@ function Apertura({ onAperta }: { onAperta: (p: PaginaSala) => void }) {
   const nome = (id: number) =>
     elenco.find((s) => s.id === id)?.nome ?? String(id);
 
-  /** L'estrazione della Lottery, quando si fa qui e non su un foglio. */
-  function sorteggia() {
-    const mescolate = elenco.map((s) => s.id);
-    for (let i = mescolate.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [mescolate[i], mescolate[j]] = [mescolate[j], mescolate[i]];
+  /**
+   * L'estrazione della Lottery, quando si fa qui e non su un foglio.
+   *
+   * **La fa il server**, non il browser: l'articolo 3 non vuole un
+   * mescolamento ma due estrazioni con pesi 50/20/15/10/5, e la seconda metà
+   * della classifica che si gioca le pick 1-5. Un `Math.random()` qui dentro
+   * darebbe a tutti la stessa probabilità, che è esattamente la cosa che la
+   * Lottery esiste per non fare — e sembrerebbe giusto lo stesso.
+   */
+  async function sorteggia() {
+    setErrore(null);
+    try {
+      const estratta = await api.estraiLottery();
+      setLottery(estratta);
+      setOrdine(estratta.ordine.map((s) => s.squadra_id));
+    } catch (guasto) {
+      setErrore(
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a contattare il server.",
+      );
     }
-    setOrdine(mescolate);
   }
 
   async function apri() {
@@ -164,12 +180,24 @@ function Apertura({ onAperta }: { onAperta: (p: PaginaSala) => void }) {
           </p>
           <div className="sala-comandi">
             <button onClick={sorteggia} disabled={elenco.length === 0}>
-              Estrai a sorte
+              Estrai la Lottery
             </button>
             {ordine.length > 0 && (
-              <button onClick={() => setOrdine([])}>Azzera</button>
+              <button
+                onClick={() => {
+                  setOrdine([]);
+                  setLottery(null);
+                }}
+              >
+                Azzera
+              </button>
             )}
           </div>
+          {lottery && (
+            <p className="didascalia">
+              {lottery.spiegazione} Pesi: {lottery.pesi.join(" · ")}%.
+            </p>
+          )}
           <div className="sala-liberi">
             {elenco
               .filter((s) => !ordine.includes(s.id))
@@ -187,9 +215,21 @@ function Apertura({ onAperta }: { onAperta: (p: PaginaSala) => void }) {
           </div>
           {ordine.length > 0 && (
             <ol className="sala-coda">
-              {ordine.map((id) => (
-                <li key={id}>{nome(id)}</li>
-              ))}
+              {ordine.map((id) => {
+                const estratta = lottery?.ordine.find(
+                  (s) => s.squadra_id === id,
+                );
+                return (
+                  <li key={id}>
+                    {nome(id)}
+                    {estratta && (
+                      <span className="pastiglia">
+                        fascia {estratta.fascia}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
             </ol>
           )}
           {ordine.length > 0 && ordine.length < elenco.length && (
