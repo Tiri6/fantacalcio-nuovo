@@ -11,11 +11,15 @@ Riferimento normativo: regolamento **V3** (testo definitivo, Ottobre 2026).
 ## Comandi
 
 ```bash
-.venv/bin/pytest          # test: devono restare sotto i 2 secondi
+.venv/bin/pytest          # i test del dominio restano sotto i 2 secondi
 .venv/bin/ruff check .    # deve passare pulito
 .venv/bin/ruff format .
-.venv/bin/streamlit run app.py
 .venv/bin/python -m fantacalcio.demo_data   # rigenera il DB di demo
+
+# Il sito: API e pagine insieme, su http://127.0.0.1:8000
+.venv/bin/python -m uvicorn api.main:app --reload
+cd web && npm run build   # **questo**, non `npx tsc --noEmit`: il `tsc -b`
+                          # dello script usa i tsconfig dell'app, piu' severi
 ```
 
 Nelle sessioni web il virtualenv lo crea `.claude/hooks/session-start.sh`
@@ -26,11 +30,16 @@ all'avvio: non ricrearlo a mano.
 - **Nessun numero del regolamento fuori da `ParametriLega`.** Se scrivi `66`,
   `100_000_000`, `33` o `0.5` da qualche altra parte, e' un errore: la lega
   cambia le regole per votazione e devono restare modificabili in un punto solo.
-- **La logica non importa Streamlit.** Possono farlo solo `ui.py`,
-  `schermate.py` e i file in `viste/`. E' quello che tiene i test veloci e la
-  logica riutilizzabile. Nota che `tema.py` **non** importa Streamlit: produce
-  stringhe di CSS e HTML, e' `ui.py` a iniettarle. Cosi' l'aspetto grafico si
-  prova senza far girare un server.
+- **Il dominio non conosce il web.** `fantacalcio/` non importa FastAPI ne'
+  sa che esiste un browser: le rotte in `api/` traducono, e basta. E' quello
+  che tiene i test veloci e la logica riutilizzabile — e il motivo per cui
+  togliere Streamlit, che era l'unico frontend, non ha toccato una riga di
+  regole.
+- **Le regole stanno nel dominio anche quando servirebbe una riga sola nel
+  browser.** Una somma rifatta in TypeScript e' una seconda copia della regola:
+  il giorno che la lega vota, la pagina dice una cosa e il server ne applica
+  un'altra. Se al browser serve un numero che discende da una regola, lo manda
+  il server gia' calcolato.
 - **Le verifiche restituiscono violazioni, non booleani.** Ogni controllo nuovo
   produce una `Violazione` con articolo, gravita', valore e limite: l'utente
   deve sapere *di quanto* sfora, non solo *che* sfora.
@@ -44,26 +53,15 @@ all'avvio: non ricrearlo a mano.
   che ricostruisce il file quando manca qualcosa.
 - **La demo deve restare conforme.** `test_ogni_squadra_ha_una_rosa_conforme`
   lo verifica: se aggiungi un vincolo, aggiorna il generatore.
-- **Mai committare secret.** `.streamlit/secrets.toml` e' in `.gitignore`.
-- **Dopo una scrittura chiama `ui.invalida_dati()`**, non `st.cache_data.clear()`:
-  svuotare una cache provoca un rerun immediato che cancella il messaggio di
-  conferma appena mostrato. Le cache sono indicizzate su un numero di versione.
-- **I messaggi che precedono un `st.rerun()` non si vedono.** Mettili nel
-  `session_state` e mostrali in cima alla pagina al giro successivo.
-- **Il contatore di versione delle cache e' globale**, non nel session_state:
-  le cache di Streamlit sono condivise fra tutte le sessioni, quindi con dieci
-  persone collegate un contatore per sessione farebbe leggere dati vecchi a chi
-  entra dopo.
+- **Mai committare secret.** In produzione si passano come variabili
+  d'ambiente (`fly secrets set`), in sviluppo si esportano nella shell. Un
+  test (`test_segreti.py`) rilegge i file versionati e cerca chiavi vere.
 - **Una tabella vuota deve avere comunque le sue colonne.** PostgREST non
   le dichiara quando non ci sono righe: `data.con_colonne()` le rimette, e
   l'elenco sta in `COLONNE_ATTESE`. Aggiungendo una tabella, aggiungila li'.
 - **Provare solo su SQLite non dimostra niente sul vuoto.** SQLite e'
   piu' informativo di PostgREST: usa il finto backend di
   `tests/test_backend_vuoto.py`.
-- **Nelle cache di Streamlit vanno solo DataFrame.** Mai oggetti di dominio:
-  un oggetto in cache conserva la forma che aveva quando e' entrato, e dopo
-  un aggiornamento del codice rompe l'app con un AttributeError. Si mette in
-  cache la tabella grezza (`ui.dati()`) e si ricostruisce a ogni giro.
 - **Nel sito React i colori sono token, mai valori scritti nelle regole.**
   Stanno in cima a `web/src/stile.css`, in due blocchi: tema scuro e tema
   chiaro. Un `#1a2b20` dentro una regola resta scuro anche sul tema chiaro, e
@@ -74,28 +72,20 @@ all'avvio: non ricrearlo a mano.
   competizione inesistente e' peggio di una voce mancante.
 - **Under 21 si valuta al 31 agosto**, non alla data del draft: lo status
   si cristallizza li' e vale per tutta la stagione. Vedi
-  `competizioni.data_riferimento_u21` e `ui.data_u21()`.
-- **`st.stop()` dentro una scheda ferma tutto lo script**, quindi le schede
-  successive non si disegnano. Se una scheda non ha niente da mostrare, non
-  crearla proprio.
-- **I cancelli hanno un ordine.** `app.py` chiama in sequenza `richiedi_login`
-  → `richiedi_password_nuova` → `richiedi_lega` → `richiedi_squadra`. Sono
-  **quattro**, ma il secondo scatta solo per chi ha `deve_cambiare_password`:
-  chi si registra da solo ne attraversa tre, ed e' per questo che altrove ne
-  trovi scritto tre. Ognuno ferma la pagina finche' non e' superato: da li' in
-  giu' c'e' sempre un utente dentro una lega. Aggiungere un cancello vuol dire
-  aggiungerlo li', non dentro una vista — e **non numerarlo nel docstring**,
-  perche' il numero invecchia appena se ne infila uno in mezzo.
+  `competizioni.data_riferimento_u21` e `Contesto.riferimento_u21`.
+- **I cancelli d'ingresso li decide `ChiSono`.** Il sito guarda `lega_id` e
+  `squadra_id` di chi e' entrato e manda all'onboarding finche' mancano: il
+  server li rilegge a ogni richiesta, quindi non serve una chiamata in piu'
+  per sapere a che punto si e'. Aggiungere un cancello vuol dire aggiungerlo
+  li', in `App.tsx`, non dentro una pagina.
 - **La sessione conserva il nome utente, non l'oggetto `Utente`.** Appena entri
   in una lega o fondi la squadra la riga cambia: un oggetto congelato al
   momento del login mostrerebbe ancora lo stato vecchio.
-- **Il testo degli annunci si rende con `st.markdown` senza
-  `unsafe_allow_html`.** Lo scrive una persona: Streamlit gli scuda l'HTML
-  da solo, e passarlo a `unsafe_allow_html` renderebbe la bacheca un modo
-  per iniettare markup nella pagina di tutti gli altri.
-- **Il testo scritto dagli utenti passa da `tema._scudo()`** prima di finire in
-  un `unsafe_allow_html`. Nome squadra, motto e curva li scrivono i
-  partecipanti: senza, chi mette `<script>` come motto lo fa eseguire agli altri.
+- **Il testo scritto dagli utenti non si inietta mai come HTML.** React scuda
+  da solo quel che mette fra parentesi graffe: `dangerouslySetInnerHTML` non
+  si usa su nome squadra, motto, curva o annunci, che li scrivono i
+  partecipanti. Senza, chi mette `<script>` come motto lo fa eseguire agli
+  altri.
 - **Ogni regola di validazione va scritta nel modulo, accanto al campo.**
   Una regola che l'utente scopre solo dall'errore fa fallire l'operazione
   senza lasciare traccia: chi la subisce crede che il sito sia rotto.
@@ -117,27 +107,28 @@ all'avvio: non ricrearlo a mano.
 | Aggiungere un vincolo di rosa | `conformita.py` + un test in `test_conformita.py` |
 | Cambiare una regola di scambio | `mercato.valida_scambio` + `test_mercato.py` |
 | Toccare l'ordine del draft | `draft.ordine_round` + `test_draft.py` |
-| Aggiungere una schermata | nuovo file in `viste/`, registrato in `app.py` |
+| Aggiungere una schermata | nuovo file in `web/src/pagine/`, registrato in `App.tsx`, con la sua rotta in `api/rotte/` |
 | Toccare la chat sul regolamento | `assistente.py` + `test_assistente.py` |
 | Nuova tabella o colonna | `db/schema.sql` **e** `SCHEMA_SQLITE`, poi `data.py` |
 | Toccare colori o maglia | `identita.py` + `test_identita.py` |
 | Cambiare il formato del CSV | `importazione.py` (i sinonimi stanno in `COLONNE_ROSE`) |
-| Aggiungere un'opzione di lega | `OpzioniLega` in `leghe.py` + il modulo in `schermate.py` |
-| Toccare colori, schede o testate | `tema.py` + `test_tema.py` |
-| Toccare i colori del sito React | i token in cima a `web/src/stile.css` |
+| Aggiungere un'opzione di lega | `OpzioniLega` in `leghe.py` **e** un gruppo in `GRUPPI_OPZIONI` (o un motivo in `FUORI_MODULO`): il modulo del sito si disegna da li' |
+| Toccare colori, schede o testate | i token in cima a `web/src/stile.css` |
 | Toccare la bacheca o i permessi di scrittura | `bacheca.py` + `test_bacheca.py` |
 | Toccare i dati anagrafici o la squadra del cuore | `anagrafica.py` + `test_anagrafica.py` |
 | Aggiungere una tabella o colonna che l'app scrive | anche `ATTESO` in `diagnostica.py` |
 | Toccare coppa, F1 Rush o albo d'oro | `competizioni.py` + `test_competizioni.py` |
 | Toccare il portiere d'emergenza (Lodo Messina) | `emergenza.py` + `test_emergenza.py` |
 | Cambiare la corrispondenza Serie A ↔ giornate | `costruisci_weekend` in `competizioni.py` |
-| Cambiare le viste del calendario | `viste/calendario.py` |
-| Cambiare accesso, registrazione o onboarding | `schermate.py` + `ui.py` |
+| Cambiare le viste del calendario | `web/src/pagine/Calendario.tsx` |
+| Cambiare accesso, registrazione o onboarding | `api/rotte/accesso.py` e `registrazione.py` + `web/src/pagine/Accesso.tsx` |
+| Toccare la Draft Room | `sala.py` + `api/rotte/sala.py` + `web/src/pagine/Sala.tsx` |
 | Toccare login o permessi | `autenticazione.py` + `test_autenticazione.py` |
 | Cambiare il ciclo di uno scambio | `scambi.py` + `test_scambi.py` |
 
-Le viste sono script eseguiti da `st.navigation`: il codice a livello di
-modulo e' normale, non e' un errore di stile.
+Il sito e' **un servizio solo**: la stessa app FastAPI serve le pagine React
+gia' costruite (`web/dist`) e l'API che le alimenta. In sviluppo si puo'
+tenere Vite a parte, ma in produzione c'e' un contenitore e un indirizzo.
 
 ## Prima di dare per buona una regola
 

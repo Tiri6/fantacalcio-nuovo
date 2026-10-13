@@ -7,7 +7,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
-from fantacalcio.competizioni import titoli_di
+from fantacalcio.competizioni import conta_per_competizione, titoli_di
 from fantacalcio.conformita import Momento, verifica_rosa
 from fantacalcio.data import (
     archivio,
@@ -146,6 +146,18 @@ class Titolo(BaseModel):
     note: str
 
 
+class ContoTitoli(BaseModel):
+    """Quanti ne ha vinti, per competizione.
+
+    Lo conta il dominio e non la pagina: contare le pastiglie a schermo
+    funziona con tre titoli e smette di funzionare con venti.
+    """
+
+    etichetta: str
+    icona: str
+    quanti: int
+
+
 class Conti(BaseModel):
     giocatori: int
     limite_dimensione: int
@@ -216,6 +228,7 @@ class SquadraInDettaglio(BaseModel):
     rosa: list[GiocatoreInRosa]
     violazioni: list[Violazione]
     titoli: list[Titolo]
+    titoli_per_competizione: list[ContoTitoli]
     riferimento_u21: str
     emergenza: Emergenza
 
@@ -453,6 +466,11 @@ def dettaglio(squadra_id: int, utente: UtenteDentro) -> SquadraInDettaglio:
                 note=t.note,
             )
             for t in titoli
+        ],
+        titoli_per_competizione=[
+            ContoTitoli(etichetta=tipo.etichetta, icona=tipo.icona, quanti=quanti)
+            for tipo, quanti in conta_per_competizione(titoli).items()
+            if quanti
         ],
         riferimento_u21=ctx.riferimento_u21.isoformat(),
         emergenza=_emergenza(ctx, rosa, utente.puo_gestire(s.id)),

@@ -17,5 +17,3 @@ line-length = 90
 select = ["E", "F", "W", "I", "UP", "B", "C4", "BLE", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
-# Le viste Streamlit sono script: eseguono codice a livello di modulo.
-"viste/*.py" = ["E402"]

@@ -267,3 +267,49 @@ class TestRatificare:
         assert (
             client.post("/api/scambi/999", json={"azione": "accetta"}).status_code == 404
         )
+
+
+class TestIProlungamenti:
+    """Il V3 li ha aboliti, ma e' un parametro: se la lega li rivota la
+    pagina deve adeguarsi da sola invece di continuare a dire che non si
+    fanno. La pagina lo diceva scritto a mano."""
+
+    def test_la_pagina_dice_se_si_possono_fare(self, client):
+        entra(client)
+
+        pagina = client.get("/api/scambi").json()
+
+        assert pagina["prolungamenti_ammessi"] is False
+        assert pagina["anni_contratto_massimo"] == 5
+
+    def test_col_v3_una_proposta_che_prolunga_viene_respinta(self, client):
+        """A dire di no e' `valida_scambio`, non un controllo scritto qui."""
+        entra(client)
+        rose = client.get("/api/squadre").json()
+        mia = next(s for s in rose if s["e_mia"])
+        altra = next(s for s in rose if not s["e_mia"])
+        miei = client.get(f"/api/squadre/{mia['id']}").json()["rosa"]
+        loro = client.get(f"/api/squadre/{altra['id']}").json()["rosa"]
+
+        esito = client.post(
+            "/api/scambi",
+            json={
+                "squadra_b_id": altra["id"],
+                "da_me": [miei[0]["id"]],
+                "da_loro": [loro[0]["id"]],
+                "prolungamenti": {str(miei[0]["id"]): 5},
+            },
+        ).json()
+
+        assert esito["inviata"] is False
+        assert any("prolung" in v["messaggio"].lower() for v in esito["violazioni"])
+
+    def test_dice_da_che_giornata_avrebbe_effetto(self, client):
+        """L'articolo 8 vuole 24 ore di preavviso: chi ratifica deve
+        leggerlo, non indovinarlo. Su Streamlit lo leggeva, qui no."""
+        entra(client)
+
+        pagina = client.get("/api/scambi").json()
+
+        for scambio in pagina["scambi"]:
+            assert scambio["efficacia_proposta"] >= 1

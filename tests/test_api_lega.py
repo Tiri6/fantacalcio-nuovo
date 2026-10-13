@@ -257,3 +257,228 @@ class TestBachecaScrittura:
         nuovo = self.scrivi(client, giornata=5).json()
         corretto = client.put(f"/api/bacheca/{nuovo['id']}", json={"giornata": 0}).json()
         assert corretto["giornata"] is None
+
+
+class TestCambiareLeRegole:
+    """Il modulo delle regole, che il sito disegna dalla descrizione.
+
+    Su Streamlit si cambiavano le regole senza rifare la lega; qui la pagina
+    le mostrava e basta. Chi aveva votato un lodo doveva tornare sul vecchio
+    sito, che e' il motivo per cui il vecchio sito non si poteva spegnere.
+    """
+
+    def test_senza_entrare_non_si_vedono(self, client):
+        assert client.get("/api/lega/regole").status_code == 401
+
+    def test_arrivano_in_gruppi_con_dentro_i_valori(self, client):
+        entra(client)
+
+        regole = client.get("/api/lega/regole").json()
+
+        titoli = [g["titolo"] for g in regole["gruppi"]]
+        assert "Generali" in titoli and "Punteggio" in titoli
+        campi = {c["nome"]: c for g in regole["gruppi"] for c in g["campi"]}
+        assert campi["partecipanti"]["valore"] == 10
+        assert campi["modalita"]["tipo"] == "scelta"
+        assert campi["bonus.assist"]["etichetta"] == "Assist"
+
+    def test_dicono_chi_puo_cambiarle(self, client):
+        entra(client)
+        da_presidente = client.get("/api/lega/regole").json()
+        entra(client, "luca")
+        da_fantallenatore = client.get("/api/lega/regole").json()
+
+        assert da_presidente["posso_modificare"] is True
+        assert da_fantallenatore["posso_modificare"] is False
+
+    def test_dicono_anche_cosa_non_si_tocca_e_perche(self, client):
+        """Un'opzione che esiste e non si vede sembra un pezzo rotto."""
+        entra(client)
+
+        escluse = client.get("/api/lega/regole").json()["escluse"]
+
+        assert {e["nome"] for e in escluse} >= {"ordine_draft", "fasce_difesa"}
+        assert all(e["motivo"] for e in escluse)
+
+    def test_l_anteprima_dice_cosa_cambia(self, client):
+        entra(client)
+
+        esito = client.post(
+            "/api/lega/regole/anteprima",
+            json={"valori": {"partecipanti": 12, "bonus.assist": 2.0}},
+        ).json()
+
+        assert "Partecipanti: 10 → 12" in esito["cambia"]
+        assert "Assist: 1 → 2" in esito["cambia"]
+        assert esito["errore"] == ""
+
+    def test_l_anteprima_avvisa_senza_rifiutare(self, client):
+        """Togliere moduli e' legittimo, ma chi li aveva usati si ritrova la
+        formazione da rifare: meglio dirlo prima."""
+        entra(client)
+
+        esito = client.post(
+            "/api/lega/regole/anteprima",
+            json={"valori": {"moduli_ammessi": ["4-4-2"]}},
+        ).json()
+
+        assert any("Moduli tolti" in a for a in esito["avvisi"])
+
+    def test_un_valore_impossibile_torna_200_con_l_errore_dentro(self, client):
+        """Chi sta compilando non deve perdere il resto del modulo."""
+        entra(client)
+
+        risposta = client.post(
+            "/api/lega/regole/anteprima",
+            json={"valori": {"modalita": "SUBBUTEO"}},
+        )
+
+        assert risposta.status_code == 200
+        assert "non e' un valore ammesso" in risposta.json()["errore"]
+
+    def test_salvare_cambia_davvero_le_regole(self, client):
+        entra(client)
+
+        risposta = client.put(
+            "/api/lega/regole",
+            json={"valori": {"punti_vittoria": 2, "coppa_italia": True}},
+        )
+
+        assert risposta.status_code == 200
+        campi = {c["nome"]: c for g in risposta.json()["gruppi"] for c in g["campi"]}
+        assert campi["punti_vittoria"]["valore"] == 2
+        assert campi["coppa_italia"]["valore"] is True
+        # E la lega riletta dice la stessa cosa, non solo la risposta.
+        assert (
+            client.get("/api/lega/regole").json()["gruppi"][0]["campi"][4]["valore"] == 2
+        )
+
+    def test_un_lodo_che_cambia_il_cap_arriva_al_cruscotto(self, client):
+        """Il giro completo: si cambia la regola e il conto che ne dipende
+        cambia con lei, senza rifare la lega."""
+        entra(client)
+
+        client.put("/api/lega/regole", json={"valori": {"budget_cap": 50_000_000}})
+
+        regolamento = client.get("/api/regolamento").json()
+        assert "50" in str(regolamento)
+
+    def test_chi_non_ha_creato_la_lega_non_le_cambia(self, client):
+        entra(client, "luca")
+
+        risposta = client.put("/api/lega/regole", json={"valori": {"punti_vittoria": 2}})
+
+        assert risposta.status_code == 403
+
+    def test_non_si_scende_sotto_le_squadre_iscritte(self, client):
+        """Dieci squadre dentro e il tetto a otto lascerebbe fuori due che
+        stanno giocando. E' l'unico controllo che `OpzioniLega` da sola non
+        puo' fare: non sa come sta messa **questa** lega."""
+        entra(client)
+        # Prima si toglie la coppa: con dieci squadre ammesse sarebbe lei a
+        # protestare per prima, e il controllo che si vuole provare e' l'altro.
+        client.put("/api/lega/regole", json={"valori": {"coppa_italia": False}})
+
+        risposta = client.put("/api/lega/regole", json={"valori": {"partecipanti": 8}})
+
+        assert risposta.status_code == 422
+        assert "iscritte" in risposta.json()["detail"]
+
+    def test_una_regola_assurda_in_se_la_ferma_la_dataclass(self, client):
+        """Due controlli diversi, tutti e due a monte del salvataggio."""
+        entra(client)
+
+        risposta = client.put("/api/lega/regole", json={"valori": {"passo_gol": 0}})
+
+        assert risposta.status_code == 422
+        assert risposta.json()["detail"]
+
+    def test_la_stagione_si_cambia_da_qui(self, client):
+        entra(client)
+
+        risposta = client.put(
+            "/api/lega/regole", json={"valori": {}, "stagione": "2027/28"}
+        )
+
+        assert risposta.status_code == 200
+        assert risposta.json()["stagione"] == "2027/28"
+
+
+class TestIlRicalcoloDegliUnder21:
+    """L'articolo 2: i posti Under 21 si fissano una volta l'anno.
+
+    «Si ricalcola una sola volta l'anno, prima dell'asta di Settembre, e resta
+    invariato per l'intera stagione»: togliere un Under a dicembre non deve
+    stringere la rosa a gennaio. Il congelamento e' quello che lo garantisce,
+    e dal sito nuovo non si poteva fare.
+    """
+
+    def test_una_riga_per_squadra(self, client):
+        entra(client)
+
+        dati = client.get("/api/lega/under21").json()
+
+        assert len(dati["righe"]) == 10
+        assert dati["massimi"] == 3
+        assert dati["riferimento"].endswith("-08-31")
+
+    def test_prima_del_ricalcolo_i_posti_si_contano_dal_vivo(self, client):
+        entra(client)
+
+        dati = client.get("/api/lega/under21").json()
+
+        assert dati["mai_ricalcolato"] is True
+        assert all(r["congelati"] is None for r in dati["righe"])
+
+    def test_ricalcolare_congela_quel_che_c_e_adesso(self, client):
+        entra(client)
+
+        dopo = client.post("/api/lega/under21").json()
+
+        assert dopo["mai_ricalcolato"] is False
+        for riga in dopo["righe"]:
+            assert riga["congelati"] == min(riga["in_rosa"], dopo["massimi"])
+
+    def test_dopo_il_congelamento_un_under_in_meno_non_stringe_la_rosa(self, client):
+        """E' tutta la ragione dell'articolo: il limite resta quello di
+        settembre anche quando l'Under non c'e' piu'."""
+        from fantacalcio.data import archivio, carica_rose
+
+        entra(client)
+        client.post("/api/lega/under21")
+        prima = {
+            r["squadra_id"]: r for r in client.get("/api/lega/under21").json()["righe"]
+        }
+        con_under = next((id_ for id_, r in prima.items() if r["in_rosa"] > 0), None)
+        if con_under is None:
+            import pytest
+
+            pytest.skip("Nessuna squadra di demo ha Under 21 in rosa")
+
+        rosa = carica_rose(archivio())[con_under]
+        under = next(
+            g
+            for g in rosa.giocatori
+            if g.under_21(
+                __import__("datetime").date(2026, 8, 31),
+                __import__(
+                    "fantacalcio.regole", fromlist=["ParametriLega"]
+                ).ParametriLega(),
+            )
+        )
+        client.post(
+            f"/api/squadre/{con_under}/svincoli",
+            json={"giocatore_id": under.id, "motivo": "pre-asta"},
+        )
+
+        dopo = {
+            r["squadra_id"]: r for r in client.get("/api/lega/under21").json()["righe"]
+        }
+        assert dopo[con_under]["in_rosa"] == prima[con_under]["in_rosa"] - 1
+        assert dopo[con_under]["congelati"] == prima[con_under]["congelati"]
+        assert dopo[con_under]["limite_rosa"] == prima[con_under]["limite_rosa"]
+
+    def test_chi_non_amministra_non_ricalcola(self, client):
+        entra(client, "luca")
+
+        assert client.post("/api/lega/under21").status_code == 403

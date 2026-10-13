@@ -25,8 +25,12 @@ Base: regolamento **V3**, testo definitivo di Ottobre 2026.
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/streamlit run app.py
+cd web && npm ci && npm run build && cd ..
+.venv/bin/python -m uvicorn api.main:app --reload
 ```
+
+Poi si apre `http://127.0.0.1:8000`. E' **un servizio solo**: la stessa app
+serve le pagine e l'API che le alimenta.
 
 Parte **senza credenziali**: se non trova Supabase genera una lega di demo in
 SQLite, con 10 squadre, rose contrattualizzate e 11 giornate disputate. Tutte
@@ -34,9 +38,13 @@ le rose della demo sono conformi al regolamento, quindi sono un banco di prova
 valido per le regole.
 
 ```bash
-.venv/bin/pytest        # 1088 test
+.venv/bin/pytest        # 1719 test
 .venv/bin/ruff check .
+cd web && npm run build  # i tipi del sito: `tsc -b` e' piu' severo di `tsc --noEmit`
 ```
+
+Chi lavora sulle pagine puo' tenere Vite a parte (`cd web && npm run dev`),
+che ricarica a ogni salvataggio e parla con l'API sulla 8000.
 
 ---
 
@@ -85,11 +93,13 @@ fantacalcio/
   fonti_web.py            listone e stipendi: lettura, abbinamento, consolidamento
   data.py                 accesso ai dati: Supabase o SQLite demo
   vista.py                dai dati grezzi alle tabelle a schermo
-  ui.py                   helper Streamlit (l'unico modulo che importa st)
+  sala.py                 la Draft Room: turni, chiamate, validazione
   assistente.py           il dossier del regolamento per la chat AI
   demo_data.py            genera la lega di demo
 db/schema.sql             schema Postgres da incollare in Supabase
-tests/                    1088 test sulle regole, i dati e le viste
+api/                      le rotte che servono il sito (FastAPI)
+web/                      il sito (React + Vite), servito da `web/dist`
+tests/                    1719 test sulle regole, i dati e l'API
 ```
 
 Due regole tengono insieme il progetto:
@@ -100,11 +110,11 @@ Quando la lega vota un lodo si cambia quel valore, non la logica. E' anche il
 motivo per cui la pagina Regolamento puo' stampare i parametri veri invece di
 una copia scritta a mano che prima o poi diverge.
 
-**La logica non conosce Streamlit.** `regole`, `modelli`, `conformita`,
-`draft`, `mercato`, `formazioni`, `giornata` e `vista` sono Python puro. I 1088
-test girano in una decina di secondi senza avviare nulla — ed e' il
-motivo per cui questa parte sopravvivrebbe intatta a un cambio di tecnologia
-del sito.
+**La logica non conosce il web.** `regole`, `modelli`, `conformita`, `draft`,
+`sala`, `mercato`, `formazioni`, `giornata` e `vista` sono Python puro: non
+importano FastAPI e non sanno che esiste un browser. Non e' una previsione,
+e' un fatto gia' verificato — il sito e' stato rifatto da zero, da Streamlit
+a React, senza toccare una riga di regole.
 
 ### La verifica non e' un si'/no
 
@@ -263,10 +273,9 @@ per altre strade. Nascondere un bottone non e' un controllo.
 > Onesta' sui limiti: questo login e' proporzionato a dieci amici, non a un
 > servizio pubblico.
 >
-> - **Ricaricare la pagina fa uscire.** La sessione vive nel session_state di
->   Streamlit: navigando con il menu tutto resta com'e', ma un F5 riporta al
->   login. Tenerla viva richiederebbe un token in un cookie, che aggiunge
->   superficie d'attacco per un guadagno modesto: meglio ri-entrare.
+> - **La sessione vive in un cookie httpOnly**, firmato: il JavaScript della
+>   pagina non lo vede, quindi un XSS non se lo porta via. Ricaricare non fa
+>   uscire, e chiudere il browser nemmeno finche' il token non scade.
 > - **Il recupero password non passa da un'email**, perche' l'app non ne
 >   spedisce. Al suo posto ci sono due strade, tutte e due nella scheda
 >   **Password dimenticata** della schermata d'accesso: il **codice di
@@ -276,8 +285,9 @@ per altre strade. Nascondere un bottone non e' un controllo.
 >   temporanea e la consegna a voce; al primo accesso il sito obbliga a
 >   sostituirla. Il codice e' anche l'unica strada che copre il presidente
 >   stesso, che non ha nessuno sopra di se'.
-> - Su Streamlit Community Cloud l'indirizzo dell'app e' pubblico, quindi la
->   pagina di accesso e' raggiungibile da chiunque abbia il link.
+> - L'indirizzo del sito e' pubblico, quindi la pagina di accesso e'
+>   raggiungibile da chiunque abbia il link. Senza credenziali, pero', non si
+>   entra.
 >
 > Le password restano protette da scrypt con sale: anche chi ottenesse il
 > database non le ricava.
@@ -313,25 +323,21 @@ scambi. Manca, nell'ordine in cui lo farei:
 3. **Gestione utenti** dall'interfaccia: creare i partecipanti, assegnare le
    squadre, reimpostare le password. Oggi gli utenti esistono solo nella demo.
 4. **Registro dei lodi**, collegato all'articolo che modificano.
-5. **Tabellone del draft** da proiettare durante l'asta al Centro Padel.
+5. **Registro dei lodi**, collegato all'articolo che modificano.
 
-Il punto 1 e' anche il momento in cui va deciso se restare su Streamlit: per
-dieci persone che consultano e propongono scambi puo' bastare, ma per un'asta
-in tempo reale e per l'uso quotidiano da telefono un frontend vero renderebbe
-molto meglio. La logica di regole non andrebbe comunque riscritta.
+Il frontend non e' piu' fra le cose da decidere: il sito e' React, servito
+dalla stessa app che espone l'API, e la Draft Room funziona in tempo reale
+con dieci persone collegate.
 
 ---
 
 ## Lavorare in due (o in dieci)
 
 Il repository e' privato: chi collabora va aggiunto da **Settings →
-Collaborators**, con permesso *Write*. Quel permesso vale anche per il deploy:
-su Streamlit Community Cloud e' l'accesso in scrittura alla repo a decidere chi
-puo' amministrare l'app, non un'impostazione di Streamlit.
+Collaborators**, con permesso *Write*.
 
 Da girare a chi entra: **[COLLABORARE.md](COLLABORARE.md)**, che ripercorre
-l'invito, il collegamento a Streamlit e il ciclo di lavoro dal suo punto di
-vista.
+l'invito e il ciclo di lavoro dal suo punto di vista.
 
 Tre regole che evitano il 90% dei problemi:
 
@@ -367,8 +373,8 @@ tempo. A fine sessione, `/memoria` per aggiornarla.
 
 ## Pubblicare il sito
 
-Il sito e' online su Streamlit Community Cloud: ogni push su `main` lo
-riaggiorna da solo, senza rideploy. Chi lo pubblica da zero fa due passaggi.
+Il sito e' online su Fly.io. Chi lo pubblica da zero fa due passaggi: il
+database, e il servizio.
 
 **1. Supabase — il database vero.** Crea il progetto su
 [supabase.com](https://supabase.com) (piano free), apri il SQL Editor e incolla
@@ -385,10 +391,10 @@ Poi da *Project Settings → API* copia l'URL e la chiave **`service_role`**.
 > blocca ogni scrittura e la tabella `utenti` non e' nemmeno leggibile — non
 > riusciresti neanche a fare login.
 >
-> La `service_role` bypassa la RLS. Qui va bene perche' **Streamlit gira sul
-> server**: la chiave resta nel backend e non raggiunge mai il browser di chi
-> usa il sito. A proteggere le scritture ci pensa il sistema di permessi
-> dell'app.
+> La `service_role` bypassa la RLS. Qui va bene perche' **la chiave sta sul
+> server**: resta nel contenitore e non raggiunge mai il browser di chi usa il
+> sito, che parla solo con l'API. A proteggere le scritture ci pensa il
+> sistema di permessi dell'app.
 >
 > **Non incollarla mai in un file versionato.** Le chiavi legacy non si
 > possono rigenerare: se ne compromettessi una, l'unico rimedio e' creare una
@@ -396,10 +402,15 @@ Poi da *Project Settings → API* copia l'URL e la chiave **`service_role`**.
 > stessa pagina. Chi parte oggi puo' usare direttamente una chiave
 > `sb_secret_...`, che invece si puo' revocare singolarmente.
 
-Per provarlo prima in locale: `cp .streamlit/secrets.toml.example
-.streamlit/secrets.toml` e compilalo. Al riavvio la sidebar passa da "Modalita'
-demo" a "Dati live da Supabase" — `config.py` sceglie da solo il backend, il
-codice non cambia.
+Per provarlo prima in locale si esportano nella shell:
+
+```bash
+export SUPABASE_URL="https://....supabase.co"
+export SUPABASE_KEY="sb_secret_..."
+```
+
+`/api/salute` risponde con quale backend sta leggendo — `config.py` sceglie da
+solo, il codice non cambia.
 
 **Il primo accesso.** Un database appena creato non ha utenti: gli account di
 prova esistono solo nella lega di demo. Alla prima apertura l'app se ne accorge
@@ -407,29 +418,15 @@ e mostra una schermata di **prima configurazione** per creare il presidente di
 lega. Da li' in poi si entra normalmente, e sara' il presidente a creare gli
 altri partecipanti.
 
-**2. Streamlit Community Cloud — il sito.** Su
-[share.streamlit.io](https://share.streamlit.io) collega il repository, indica
-`app.py` come main file, e in *Settings → Secrets* incolla:
+**2. Il servizio.** Le istruzioni per intero stanno in *Pubblicare su Fly.io*,
+qui sotto. In breve: `fly apps create`, `fly secrets set` coi tre valori,
+`fly deploy`.
 
-```toml
-NOME_LEGA = "FantaCalcio NuoVo"
-SUPABASE_URL = "https://xxxx.supabase.co"
-SUPABASE_KEY = "..."
-```
+### Com'e' fatto il servizio
 
-Esce un indirizzo tipo `https://fantacalcio-nuovo.streamlit.app`: **quello e'
-il link da dare ai partecipanti.** Ogni push su `main` ridispiega da solo.
-
-### Il sito nuovo in React
-
-Il passaggio a React si fa a pezzi, e **Streamlit resta in piedi finche' il
-nuovo non e' in pari**: i due convivono, su due indirizzi diversi, sullo
-stesso database Supabase. Finche' `app.py` c'e', la lega continua a usare
-quello e non si accorge di niente.
-
-Il sito nuovo e' **un servizio solo**: la stessa app serve le pagine React e
-l'API che le alimenta. Un indirizzo, una cosa da configurare, un posto dove
-guardare quando non va.
+E' **un servizio solo**: la stessa app FastAPI serve le pagine React gia'
+costruite e l'API che le alimenta. Un indirizzo, una cosa da configurare, un
+posto dove guardare quando non va.
 
 **1. Il segreto delle sessioni.** Generane uno e tienilo da parte:
 
@@ -448,8 +445,8 @@ cima al repository fa tutto: costruisce le pagine e poi le serve). Piano
 | Variabile | Valore |
 |---|---|
 | `FANTA_SEGRETO_JWT` | quello generato al punto 1 |
-| `SUPABASE_URL` | lo stesso dei Secrets di Streamlit |
-| `SUPABASE_KEY` | lo stesso dei Secrets di Streamlit |
+| `SUPABASE_URL` | quello del progetto Supabase |
+| `SUPABASE_KEY` | la chiave `service_role` (`sb_secret_…`) |
 
 `FANTA_AMBIENTE` **non si imposta**: serve solo in sviluppo, dove toglie
 `Secure` dal cookie e apre il CORS verso Vite.
@@ -469,9 +466,146 @@ a chiare lettere.
 > torna veloce per tutti. Per dieci persone e' un prezzo onesto; il giorno
 > che desse fastidio si passa a un piano a pagamento senza toccare il codice.
 
-Ogni push sul branch collegato ridispiega da solo, come fa Streamlit.
+Ogni push sul branch collegato ridispiega da solo.
 
 Due cose da sapere sul piano gratuito: l'app **va in letargo** quando non la usa
 nessuno, e il primo che apre il link aspetta qualche decina di secondi; e
 l'indirizzo e' pubblico, quindi la pagina di accesso e' raggiungibile da
 chiunque ce l'abbia (senza credenziali, pero', non si entra).
+
+### Pubblicare su Fly.io (quello che non dorme)
+
+Render va bene per provare, ma sul piano gratuito il servizio si ferma e il
+primo che entra aspetta. Per una **draft room** con dieci persone collegate
+e' il momento peggiore in cui far aspettare qualcuno: su Fly la macchina
+resta accesa, e il prezzo e' qualche euro al mese.
+
+Non cambia niente nel codice: stesso `Dockerfile`, stesso database Supabase.
+Cambia solo chi lo esegue. Il repository ha gia' un `fly.toml` pronto.
+
+> **Non incollare commenti sulla stessa riga di un comando.** La shell del
+> Mac (zsh, di suo) il cancelletto non lo tratta come commento: lo passa al
+> programma insieme a tutto quel che segue. `fly apps create nome # nota`
+> diventa undici argomenti e `fly` risponde «accepts between 0 and 1 arg(s),
+> received 11». Qui sotto i blocchi di comandi sono senza commenti apposta:
+> si incollano come stanno.
+
+**0. Mettersi nella cartella del progetto.** `flyctl` cerca `fly.toml` nella
+cartella da cui lo lanci: dalla *home* non trova niente e risponde «the
+config for your app is missing an app name». Quindi prima:
+
+```bash
+cd ~/fantacalcio-nuovo
+git pull
+```
+
+Il percorso e' quello dove hai clonato il repository. Se non te lo ricordi:
+
+```bash
+find ~ -maxdepth 4 -type d -name fantacalcio-nuovo
+```
+
+Se non esce niente, il repository su questo computer non c'e' ancora:
+
+```bash
+cd ~
+git clone https://github.com/Tiri6/fantacalcio-nuovo.git
+cd fantacalcio-nuovo
+```
+
+**1. Installare `flyctl`**, una volta sola. Su macOS o Linux:
+
+```bash
+curl -L https://fly.io/install.sh | sh
+```
+
+Su Windows, da PowerShell:
+
+```powershell
+powershell -Command "iwr https://fly.io/install.ps1 -useb | iex"
+```
+
+Finito, chiudi e riapri il terminale: serve perche' `fly` finisca nel PATH.
+
+**2. Entrare.** Se non hai ancora un account:
+
+```bash
+fly auth signup
+```
+
+Se ce l'hai gia':
+
+```bash
+fly auth login
+```
+
+**3. Creare l'app:**
+
+```bash
+fly apps create fantacalcio-nuovo
+```
+
+Il nome e' unico su tutto Fly. Se risponde che e' gia' preso, scegline un
+altro e **cambia la riga `app =` in `fly.toml`**: sono due posti che devono
+dire la stessa cosa.
+
+**4. I tre segreti.** Non vanno nel repository, mai. `fly secrets set` li
+tiene da parte e li passa all'app come variabili d'ambiente:
+
+```bash
+fly secrets set FANTA_SEGRETO_JWT="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+fly secrets set SUPABASE_URL="https://IL-TUO-PROGETTO.supabase.co"
+fly secrets set SUPABASE_KEY="sb_secret_LA-TUA-CHIAVE"
+```
+
+Tre comandi separati e non uno a capo: una riga spezzata, incollata in un
+terminale che se la rimette insieme a modo suo, e' un modo di perdere tempo
+su un errore che non c'entra niente. Le ultime due righe vanno riempite coi
+valori veri **prima** di premere invio.
+
+La chiave di Supabase e' la **`service_role`** (`sb_secret_…`), non la
+`anon`/`publishable`, con cui la RLS blocca tutte le scritture. Il segreto delle sessioni dev'essere di almeno 32
+caratteri: sotto, l'app non parte di proposito.
+
+**5. Pubblicare:**
+
+```bash
+fly deploy
+```
+
+La prima volta costruisce l'immagine (qualche minuto: Node compila le pagine,
+poi Python si porta via solo il risultato). Alla fine stampa l'indirizzo,
+tipo `https://fantacalcio-nuovo.fly.dev`.
+
+**6. Controllare che legga i dati veri.** Apri `/api/salute`: deve rispondere
+
+```json
+{"stato": "ok", "backend": "supabase"}
+```
+
+Se dice `demo (SQLite)` mancano le due variabili di Supabase — e la lega
+starebbe guardando squadre finte senza che nessuno se ne accorga. Si
+rimedia con `fly secrets set` e un `fly deploy`.
+
+**Comandi che servono dopo:**
+
+| Cosa | Comando |
+|---|---|
+| Vedere i log dal vivo | `fly logs` |
+| Vedere se la macchina e' su | `fly status` |
+| Ripubblicare dopo un `git pull` | `fly deploy` |
+| Aprire il sito | `fly open` |
+| Cambiare un segreto | `fly secrets set CHIAVE=valore` (ridispiega da se') |
+
+**Due cose da sapere.**
+
+Fly **non guarda GitHub**: ogni volta che vuoi pubblicare una versione nuova
+lanci `fly deploy` dal PC, dopo esserti portato il codice aggiornato con
+`git pull`. Render invece ridispiegava da solo a ogni push — e' il prezzo di
+non addormentarsi. Chi vuole il ridispiegamento automatico puo' aggiungere
+un'azione GitHub con un token di Fly, ma e' un segreto in piu' da custodire.
+
+Non serve nessun **volume**: i dati stanno su Supabase, e il contenitore non
+scrive niente che debba sopravvivergli. Il giorno che servisse (un file
+caricato, una cache su disco) va aggiunto, altrimenti sparirebbe a ogni
+riavvio senza dire niente.

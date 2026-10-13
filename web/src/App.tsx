@@ -9,6 +9,7 @@ import {
 import { Accesso } from "./pagine/Accesso";
 import { Onboarding } from "./pagine/Onboarding";
 import { Albo } from "./pagine/Albo";
+import { Assegnazioni } from "./pagine/Assegnazioni";
 import { Bacheca } from "./pagine/Bacheca";
 import { Calendario } from "./pagine/Calendario";
 import { Campionato } from "./pagine/Campionato";
@@ -87,6 +88,13 @@ const SEZIONI: { titolo: string; voci: Voce[] }[] = [
     titolo: "Mercato",
     voci: [
       { a: "/sala", icona: "🎙️", testo: "Draft Room" },
+      // Registra contratti per conto di tutti: e' del presidente (art. 1).
+      {
+        a: "/assegnazioni",
+        icona: "📝",
+        testo: "Assegnazioni",
+        soloSe: (u) => u.puo_importare,
+      },
       { a: "/scambi", icona: "🤝", testo: "Scambi" },
     ],
   },
@@ -186,6 +194,7 @@ function Intelaiatura() {
           <Route path="/giocatori" element={<Listone />} />
           <Route path="/identita" element={<Identita />} />
           <Route path="/sala" element={<Sala />} />
+          <Route path="/assegnazioni" element={<Assegnazioni />} />
           <Route path="/scambi" element={<Scambi />} />
           <Route path="/profilo" element={<Profilo />} />
           <Route path="/importa" element={<Importa />} />

@@ -744,6 +744,32 @@ class TestListoneInUnFileSolo:
         )
         assert [r.nome for r in righe] == ["Barella", "Svilar"]
 
+    def test_le_righe_scartate_si_possono_leggere(self):
+        """Quaranta id storti su cinquecento erano quaranta giocatori che
+        sparivano in silenzio, e si scoprivano a draft cominciato."""
+        from fantacalcio.fonti_web import legge_listone_csv
+
+        righe, problemi = legge_listone_csv(
+            "id;nome;ruolo mantra\n555;Barella;M/C\nxx;Rotto;M\n7;Tizio;Mediano\n"
+        )
+
+        assert [r.nome for r in righe] == ["Barella"]
+        assert len(problemi) == 2
+        assert "riga 3 (Rotto)" in problemi[0]
+        assert "id non numerico" in problemi[0]
+        assert "Tizio" in problemi[1]
+
+    def test_i_problemi_arrivano_fino_all_esito(self):
+        """E' l'anteprima dell'import a doverli mostrare: serve a dire cosa
+        succedera' **prima** di scrivere."""
+        from fantacalcio.fonti_web import aggiorna_da_file
+
+        esito = aggiorna_da_file(b"id;nome;ruolo mantra\n555;Barella;M/C\nxx;Rotto;M\n")
+
+        assert len(esito.righe) == 1
+        assert len(esito.problemi) == 1
+        assert "Rotto" in esito.problemi[0]
+
     def test_passa_da_aggiorna_da_file(self):
         from fantacalcio.fonti_web import MODELLO_CSV_LISTONE, aggiorna_da_file
 

@@ -529,13 +529,22 @@ export function Squadra() {
             amministra registra un vincitore nell'albo d'oro.
           </p>
         ) : (
-          <div className="pastiglie">
-            {dato.titoli.map((t, i) => (
-              <span key={i} className="pastiglia">
-                {t.icona} {t.etichetta} {t.stagione}
-              </span>
-            ))}
-          </div>
+          <>
+            <div className="conti-import">
+              {dato.titoli_per_competizione.map((c) => (
+                <span key={c.etichetta} className="pastiglia verde">
+                  {c.icona} {c.etichetta}: {c.quanti}
+                </span>
+              ))}
+            </div>
+            <div className="pastiglie">
+              {dato.titoli.map((t, i) => (
+                <span key={i} className="pastiglia">
+                  {t.icona} {t.etichetta} {t.stagione}
+                </span>
+              ))}
+            </div>
+          </>
         )}
       </section>
 

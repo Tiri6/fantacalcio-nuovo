@@ -164,12 +164,16 @@ export type Emergenza = {
   candidati: PortiereLibero[];
 };
 
+export type ContoTitoli = { etichetta: string; icona: string; quanti: number };
+
 export type SquadraInDettaglio = Squadra & {
   posso_gestirla: boolean;
   conti: Conti;
   rosa: GiocatoreInRosa[];
   violazioni: Violazione[];
   titoli: Titolo[];
+  /** Quanti per competizione: contare le pastiglie smette di funzionare a venti. */
+  titoli_per_competizione: ContoTitoli[];
   riferimento_u21: string;
   emergenza: Emergenza;
 };
@@ -551,6 +555,8 @@ export type ScambioLetto = {
   note: string;
   creato_il: string;
   giornata_efficacia: number | null;
+  /** Da che giornata avrebbe effetto ratificando adesso (art. 8). */
+  efficacia_proposta: number;
   /** Cosa puo' fare chi guarda: lo decide il dominio, non il browser. */
   posso_accettare: boolean;
   posso_rifiutare: boolean;
@@ -567,6 +573,9 @@ export type PaginaScambi = {
   mercato_aperto: boolean;
   finestra: string;
   squadre: { id: number; nome: string }[];
+  /** Il V3 li ha aboliti, ma è un parametro: la lega può rivotarlo. */
+  prolungamenti_ammessi: boolean;
+  anni_contratto_massimo: number;
 };
 
 export type EsitoProposta = {
@@ -595,10 +604,64 @@ export type FormatiImport = {
   campi_listone: CampoFile[];
   campi_rose: CampoFile[];
   campi_risultati: CampoFile[];
+  modello_listone: string;
   modello_rose: string;
   modello_risultati: string;
   soglia_primo_gol: number;
   passo_gol: number;
+};
+
+/* --- le regole di lega, come modulo ------------------------------------- */
+
+export type ValoreRegola = string | number | boolean | string[] | null;
+
+export type SceltaRegola = { valore: string; etichetta: string };
+
+export type CampoRegola = {
+  nome: string;
+  etichetta: string;
+  /** intero | decimale | booleano | scelta | multi | testo */
+  tipo: string;
+  valore: ValoreRegola;
+  scelte: SceltaRegola[];
+  /** Vero quando «nessun limite» è una risposta ammessa. */
+  opzionale: boolean;
+  /** "" o "milioni": come si legge il numero, già convertito. */
+  unita: string;
+};
+
+export type GruppoRegole = { titolo: string; campi: CampoRegola[] };
+
+export type PaginaRegole = {
+  posso_modificare: boolean;
+  stagione: string;
+  squadre_iscritte: number;
+  gruppi: GruppoRegole[];
+  /** Quel che da qui non si tocca, col motivo. */
+  escluse: { nome: string; motivo: string }[];
+};
+
+export type RigaU21 = {
+  squadra_id: number;
+  squadra: string;
+  in_rosa: number;
+  /** `null` finché nessuno ha mai ricalcolato: prima si contano dal vivo. */
+  congelati: number | null;
+  limite_rosa: number;
+};
+
+export type PaginaUnder21 = {
+  riferimento: string;
+  massimi: number;
+  posso_ricalcolare: boolean;
+  mai_ricalcolato: boolean;
+  righe: RigaU21[];
+};
+
+export type CambiamentiRegole = {
+  cambia: string[];
+  avvisi: string[];
+  errore: string;
 };
 
 export type ProblemaFile = {
@@ -662,11 +725,21 @@ export type RigaListoneImport = {
   ruoli: string[];
   quotazione: number | null;
   fvm: number | null;
+  /** I tre che l'xlsx ufficiale non ha e il CSV completo sì. */
+  ingaggio: number;
+  nazionalita: string;
+  data_nascita: string | null;
 };
 
 export type EsitoListoneImport = EsitoFile & {
   righe: RigaListoneImport[];
   club: number;
+  con_stipendio: number;
+  con_data_nascita: number;
+  con_nazionalita: number;
+  senza_stipendio: string[];
+  /** Cosa ha riconosciuto il lettore: si accettano due formati. */
+  fonti: string[];
 };
 
 export type RigaRisultatoImport = {
@@ -1025,6 +1098,82 @@ export type EsitoChiamata = {
   violazioni: ViolazioneDiSala[];
 };
 
+export type SquadraEstratta = {
+  squadra_id: number;
+  squadra: string;
+  /** "bassa" sono le peggio classificate: si giocano le pick 1-5. */
+  fascia: string;
+};
+
+export type Lottery = {
+  ordine: SquadraEstratta[];
+  pesi: number[];
+  spiegazione: string;
+  /** Quanto era probabile ogni pick, prima dell'estrazione. */
+  probabilita: { squadra: string; per_pick: number[] }[];
+};
+
+export type Tabellone = {
+  c_e_una_sala: boolean;
+  tipo_etichetta: string;
+  round: { numero: number; squadre: string[] }[];
+};
+
+export type InScadenza = {
+  squadra: string;
+  giocatore: string;
+  club: string;
+  ruoli: string;
+  eta: number | null;
+  ingaggio: number;
+};
+
+/* --- assegnazioni --------------------------------------------------------- */
+
+export type LiberoAssegnabile = {
+  id: number;
+  nome: string;
+  club: string;
+  ruoli: string[];
+  ingaggio: number;
+  nazionalita: string;
+  u21: boolean;
+};
+
+export type SquadraAssegnabile = {
+  id: number;
+  nome: string;
+  giocatori: number;
+  anni_impegnati: number;
+  monte_ingaggi: number;
+  /** Sul Cap pesa anche il Dead Money: questo numero lo tiene già dentro. */
+  spazio_salariale: number;
+};
+
+export type ViolazioneAssegnazione = {
+  codice: string;
+  articolo: string;
+  messaggio: string;
+  bloccante: boolean;
+};
+
+export type PaginaAssegnazioni = {
+  posso_assegnare: boolean;
+  anni_minimo: number;
+  anni_massimo: number;
+  monte_anni: number;
+  limite_cap: number;
+  in_listone: number;
+  liberi: LiberoAssegnabile[];
+  squadre: SquadraAssegnabile[];
+};
+
+export type EsitoAssegnazione = {
+  fatta: boolean;
+  messaggio: string;
+  violazioni: ViolazioneAssegnazione[];
+};
+
 export type NuovaSala = {
   tipo: "SETTEMBRE" | "RIPARAZIONE";
   round_totali: number;
@@ -1046,6 +1195,23 @@ export const api = {
       body: JSON.stringify(corpo),
     }),
   esci: () => chiama<void>("/esci", { method: "POST" }),
+  // Le due strade per rientrare, le uniche due rotte oltre ad accesso e
+  // registrazione che rispondono a chi non ha una sessione.
+  rientraConCodice: (corpo: {
+    nome_utente: string;
+    codice: string;
+    nuova: string;
+    conferma: string;
+  }) =>
+    chiama<void>("/recupero/codice", {
+      method: "POST",
+      body: JSON.stringify(corpo),
+    }),
+  chiediAlPresidente: (nome_utente: string) =>
+    chiama<void>("/recupero/richiesta", {
+      method: "POST",
+      body: JSON.stringify({ nome_utente }),
+    }),
   squadre: () => chiama<Squadra[]>("/squadre"),
   squadra: (id: number) => chiama<SquadraInDettaglio>(`/squadre/${id}`),
   listone: () => chiama<Listone>("/giocatori"),
@@ -1056,6 +1222,7 @@ export const api = {
     da_me: number[];
     da_loro: number[];
     note: string;
+    prolungamenti?: Record<number, number>;
   }) =>
     chiama<EsitoProposta>("/scambi", {
       method: "POST",
@@ -1134,6 +1301,20 @@ export const api = {
   generaCodiceRecupero: () =>
     chiama<{ codice: string }>("/profilo/codice-recupero", { method: "POST" }),
   lega: () => chiama<DatiLega>("/lega"),
+  regole: () => chiama<PaginaRegole>("/lega/regole"),
+  under21: () => chiama<PaginaUnder21>("/lega/under21"),
+  ricalcolaUnder21: () =>
+    chiama<PaginaUnder21>("/lega/under21", { method: "POST" }),
+  anteprimaRegole: (valori: Record<string, ValoreRegola>, stagione: string) =>
+    chiama<CambiamentiRegole>("/lega/regole/anteprima", {
+      method: "POST",
+      body: JSON.stringify({ valori, stagione }),
+    }),
+  cambiaRegole: (valori: Record<string, ValoreRegola>, stagione: string) =>
+    chiama<PaginaRegole>("/lega/regole", {
+      method: "PUT",
+      body: JSON.stringify({ valori, stagione }),
+    }),
   invita: (email: string) =>
     chiama<DatiLega>("/lega/inviti", {
       method: "POST",
@@ -1168,10 +1349,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ contenuto_base64, nome }),
     }),
-  importaListone: (contenuto_base64: string, nome: string) =>
+  svuotaListone: (conferma: string) =>
+    chiama<{ messaggio: string; giocatori: number; contratti: number }>(
+      "/importazione/listone/svuota",
+      { method: "POST", body: JSON.stringify({ conferma }) },
+    ),
+  importaListone: (
+    contenuto_base64: string,
+    nome: string,
+    sostituisci = false,
+  ) =>
     chiama<RiepilogoImport>("/importazione/listone", {
       method: "POST",
-      body: JSON.stringify({ contenuto_base64, nome }),
+      body: JSON.stringify({ contenuto_base64, nome, sostituisci }),
     }),
   anteprimaRose: (contenuto_base64: string, nome: string) =>
     chiama<EsitoRoseImport>("/importazione/rose/anteprima", {
@@ -1255,6 +1445,24 @@ export const api = {
         ? "/sala"
         : `/sala?versione=${encodeURIComponent(versione)}`,
     ),
+  assegnazioni: () => chiama<PaginaAssegnazioni>("/assegnazioni"),
+  anteprimaAssegnazione: (
+    giocatore_id: number,
+    squadra_id: number,
+    anni: number,
+  ) =>
+    chiama<EsitoAssegnazione>("/assegnazioni/anteprima", {
+      method: "POST",
+      body: JSON.stringify({ giocatore_id, squadra_id, anni }),
+    }),
+  assegna: (giocatore_id: number, squadra_id: number, anni: number) =>
+    chiama<EsitoAssegnazione>("/assegnazioni", {
+      method: "POST",
+      body: JSON.stringify({ giocatore_id, squadra_id, anni }),
+    }),
+  estraiLottery: () => chiama<Lottery>("/sala/lottery", { method: "POST" }),
+  tabellone: () => chiama<Tabellone>("/sala/tabellone"),
+  scadenze: () => chiama<InScadenza[]>("/sala/scadenze"),
   apriSala: (corpo: NuovaSala) =>
     chiama<PaginaSala>("/sala", {
       method: "POST",

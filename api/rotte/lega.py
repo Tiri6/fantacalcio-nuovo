@@ -33,14 +33,25 @@ from fantacalcio.data import (
     carica_inviti,
     carica_richieste_password,
     carica_rose,
+    carica_squadre,
+    congela_slot_u21,
     prossimo_id,
     salva_credenziali,
     salva_invito,
+    salva_lega,
     salva_richiesta_password,
 )
 from fantacalcio.leghe import (
+    FUORI_MODULO,
     EmailNonValida,
+    LegaNonValida,
+    RegoleNonModificabili,
+    aggiorna_opzioni,
+    avvisi_sulle_regole,
+    con_valori,
     crea_invito,
+    descrivi_opzioni,
+    differenze,
     moduli_disponibili,
     puo_modificare_regole,
 )
@@ -512,3 +523,255 @@ def annulla_richiesta(richiesta_id: int, utente: UtenteDentro) -> Lega:
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND, detail="Richiesta inesistente."
     )
+
+
+# ---------------------------------------------------------------------------
+# Cambiare le regole
+# ---------------------------------------------------------------------------
+#
+# Il modulo non si disegna qui: si descrive nel dominio (`descrivi_opzioni`) e
+# il sito lo segue. Scriverlo a mano casella per casella vorrebbe dire una
+# terza copia dell'elenco delle opzioni, e un'opzione aggiunta domani
+# resterebbe invisibile senza che nessuno se ne accorga.
+
+
+class SceltaLetta(BaseModel):
+    valore: str
+    etichetta: str
+
+
+class CampoLetto(BaseModel):
+    nome: str
+    etichetta: str
+    tipo: str
+    valore: object
+    scelte: list[SceltaLetta]
+    opzionale: bool
+    unita: str
+
+
+class GruppoLetto(BaseModel):
+    titolo: str
+    campi: list[CampoLetto]
+
+
+class EsclusaLetta(BaseModel):
+    nome: str
+    motivo: str
+
+
+class Regole(BaseModel):
+    posso_modificare: bool
+    stagione: str
+    squadre_iscritte: int
+    gruppi: list[GruppoLetto]
+    # Le opzioni che da qui non si toccano, col motivo: un'opzione che esiste
+    # e non si vede sembra un pezzo rotto del sito.
+    escluse: list[EsclusaLetta]
+
+
+class DaCambiare(BaseModel):
+    valori: dict[str, object] = {}
+    stagione: str = ""
+
+
+class Cambiamenti(BaseModel):
+    """Cosa cambierebbe, da leggere **prima** di salvare."""
+
+    cambia: list[str]
+    avvisi: list[str]
+    errore: str = ""
+
+
+def _modulo_regole(ctx: Contesto, utente, lega) -> Regole:
+    squadre = carica_squadre(ctx.arch)
+    iscritte = sum(1 for s in squadre.values() if s.lega_id == lega.id)
+    return Regole(
+        posso_modificare=puo_modificare_regole(utente, lega),
+        stagione=lega.stagione,
+        squadre_iscritte=iscritte,
+        gruppi=[
+            GruppoLetto(
+                titolo=g.titolo,
+                campi=[
+                    CampoLetto(
+                        nome=c.nome,
+                        etichetta=c.etichetta,
+                        tipo=c.tipo,
+                        valore=c.valore,
+                        scelte=[
+                            SceltaLetta(valore=s.valore, etichetta=s.etichetta)
+                            for s in c.scelte
+                        ],
+                        opzionale=c.opzionale,
+                        unita=c.unita,
+                    )
+                    for c in g.campi
+                ],
+            )
+            for g in descrivi_opzioni(lega.opzioni)
+        ],
+        escluse=[
+            EsclusaLetta(nome=nome, motivo=motivo)
+            for nome, motivo in sorted(FUORI_MODULO.items())
+        ],
+    )
+
+
+def _lega_di(utente):
+    ctx = contesto_di(utente)
+    if ctx.lega is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Non sei in nessuna lega."
+        )
+    return ctx, ctx.lega
+
+
+@rotte.get("/lega/regole", response_model=Regole)
+def regole(utente: UtenteDentro) -> Regole:
+    """Le regole di questa lega, nella forma di un modulo da compilare."""
+    ctx, lega = _lega_di(utente)
+    return _modulo_regole(ctx, utente, lega)
+
+
+@rotte.post("/lega/regole/anteprima", response_model=Cambiamenti)
+def anteprima_regole(richiesta: DaCambiare, utente: UtenteDentro) -> Cambiamenti:
+    """Cosa cambierebbe salvando, senza salvare.
+
+    Un valore impossibile non e' un errore di protocollo: si torna 200 con
+    `errore` scritto dentro, cosi' chi sta compilando lo legge e corregge
+    senza perdere il resto del modulo.
+    """
+    ctx, lega = _lega_di(utente)
+    squadre = carica_squadre(ctx.arch)
+    iscritte = sum(1 for s in squadre.values() if s.lega_id == lega.id)
+
+    try:
+        nuove = con_valori(lega.opzioni, richiesta.valori)
+    except (LegaNonValida, ValueError) as errore:
+        return Cambiamenti(cambia=[], avvisi=[], errore=str(errore))
+
+    cambia = differenze(lega.opzioni, nuove)
+    stagione = richiesta.stagione.strip()
+    if stagione and stagione != lega.stagione:
+        cambia.insert(0, f"Stagione: {lega.stagione} → {stagione}")
+    return Cambiamenti(
+        cambia=cambia,
+        avvisi=avvisi_sulle_regole(lega.opzioni, nuove, iscritte),
+    )
+
+
+@rotte.put("/lega/regole", response_model=Regole)
+def cambia_regole(richiesta: DaCambiare, utente: UtenteDentro) -> Regole:
+    """Salva le regole nuove. Rose, calendario e albo restano dove sono."""
+    ctx, lega = _lega_di(utente)
+    squadre = carica_squadre(ctx.arch)
+    iscritte = sum(1 for s in squadre.values() if s.lega_id == lega.id)
+
+    try:
+        nuove = con_valori(lega.opzioni, richiesta.valori)
+        aggiornata = aggiorna_opzioni(
+            lega,
+            nuove,
+            utente,
+            squadre_iscritte=iscritte,
+            stagione=richiesta.stagione or None,
+        )
+    except RegoleNonModificabili as errore:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(errore)
+        ) from errore
+    except (LegaNonValida, ValueError) as errore:
+        raise HTTPException(status_code=NON_ELABORABILE, detail=str(errore)) from errore
+
+    salva_lega(ctx.arch, aggiornata)
+    return _modulo_regole(ctx, utente, aggiornata)
+
+
+# ---------------------------------------------------------------------------
+# Il ricalcolo annuale degli Under 21 (art. 2)
+# ---------------------------------------------------------------------------
+
+
+class RigaU21(BaseModel):
+    squadra_id: int
+    squadra: str
+    in_rosa: int
+    # `None` finche' nessuno ha mai ricalcolato: prima del primo congelamento
+    # i posti si contano dal vivo, ed e' giusto che si veda la differenza.
+    congelati: int | None
+    limite_rosa: int
+
+
+class Under21(BaseModel):
+    riferimento: str
+    massimi: int
+    posso_ricalcolare: bool
+    mai_ricalcolato: bool
+    righe: list[RigaU21]
+
+
+def _under21(ctx: Contesto, utente, lega) -> Under21:
+    rose = carica_rose(ctx.arch)
+    nostre = {
+        id_: r
+        for id_, r in rose.items()
+        if r.squadra.lega_id is None or r.squadra.lega_id == lega.id
+    }
+    righe = [
+        RigaU21(
+            squadra_id=id_,
+            squadra=rosa.squadra.nome,
+            in_rosa=rosa.u21_in_rosa(ctx.riferimento_u21, ctx.parametri),
+            congelati=rosa.slot_u21_congelato,
+            limite_rosa=ctx.parametri.rosa_massimo(
+                rosa.slot_u21(ctx.riferimento_u21, ctx.parametri)
+            ),
+        )
+        for id_, rosa in sorted(nostre.items(), key=lambda v: v[1].squadra.nome.lower())
+    ]
+    return Under21(
+        riferimento=ctx.riferimento_u21.isoformat(),
+        massimi=ctx.parametri.slot_u21_massimi,
+        posso_ricalcolare=puo_modificare_regole(utente, lega) or utente.puo_importare,
+        mai_ricalcolato=all(r.congelati is None for r in righe),
+        righe=righe,
+    )
+
+
+@rotte.get("/lega/under21", response_model=Under21)
+def under21(utente: UtenteDentro) -> Under21:
+    """Quanti Under 21 ha ogni squadra, e quanti posti le valgono."""
+    ctx, lega = _lega_di(utente)
+    return _under21(ctx, utente, lega)
+
+
+@rotte.post("/lega/under21", response_model=Under21)
+def ricalcola_under21(utente: UtenteDentro) -> Under21:
+    """Fissa i posti Under 21 per tutta la stagione (art. 2).
+
+    **Da fare una volta sola, prima dell'asta di Settembre.** Rifarlo a
+    stagione in corso riscriverebbe i limiti con la fotografia di oggi, che e'
+    esattamente quello che la regola vuole evitare: svincoli e cessioni di
+    Under in corso d'anno non devono stringere la rosa di nessuno.
+    """
+    ctx, lega = _lega_di(utente)
+    if not (puo_modificare_regole(utente, lega) or utente.puo_importare):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Il ricalcolo degli Under 21 lo fa chi amministra la lega.",
+        )
+
+    rose = carica_rose(ctx.arch)
+    for id_, rosa in rose.items():
+        if rosa.squadra.lega_id not in (None, lega.id):
+            continue
+        congela_slot_u21(
+            ctx.arch,
+            id_,
+            min(
+                rosa.u21_in_rosa(ctx.riferimento_u21, ctx.parametri),
+                ctx.parametri.slot_u21_massimi,
+            ),
+        )
+    return _under21(ctx, utente, lega)

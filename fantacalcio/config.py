@@ -14,25 +14,14 @@ RADICE = Path(__file__).resolve().parents[1]
 DB_DEMO = RADICE / "data" / "fantacalcio_nuovo.db"
 
 
-def _da_streamlit(chiave: str) -> str | None:
-    """Legge un secret di Streamlit senza esplodere se il file non esiste."""
-    try:
-        import streamlit as st
-
-        return st.secrets.get(chiave)  # type: ignore[no-any-return]
-    except Exception:  # noqa: BLE001 - senza secrets.toml Streamlit alza tipi diversi
-        # a seconda della versione (FileNotFoundError, StreamlitSecretNotFoundError):
-        # qualunque errore qui significa solo "nessun secret disponibile".
-        return None
-
-
 def leggi_secret(chiave: str) -> str | None:
-    """Prima le variabili d'ambiente, poi i secret di Streamlit."""
+    """Il valore di una variabile d'ambiente, o `None`.
+
+    Prima leggeva anche i secret di Streamlit; con Streamlit andato restano
+    le variabili d'ambiente, che e' come le passano sia Fly che Render.
+    """
     valore = os.environ.get(chiave)
-    if valore:
-        return valore.strip()
-    valore = _da_streamlit(chiave)
-    return valore.strip() if isinstance(valore, str) and valore.strip() else None
+    return valore.strip() if valore and valore.strip() else None
 
 
 @dataclass(frozen=True)

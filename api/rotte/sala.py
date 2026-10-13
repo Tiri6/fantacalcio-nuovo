@@ -41,6 +41,7 @@ from fantacalcio.data import (
     salva_sala,
     svincolati,
 )
+from fantacalcio.draft import PESI_FASCIA, distribuzione_pick, sorteggia_lottery
 from fantacalcio.sala import (
     Sala,
     SalaNonAmmessa,
@@ -57,7 +58,7 @@ from fantacalcio.sala import (
     turno,
     verifica_chiamata,
 )
-from fantacalcio.vista import classifica
+from fantacalcio.vista import classifica, contratti_in_scadenza
 
 from ..contesto import DATA_DRAFT, Contesto, contesto_di
 from ..dipendenze import UtenteDentro
@@ -494,6 +495,179 @@ def correggi_anni(richiesta: DaCorreggere, utente: UtenteDentro) -> EsitoChiamat
         messaggio=f"Contratto portato a {richiesta.anni} {anni}.",
         violazioni=[],
     )
+
+
+# ---------------------------------------------------------------------------
+# La Lottery dell'articolo 3
+# ---------------------------------------------------------------------------
+
+
+class SquadraEstratta(BaseModel):
+    squadra_id: int
+    squadra: str
+    # La fascia di partenza: «bassa» sono le peggio classificate, quelle che
+    # si giocano le pick 1-5. Si mostra perche' spiega il risultato.
+    fascia: str
+
+
+class ProbabilitaPick(BaseModel):
+    squadra: str
+    # Per ogni pick, la probabilita' in percentuale. L'indice 0 e' la prima.
+    per_pick: list[float]
+
+
+class Lottery(BaseModel):
+    ordine: list[SquadraEstratta]
+    pesi: list[int]
+    spiegazione: str
+    # Quanto era probabile ogni pick, prima dell'estrazione. Si guarda **dopo**
+    # per capire se e' uscita una sorpresa, ed e' il modo piu' onesto di
+    # mostrare che la Lottery non e' un sorteggio.
+    probabilita: list[ProbabilitaPick]
+
+
+@rotte.post("/sala/lottery", response_model=Lottery)
+def estrai_lottery(utente: UtenteDentro) -> Lottery:
+    """Estrae l'ordine di chiamata come lo vuole l'articolo 3.
+
+    **Non e' un mescolamento.** Sono due estrazioni distinte, una per fascia,
+    con i pesi dell'articolo — alla peggio classificata della fascia spetta il
+    50%, poi a scalare — e la seconda meta' della classifica si gioca le pick
+    1-5. Mescolare a caso darebbe a tutti la stessa probabilita', che e'
+    esattamente la cosa che la Lottery esiste per non fare.
+
+    Non salva niente: l'ordine estratto si guarda, e poi si apre la sala con
+    quello. Se la lega la Lottery la fa in altro modo — un'urna vera, una
+    diretta — si trascrive e basta.
+    """
+    ctx = _solo_chi_amministra(utente)
+    rose = carica_rose(ctx.arch)
+    per_nome = {r.squadra.nome: id_ for id_, r in rose.items()}
+
+    tabella = classifica(ctx.arch)
+    nomi = [n for n in tabella["Squadra"] if n in per_nome] if not tabella.empty else []
+    # Chi non ha ancora giocato non compare in classifica: si accoda, perche'
+    # una squadra fuori dalla Lottery e' una squadra che non chiama mai.
+    nomi += [r.squadra.nome for r in rose.values() if r.squadra.nome not in nomi]
+
+    try:
+        esito = sorteggia_lottery(nomi)
+    except ValueError as errore:
+        raise HTTPException(status_code=NON_ELABORABILE, detail=str(errore)) from errore
+
+    # Diecimila simulazioni costano due decimi di secondo e si fanno una
+    # volta per estrazione: le probabilita' delle pick dopo la prima
+    # dipendono da chi e' gia' uscito, e in chiuso non si scrivono.
+    stimate = distribuzione_pick(nomi, simulazioni=10_000)
+
+    bassa = set(esito.fascia_bassa)
+    return Lottery(
+        ordine=[
+            SquadraEstratta(
+                squadra_id=per_nome[n],
+                squadra=n,
+                fascia="bassa" if n in bassa else "alta",
+            )
+            for n in esito.ordine
+        ],
+        pesi=list(PESI_FASCIA[: len(nomi) // 2]),
+        spiegazione=(
+            f"Due estrazioni distinte (art. 3): le pick 1-{len(nomi) // 2} fra "
+            f"le ultime {len(nomi) // 2} classificate, le altre fra le prime. "
+            f"Dentro ogni fascia la peggio classificata ha il peso piu' alto."
+        ),
+        probabilita=[
+            ProbabilitaPick(
+                squadra=nome,
+                per_pick=[
+                    round(stimate[nome].get(pick, 0.0) * 100, 1)
+                    for pick in range(1, len(nomi) + 1)
+                ],
+            )
+            for nome in nomi
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Il tabellone, e la draft list dei contratti in scadenza
+# ---------------------------------------------------------------------------
+
+
+class RoundLetto(BaseModel):
+    numero: int
+    squadre: list[str]
+
+
+class Tabellone(BaseModel):
+    c_e_una_sala: bool
+    tipo_etichetta: str
+    round: list[RoundLetto]
+
+
+@rotte.get("/sala/tabellone", response_model=Tabellone)
+def tabellone(utente: UtenteDentro) -> Tabellone:
+    """Tutti i round della sala aperta, uno sotto l'altro.
+
+    «Quando richiamo?» e' la seconda domanda che fanno tutti, dopo «a chi
+    tocca adesso»: l'ordine e' congelato all'apertura, quindi la risposta c'e'
+    per intero e non solo per le prossime cinque chiamate.
+    """
+    ctx = contesto_di(utente)
+    sala = _sala_corrente(ctx)
+    if sala is None:
+        return Tabellone(c_e_una_sala=False, tipo_etichetta="", round=[])
+
+    rose = carica_rose(ctx.arch)
+    nomi = {id_: r.squadra.nome for id_, r in rose.items()}
+    quante = len(sala.squadre) or 1
+    return Tabellone(
+        c_e_una_sala=True,
+        tipo_etichetta=sala.tipo.etichetta,
+        round=[
+            RoundLetto(
+                numero=n + 1,
+                squadre=[
+                    nomi.get(s, str(s))
+                    for s in sala.chiamate_previste[n * quante : (n + 1) * quante]
+                ],
+            )
+            for n in range(sala.round_totali)
+        ],
+    )
+
+
+class InScadenza(BaseModel):
+    squadra: str
+    giocatore: str
+    club: str
+    ruoli: str
+    eta: int | None
+    ingaggio: float
+
+
+@rotte.get("/sala/scadenze", response_model=list[InScadenza])
+def scadenze(utente: UtenteDentro) -> list[InScadenza]:
+    """Chi arriva a scadenza naturale: la draft list della prossima asta.
+
+    Non e' una previsione: sono i contratti annuali di adesso, cioe' chi
+    rientra nel draft se nessuno lo rinnova.
+    """
+    ctx = contesto_di(utente)
+    tabella = contratti_in_scadenza(carica_rose(ctx.arch), DATA_DRAFT)
+    if tabella.empty:
+        return []
+    return [
+        InScadenza(
+            squadra=r["Squadra"],
+            giocatore=r["Giocatore"],
+            club=r["Club"],
+            ruoli=r["Ruoli"],
+            eta=None if r["Eta"] is None or r["Eta"] != r["Eta"] else int(r["Eta"]),
+            ingaggio=float(r["Ingaggio"]),
+        )
+        for _, r in tabella.iterrows()
+    ]
 
 
 # ---------------------------------------------------------------------------

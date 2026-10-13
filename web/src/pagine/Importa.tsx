@@ -265,12 +265,51 @@ function Caricatore<T extends EsitoFile>({
 
 function AnteprimaListone({ esito }: { esito: EsitoListoneImport }) {
   if (esito.righe.length === 0) return null;
+  const senza = esito.lette - esito.con_stipendio;
   return (
     <>
+      {esito.fonti.map((f) => (
+        <p key={f} className="didascalia">
+          {f}
+        </p>
+      ))}
       <p className="didascalia">
         {esito.club} squadre di Serie A. I giocatori già presenti mantengono
-        ingaggio e contratto: il listone aggiorna ruoli, club e quotazioni.
+        contratto e, se il file non lo porta, anche l'ingaggio.
       </p>
+
+      {/* I tre conti che decidono se metà regolamento funziona: senza
+          stipendio il Salary Cap resta a zero, senza data di nascita lo
+          status Under 21 non si può determinare. */}
+      <div className="conti-import">
+        <span className={esito.con_stipendio ? "pastiglia verde" : "pastiglia"}>
+          {esito.con_stipendio} con lo stipendio
+        </span>
+        <span
+          className={esito.con_data_nascita ? "pastiglia verde" : "pastiglia"}
+        >
+          {esito.con_data_nascita} con la data di nascita
+        </span>
+        <span
+          className={esito.con_nazionalita ? "pastiglia verde" : "pastiglia"}
+        >
+          {esito.con_nazionalita} con la nazionalità
+        </span>
+      </div>
+
+      {senza > 0 && esito.senza_stipendio.length > 0 && (
+        <details className="formato">
+          <summary>
+            {esito.senza_stipendio.length} giocatori resterebbero senza
+            stipendio
+          </summary>
+          <p className="didascalia">
+            {esito.senza_stipendio.slice(0, 40).join(" · ")}
+            {esito.senza_stipendio.length > 40 && " …"}
+          </p>
+        </details>
+      )}
+
       <div className="tabella-contenitore">
         <table className="tabella">
           <thead>
@@ -280,7 +319,9 @@ function AnteprimaListone({ esito }: { esito: EsitoListoneImport }) {
               <th>Club</th>
               <th>Ruoli</th>
               <th className="numerica">Qt.</th>
-              <th className="numerica">FVM</th>
+              <th className="numerica">Ingaggio</th>
+              <th>Nato</th>
+              <th>Nazionalità</th>
             </tr>
           </thead>
           <tbody>
@@ -291,7 +332,11 @@ function AnteprimaListone({ esito }: { esito: EsitoListoneImport }) {
                 <td>{r.club}</td>
                 <td>{r.ruoli.join("/")}</td>
                 <td className="numerica">{r.quotazione ?? "—"}</td>
-                <td className="numerica">{r.fvm ?? "—"}</td>
+                <td className="numerica">
+                  {r.ingaggio > 0 ? milioni(r.ingaggio) : "—"}
+                </td>
+                <td className="tenue">{r.data_nascita ?? "—"}</td>
+                <td className="tenue">{r.nazionalita || "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -301,30 +346,145 @@ function AnteprimaListone({ esito }: { esito: EsitoListoneImport }) {
   );
 }
 
+/**
+ * Cancellare tutto il listone: l'azione più distruttiva del sito.
+ *
+ * Porta via **anche i contratti**, cioè tutte le rose. La parola scritta a
+ * mano non è un fastidio inventato: è l'unica cosa che distingue questo da un
+ * bottone che prima o poi qualcuno preme per sbaglio.
+ */
+function SvuotaListone({ quanti }: { quanti: number }) {
+  const [conferma, setConferma] = useState("");
+  const [errore, setErrore] = useState<string | null>(null);
+  const [fatto, setFatto] = useState<string | null>(null);
+  const [inCorso, setInCorso] = useState(false);
+
+  async function svuota() {
+    setErrore(null);
+    setInCorso(true);
+    try {
+      const esito = await api.svuotaListone(conferma);
+      setFatto(esito.messaggio);
+      setConferma("");
+    } catch (guasto) {
+      setErrore(
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a contattare il server.",
+      );
+    } finally {
+      setInCorso(false);
+    }
+  }
+
+  return (
+    <details className="formato">
+      <summary>🗑️ Cancella tutto il listone</summary>
+      <div className="riquadro avviso">
+        ⚠️ Cancella tutti i {quanti} giocatori e, con loro, i contratti che li
+        assegnano alle squadre. Le squadre restano, ma le rose si svuotano. Non
+        si torna indietro.
+      </div>
+      <p className="didascalia">
+        Per ricaricare un listone sbagliato non serve: basta caricare il file
+        giusto con «Sostituisci il listone».
+      </p>
+      <div className="campo">
+        <label htmlFor="svuota-conferma">Scrivi CANCELLA per confermare</label>
+        <input
+          id="svuota-conferma"
+          value={conferma}
+          placeholder="CANCELLA"
+          onChange={(e) => setConferma(e.target.value)}
+        />
+      </div>
+      {errore && (
+        <div className="errore" role="alert">
+          {errore}
+        </div>
+      )}
+      {fatto && <div className="conferma">{fatto}</div>}
+      <button
+        className="principale"
+        onClick={svuota}
+        disabled={inCorso || conferma.trim().toUpperCase() !== "CANCELLA"}
+      >
+        {inCorso ? "Cancello…" : "Cancella il listone e tutte le rose"}
+      </button>
+    </details>
+  );
+}
+
 function SchedaListone({ formati }: { formati: FormatiImport }) {
+  const [sostituisci, setSostituisci] = useState(false);
+
   return (
     <div className="riquadro">
-      <h2>Listone ufficiale</h2>
+      <h2>Listone</h2>
       <p className="prosa">
-        Il listone di Fantacalcio.it preso com'è — il file{" "}
+        Vanno bene due file, e si riconoscono da soli — non devi dire quale stai
+        caricando.
+      </p>
+      <p className="prosa">
+        <strong>L'xlsx ufficiale di Fantacalcio.it</strong> (
         <code>Quotazioni_Fantacalcio_Stagione_*.xlsx</code>, foglio{" "}
-        <strong>Tutti</strong>, con il titolo sulla prima riga e le intestazioni
-        sulla seconda. Popola il catalogo dei giocatori: non contiene le
-        assegnazioni alle squadre della lega, né anni di contratto, né stipendi.
+        <strong>Tutti</strong>) porta anagrafica, ruoli e quotazioni. Stipendi,
+        date di nascita e nazionalità non ce li ha: senza quelli il Salary Cap
+        resta a zero e lo status Under 21 non si può determinare.
+      </p>
+      <p className="prosa">
+        <strong>Il CSV completo</strong> li porta tutti e tre. È il file che si
+        prepara in Excel mettendo insieme il listone e gli stipendi di Capology:
+        scarica il modello qui sotto per vedere le colonne.
       </p>
 
+      {/* La tabella descrive l'xlsx: le colonne del CSV stanno nel modello,
+          che e' dove si va a guardarle davvero. */}
       <TabellaFormato
         campi={formati.campi_listone}
-        nota={formati.nota_formato}
+        nota={`Colonne dell'xlsx ufficiale. ${formati.nota_formato}`}
       />
 
+      <button
+        className="secondario"
+        onClick={() =>
+          scarica(
+            "modello_listone_fantacalcio_nuovo.csv",
+            formati.modello_listone,
+          )
+        }
+      >
+        ⬇️ Scarica il modello CSV
+      </button>
+
       <Caricatore<EsitoListoneImport>
-        accetta=".xlsx"
+        accetta=".xlsx,.csv,.txt"
         anteprima={api.anteprimaListone}
-        scrivi={api.importaListone}
+        scrivi={(base64, nome) => api.importaListone(base64, nome, sostituisci)}
         etichettaScrivi="Importa il listone"
         rendi={(esito) => <AnteprimaListone esito={esito} />}
+        extra={
+          <label className="interruttore">
+            <input
+              type="checkbox"
+              checked={sostituisci}
+              onChange={(e) => setSostituisci(e.target.checked)}
+            />
+            <span>
+              Sostituisci il listone
+              <small>
+                Chi non è nel file viene cancellato, e con lui il suo contratto.
+                Serve quando il file precedente era sbagliato: per aggiungere
+                stipendi un pezzo alla volta, lascialo spento.
+              </small>
+            </span>
+          </label>
+        }
       />
+
+      {formati.giocatori_in_catalogo > 0 && (
+        <SvuotaListone quanti={formati.giocatori_in_catalogo} />
+      )}
     </div>
   );
 }

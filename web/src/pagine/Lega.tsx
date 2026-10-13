@@ -1,14 +1,22 @@
 import { useState, type FormEvent } from "react";
-import { api, ErroreApi, type DatiLega, type Partecipante } from "../api";
+import {
+  api,
+  ErroreApi,
+  type DatiLega,
+  type PaginaRegole,
+  type Partecipante,
+} from "../api";
 import { useCarica } from "../carica";
+import { ModuloRegole, Under21 } from "../moduloRegole";
 
 /**
  * «Come si entra qui dentro?» e «con che regole giochiamo?».
  *
- * Le regole si leggono e basta: cambiarle è un modulo da quaranta caselle e
- * sta in una pagina sua. Qui ci sono i comandi corti di chi amministra —
- * delegare la bacheca, riservare un posto, rimettere in piedi chi è rimasto
- * fuori — che sono quelli che si usano davvero fra una giornata e l'altra.
+ * Le regole si leggono nelle schede «Regole» e «Punteggio»; chi la lega l'ha
+ * creata ne ha una in più, «Cambia le regole», con il modulo intero. Il resto
+ * sono i comandi corti di chi amministra — delegare la bacheca, riservare un
+ * posto, rimettere in piedi chi è rimasto fuori — quelli che si usano
+ * davvero fra una giornata e l'altra.
  */
 function Invita({ onFatto }: { onFatto: (dati: DatiLega, m: string) => void }) {
   const [email, setEmail] = useState("");
@@ -49,7 +57,11 @@ function Invita({ onFatto }: { onFatto: (dati: DatiLega, m: string) => void }) {
           placeholder="nome@esempio.it"
         />
       </div>
-      <button className="secondario" type="submit" disabled={!email.trim() || inCorso}>
+      <button
+        className="secondario"
+        type="submit"
+        disabled={!email.trim() || inCorso}
+      >
         {inCorso ? "Riservo…" : "Riserva il posto"}
       </button>
       {errore && <div className="errore">{errore}</div>}
@@ -75,7 +87,9 @@ function Ruoli({
   const [inCorso, setInCorso] = useState(false);
 
   if (altri.length === 0) {
-    return <p className="tenue">Non c'è nessun altro partecipante in questa lega.</p>;
+    return (
+      <p className="tenue">Non c'è nessun altro partecipante in questa lega.</p>
+    );
   }
 
   const scelto = altri.find((p) => p.nome_utente === chi);
@@ -87,11 +101,15 @@ function Ruoli({
     setInCorso(true);
     try {
       const nuovi = await api.assegnaRuolo(chi, ruolo);
-      const etichetta = dati.ruoli_assegnabili.find((r) => r.nome === ruolo)?.etichetta;
+      const etichetta = dati.ruoli_assegnabili.find(
+        (r) => r.nome === ruolo,
+      )?.etichetta;
       onFatto(nuovi, `${scelto?.nome_completo} ora è ${etichetta}.`);
     } catch (guasto) {
       setErrore(
-        guasto instanceof ErroreApi ? guasto.message : "Non riesco a salvare il ruolo.",
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a salvare il ruolo.",
       );
     } finally {
       setInCorso(false);
@@ -112,7 +130,11 @@ function Ruoli({
       </div>
       <div className="campo">
         <label htmlFor="l-ruolo">Ruolo</label>
-        <select id="l-ruolo" value={ruolo} onChange={(e) => setRuolo(e.target.value)}>
+        <select
+          id="l-ruolo"
+          value={ruolo}
+          onChange={(e) => setRuolo(e.target.value)}
+        >
           {dati.ruoli_assegnabili.map((r) => (
             <option key={r.nome} value={r.nome}>
               {r.etichetta}
@@ -138,9 +160,10 @@ function Password({
   const [chi, setChi] = useState(
     dati.partecipanti.find((p) => !p.sono_io)?.nome_utente ?? "",
   );
-  const [generata, setGenerata] = useState<{ chi: string; password: string } | null>(
-    null,
-  );
+  const [generata, setGenerata] = useState<{
+    chi: string;
+    password: string;
+  } | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
   const [inCorso, setInCorso] = useState(false);
 
@@ -152,7 +175,9 @@ function Password({
       setGenerata({ chi: esito.nome_utente, password: esito.password });
     } catch (guasto) {
       setErrore(
-        guasto instanceof ErroreApi ? guasto.message : "Non riesco a reimpostarla.",
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a reimpostarla.",
       );
     } finally {
       setInCorso(false);
@@ -216,7 +241,11 @@ function Password({
         <div className="in-linea">
           <div className="campo">
             <label htmlFor="l-reset">Partecipante</label>
-            <select id="l-reset" value={chi} onChange={(e) => setChi(e.target.value)}>
+            <select
+              id="l-reset"
+              value={chi}
+              onChange={(e) => setChi(e.target.value)}
+            >
               {dati.partecipanti
                 .filter((p) => !p.sono_io)
                 .map((p) => (
@@ -296,7 +325,13 @@ function Partecipanti({ righe }: { righe: Partecipante[] }) {
   );
 }
 
-const SCHEDE = ["Chi c'è", "Regole", "Punteggio"] as const;
+const SCHEDE = [
+  "Chi c'è",
+  "Regole",
+  "Punteggio",
+  "Under 21",
+  "Cambia le regole",
+] as const;
 
 export function Lega() {
   const { dato, errore, inCorso } = useCarica(() => api.lega(), []);
@@ -304,6 +339,15 @@ export function Lega() {
   const [conferma, setConferma] = useState<string | null>(null);
   const [copiato, setCopiato] = useState(false);
   const [sostituito, setSostituito] = useState<DatiLega | null>(null);
+  // Il modulo delle regole si carica a parte: e' quaranta caselle, e chi apre
+  // la pagina per invitare qualcuno non ha nessun motivo di aspettarle.
+  const regoleCaricate = useCarica(() => api.regole(), []);
+  const [regoleNuove, setRegoleNuove] = useState<PaginaRegole | null>(null);
+  const regole = {
+    ...regoleCaricate,
+    dato: regoleNuove ?? regoleCaricate.dato,
+  };
+  const setRegole = setRegoleNuove;
 
   if (inCorso) return <div className="fantasma alto" />;
   if (errore) return <div className="errore">{errore}</div>;
@@ -344,8 +388,8 @@ export function Lega() {
           {d.sql_di_riparazione ? (
             <>
               <p>
-                Incolla questa query nel <strong>SQL Editor</strong> di Supabase.
-                È rieseguibile e non cancella niente.
+                Incolla questa query nel <strong>SQL Editor</strong> di
+                Supabase. È rieseguibile e non cancella niente.
               </p>
               <pre className="sql">{d.sql_di_riparazione}</pre>
             </>
@@ -458,6 +502,23 @@ export function Lega() {
         ))}
       </div>
 
+      {scheda === "Under 21" && <Under21 />}
+
+      {scheda === "Cambia le regole" &&
+        (regole.dato?.posso_modificare ? (
+          <ModuloRegole
+            regole={regole.dato}
+            onSalvato={(nuove, messaggio) => {
+              setRegole(nuove);
+              aggiorna(d, messaggio);
+            }}
+          />
+        ) : (
+          <div className="riquadro avviso">
+            🔒 Le regole le cambia chi ha creato la lega.
+          </div>
+        ))}
+
       {scheda === "Chi c'è" && <Partecipanti righe={d.partecipanti} />}
 
       {scheda === "Regole" && (
@@ -547,9 +608,7 @@ export function Lega() {
       )}
 
       {!d.posso_cambiare_regole && (
-        <p className="didascalia">
-          Le regole le cambia chi ha creato la lega.
-        </p>
+        <p className="didascalia">Le regole le cambia chi ha creato la lega.</p>
       )}
     </>
   );

@@ -412,3 +412,170 @@ class TestIdentita:
             },
         )
         assert r.status_code == 422
+
+
+class TestRientrareSenzaLaPassword:
+    """Le due strade per chi resta fuori: il codice, o il presidente.
+
+    Senza, chi dimentica la password non ha nessuna via dentro il sito: deve
+    scrivere a qualcuno e sperare. Erano le due cose del vecchio sito che qui
+    mancavano del tutto.
+    """
+
+    def codice_per(self, client, chi="marco") -> str:
+        """Si genera dal profilo, da dentro: e' l'unico momento in cui si vede."""
+        client.post("/api/accesso", json={"nome_utente": chi, "password": "fantanuovo26"})
+        codice = client.post("/api/profilo/codice-recupero").json()["codice"]
+        client.post("/api/esci")
+        return codice
+
+    def test_col_codice_si_sceglie_una_password_nuova(self, client):
+        codice = self.codice_per(client)
+
+        risposta = client.post(
+            "/api/recupero/codice",
+            json={
+                "nome_utente": "marco",
+                "codice": codice,
+                "nuova": "lanuovaditutti",
+                "conferma": "lanuovaditutti",
+            },
+        )
+
+        assert risposta.status_code == 204
+        # Non si entra da soli: si torna all'accesso con la password scelta.
+        assert client.get("/api/io").status_code == 401
+        dentro = client.post(
+            "/api/accesso",
+            json={"nome_utente": "marco", "password": "lanuovaditutti"},
+        )
+        assert dentro.status_code == 200
+
+    def test_il_codice_si_consuma(self, client):
+        """Un codice che vale per sempre e' una seconda password che nessuno
+        cambia mai."""
+        codice = self.codice_per(client)
+        primo = {
+            "nome_utente": "marco",
+            "codice": codice,
+            "nuova": "lanuovaditutti",
+            "conferma": "lanuovaditutti",
+        }
+        assert client.post("/api/recupero/codice", json=primo).status_code == 204
+
+        di_nuovo = client.post(
+            "/api/recupero/codice",
+            json={**primo, "nuova": "unaltraancora", "conferma": "unaltraancora"},
+        )
+
+        assert di_nuovo.status_code == 422
+
+    def test_un_codice_sbagliato_non_dice_altro(self, client):
+        self.codice_per(client)
+
+        risposta = client.post(
+            "/api/recupero/codice",
+            json={
+                "nome_utente": "marco",
+                "codice": "XXXX-XXXX-XXXX",
+                "nuova": "lanuovaditutti",
+                "conferma": "lanuovaditutti",
+            },
+        )
+
+        assert risposta.status_code == 422
+        assert "codice" in risposta.json()["detail"].lower()
+
+    def test_un_nome_che_non_esiste_risponde_come_un_codice_sbagliato(self, client):
+        """Altrimenti la pagina diventa un modo comodo per farsi l'elenco
+        degli iscritti."""
+        sbagliato = client.post(
+            "/api/recupero/codice",
+            json={
+                "nome_utente": "nessuno-di-questi",
+                "codice": "XXXX-XXXX-XXXX",
+                "nuova": "lanuovaditutti",
+                "conferma": "lanuovaditutti",
+            },
+        )
+        self.codice_per(client)
+        esistente = client.post(
+            "/api/recupero/codice",
+            json={
+                "nome_utente": "marco",
+                "codice": "XXXX-XXXX-XXXX",
+                "nuova": "lanuovaditutti",
+                "conferma": "lanuovaditutti",
+            },
+        )
+
+        assert sbagliato.status_code == esistente.status_code == 422
+        assert sbagliato.json()["detail"] == esistente.json()["detail"]
+
+    def test_le_due_password_devono_coincidere(self, client):
+        codice = self.codice_per(client)
+
+        risposta = client.post(
+            "/api/recupero/codice",
+            json={
+                "nome_utente": "marco",
+                "codice": codice,
+                "nuova": "lanuovaditutti",
+                "conferma": "unaltracosa",
+            },
+        )
+
+        assert risposta.status_code == 422
+        assert "coincid" in risposta.json()["detail"]
+
+    def test_la_password_nuova_passa_dalle_regole(self, client):
+        codice = self.codice_per(client)
+
+        risposta = client.post(
+            "/api/recupero/codice",
+            json={
+                "nome_utente": "marco",
+                "codice": codice,
+                "nuova": "corta",
+                "conferma": "corta",
+            },
+        )
+
+        assert risposta.status_code == 422
+
+    def test_la_richiesta_arriva_al_presidente(self, client):
+        from fantacalcio.data import archivio, carica_richieste_password
+
+        risposta = client.post("/api/recupero/richiesta", json={"nome_utente": "luca"})
+
+        assert risposta.status_code == 204
+        aperte = carica_richieste_password(archivio())
+        assert [r.nome_utente for r in aperte] == ["luca"]
+
+    def test_il_presidente_la_vede_nella_sua_pagina(self, client):
+        client.post("/api/recupero/richiesta", json={"nome_utente": "luca"})
+
+        client.post(
+            "/api/accesso", json={"nome_utente": "marco", "password": "fantanuovo26"}
+        )
+        pagina = client.get("/api/lega").json()
+
+        assert [r["nome_utente"] for r in pagina["richieste_password"]] == ["luca"]
+
+    def test_un_nome_inesistente_risponde_uguale(self, client):
+        from fantacalcio.data import archivio, carica_richieste_password
+
+        risposta = client.post(
+            "/api/recupero/richiesta", json={"nome_utente": "nessuno-di-questi"}
+        )
+
+        assert risposta.status_code == 204
+        assert carica_richieste_password(archivio()) == []
+
+    def test_due_richieste_di_fila_non_fanno_due_righe(self, client):
+        from fantacalcio.data import archivio, carica_richieste_password
+
+        client.post("/api/recupero/richiesta", json={"nome_utente": "luca"})
+        client.post("/api/recupero/richiesta", json={"nome_utente": "luca"})
+
+        assert len(carica_richieste_password(archivio())) == 1

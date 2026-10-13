@@ -46,7 +46,12 @@ function Scheda({
 }) {
   const [errore, setErrore] = useState<string | null>(null);
   const [inCorso, setInCorso] = useState(false);
-  const [giornata, setGiornata] = useState<string>("");
+  // Parte da quel che dice il server: l'articolo 8 vuole ventiquattr'ore di
+  // preavviso, e se la proposta e' arrivata tardi lo scambio vale dalla
+  // giornata dopo. Si puo' cambiare, ma il numero giusto e' gia' li'.
+  const [giornata, setGiornata] = useState<string>(
+    String(scambio.efficacia_proposta),
+  );
 
   async function decidi(
     azione: "accetta" | "rifiuta" | "annulla" | "ratifica",
@@ -148,6 +153,10 @@ function Scheda({
           )}
           {scambio.posso_ratificare && (
             <>
+              <span className="didascalia">
+                Avrebbe effetto dalla {scambio.efficacia_proposta}ª giornata
+                (art. 8: 24 ore di preavviso).
+              </span>
               <input
                 className="giornata"
                 type="number"
@@ -193,6 +202,11 @@ function Componi({
   const [daMe, setDaMe] = useState<number[]>([]);
   const [daLoro, setDaLoro] = useState<number[]>([]);
   const [note, setNote] = useState("");
+  // giocatore_id -> durata nuova. Resta vuoto finché nessuno tocca un
+  // cursore, e col V3 i cursori non ci sono proprio.
+  const [prolungamenti, setProlungamenti] = useState<Record<number, number>>(
+    {},
+  );
   const [errore, setErrore] = useState<string | null>(null);
   const [violazioni, setViolazioni] = useState<ViolazioneScambio[]>([]);
   const [inCorso, setInCorso] = useState(false);
@@ -230,11 +244,13 @@ function Componi({
         da_me: daMe,
         da_loro: daLoro,
         note,
+        prolungamenti,
       });
       if (esito.inviata) {
         setDaMe([]);
         setDaLoro([]);
         setNote("");
+        setProlungamenti({});
         onFatto("Proposta inviata.");
       } else {
         // Non si perde quello che si era composto: si mostra cosa non va.
@@ -337,10 +353,55 @@ function Componi({
         />
       </div>
 
-      <p className="porta-aiuto">
-        Il contratto passa com'è, con ingaggio e anni residui invariati:
-        prolungamenti e riduzioni di durata non sono ammessi (art. 8).
-      </p>
+      {/* La regola la dice il server: il V3 li ha aboliti, ma è un parametro
+          e la lega può rivotarlo. Scriverlo qui a mano voleva dire una
+          pagina che continua a dire di no dopo che la lega ha detto di sì. */}
+      {dati.prolungamenti_ammessi ? (
+        <>
+          <h3>Prolungamenti (facoltativi)</h3>
+          <p className="porta-aiuto">
+            In sede di scambio il contratto si può prolungare, restando nel
+            monte anni. Non si può accorciare (Lodo Bono), e si può fare una
+            volta sola per giocatore (Lodo Corti).
+          </p>
+          <div className="caselle-regole">
+            {[
+              ...(mia.dato?.rosa ?? []).filter((g) => daMe.includes(g.id)),
+              ...(loro.dato?.rosa ?? []).filter((g) => daLoro.includes(g.id)),
+            ].map((g) => (
+              <div className="campo" key={g.id}>
+                <label htmlFor={`prol-${g.id}`}>
+                  {g.nome} — oggi {g.anni_residui}
+                </label>
+                <select
+                  id={`prol-${g.id}`}
+                  value={prolungamenti[g.id] ?? g.anni_residui}
+                  onChange={(e) =>
+                    setProlungamenti((p) => ({
+                      ...p,
+                      [g.id]: Number(e.target.value),
+                    }))
+                  }
+                >
+                  {Array.from(
+                    { length: dati.anni_contratto_massimo },
+                    (_, i) => i + 1,
+                  ).map((n) => (
+                    <option key={n} value={n}>
+                      {n === 1 ? "1 anno" : `${n} anni`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="porta-aiuto">
+          Il contratto passa com'è, con ingaggio e anni residui invariati:
+          prolungamenti e riduzioni di durata non sono ammessi (art. 8).
+        </p>
+      )}
 
       <Violazioni elenco={violazioni} />
       {errore && <div className="errore">{errore}</div>}

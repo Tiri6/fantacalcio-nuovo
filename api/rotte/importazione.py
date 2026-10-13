@@ -28,6 +28,13 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from fantacalcio.conformita import StatoRosa
+from fantacalcio.data import carica_giocatori, svuota_listone
+from fantacalcio.fonti_web import (
+    MODELLO_CSV_LISTONE,
+    EsitoAggiornamento,
+    aggiorna_da_file,
+)
+from fantacalcio.fonti_web import applica as applica_catalogo
 from fantacalcio.importazione import (
     CAMPI_LISTONE,
     CAMPI_RISULTATI,
@@ -35,12 +42,10 @@ from fantacalcio.importazione import (
     CampoFile,
     EsitoImportazione,
     Problema,
-    applica_listone,
     applica_risultati,
     applica_rose,
     campi_rose,
     catalogo_giocatori,
-    importa_listone,
     importa_risultati,
     importa_rose,
     modello_risultati,
@@ -65,6 +70,14 @@ class FileCaricato(BaseModel):
 
     contenuto_base64: str
     nome: str = ""
+
+
+class ListoneDaScrivere(FileCaricato):
+    # Di partenza il file si **unisce** a quel che c'e': e' il modo giusto per
+    # caricare gli stipendi un pezzo alla volta. Sostituire cancella chi non
+    # compare nel file, e con lui il suo contratto — serve quando il file
+    # precedente era sbagliato, non per un aggiornamento normale.
+    sostituisci: bool = False
 
 
 class RoseDaScrivere(FileCaricato):
@@ -102,6 +115,7 @@ class Formati(BaseModel):
     campi_listone: list[CampoLetto]
     campi_rose: list[CampoLetto]
     campi_risultati: list[CampoLetto]
+    modello_listone: str
     modello_rose: str
     modello_risultati: str
     soglia_primo_gol: float
@@ -166,11 +180,27 @@ class RigaListone(BaseModel):
     ruoli: list[str]
     quotazione: float | None
     fvm: float | None
+    # I tre che l'xlsx ufficiale non ha e il CSV si', ed e' tutta la ragione
+    # per cui si accettano due formati: senza stipendio il Salary Cap e' a
+    # zero, senza data di nascita lo status Under 21 non si puo' determinare.
+    ingaggio: float
+    nazionalita: str
+    data_nascita: str | None
 
 
 class EsitoListone(Esito):
     righe: list[RigaListone]
     club: int
+    con_stipendio: int
+    con_data_nascita: int
+    con_nazionalita: int
+    # Chi e' rimasto senza stipendio, per nome: e' la lista da controllare
+    # prima di dare per buono un Salary Cap.
+    senza_stipendio: list[str]
+    # Cosa ha capito il lettore: «Listone (CSV caricato): 512 giocatori
+    # letti, 498 con lo stipendio». Chi carica deve vedere che il file e'
+    # stato riconosciuto per quel che e'.
+    fonti: list[str]
 
 
 class RigaRisultato(BaseModel):
@@ -300,6 +330,7 @@ def formati(utente: UtenteDentro) -> Formati:
         campi_listone=[_campo(c) for c in CAMPI_LISTONE],
         campi_rose=[_campo(c) for c in campi_rose(con_catalogo=bool(catalogo))],
         campi_risultati=[_campo(c) for c in CAMPI_RISULTATI],
+        modello_listone=MODELLO_CSV_LISTONE,
         modello_rose=modello_rose(),
         modello_risultati=modello_risultati(),
         soglia_primo_gol=ctx.parametri.soglia_primo_gol,
@@ -312,51 +343,98 @@ def formati(utente: UtenteDentro) -> Formati:
 # ---------------------------------------------------------------------------
 
 
-def _leggi_listone(caricato: FileCaricato) -> EsitoImportazione:
-    return importa_listone(_grezzo(caricato))
+def _ingaggi_noti(ctx: Contesto) -> dict[int, float]:
+    """Gli stipendi gia' in archivio, per id ufficiale.
+
+    Si passano al lettore perche' l'xlsx ufficiale lo stipendio non ce l'ha:
+    senza questa riga, ricaricare il listone azzererebbe tutti gli ingaggi
+    inseriti a mano e il Salary Cap di tutti tornerebbe a zero.
+    """
+    return {
+        g.id_ufficiale: g.ingaggio
+        for g in carica_giocatori(ctx.arch).values()
+        if g.id_ufficiale is not None and g.ingaggio
+    }
 
 
-def _esito_listone(esito: EsitoImportazione) -> EsitoListone:
+def _leggi_listone(caricato: FileCaricato, ctx: Contesto) -> EsitoAggiornamento:
+    """Legge il file, di qualunque dei due formati sia.
+
+    Un solo lettore per tutti e due: il formato si riconosce dal contenuto (un
+    xlsx e' uno zip, comincia per `PK`), non dal nome del file ne' da un
+    pulsante diverso. Chi carica non deve sapere in che cassetto mettere il
+    suo file — deve solo caricarlo.
+    """
+    return aggiorna_da_file(_grezzo(caricato), ingaggi_correnti=_ingaggi_noti(ctx))
+
+
+def _esito_listone(esito: EsitoAggiornamento) -> EsitoListone:
+    fallite = [f for f in esito.fonti if not f.ok]
     return EsitoListone(
-        **_comuni(esito),
+        lette=len(esito.righe),
+        errori=[
+            ProblemaLetto(riga=0, colonna="file", valore="", messaggio=f.dettaglio)
+            for f in fallite
+        ],
+        # Una riga scartata non ferma le altre: il file resta importabile, ma
+        # chi carica deve vederle prima di scrivere.
+        avvisi=[
+            ProblemaLetto(riga=0, colonna="riga", valore="", messaggio=p)
+            for p in esito.problemi
+        ],
+        intestazioni_ignorate=[],
+        importabile=esito.riuscito,
         righe=[
             RigaListone(
-                id_ufficiale=r["id_ufficiale"],
-                nome=r["nome"],
-                club=r["club"],
-                ruoli=list(r["ruoli"]),
-                quotazione=r["quotazione"],
-                fvm=r["fvm"],
+                id_ufficiale=r.id_ufficiale,
+                nome=r.nome,
+                club=r.club,
+                ruoli=list(r.ruoli),
+                quotazione=r.quotazione,
+                fvm=r.fvm,
+                ingaggio=r.ingaggio,
+                nazionalita=r.nazionalita,
+                data_nascita=r.data_nascita.isoformat() if r.data_nascita else None,
             )
             for r in esito.righe
         ],
-        club=len({r["club"] for r in esito.righe if r["club"]}),
+        club=len({r.club for r in esito.righe if r.club}),
+        con_stipendio=esito.con_stipendio,
+        con_data_nascita=sum(1 for r in esito.righe if r.data_nascita),
+        con_nazionalita=sum(1 for r in esito.righe if r.nazionalita),
+        senza_stipendio=list(esito.senza_stipendio),
+        fonti=[
+            f"{f.nome}: {f.dettaglio}" if f.dettaglio else f.nome for f in esito.fonti
+        ],
     )
 
 
 @rotte.post("/importazione/listone/anteprima", response_model=EsitoListone)
 def anteprima_listone(caricato: FileCaricato, utente: UtenteDentro) -> EsitoListone:
-    _solo_chi_importa(utente)
-    return _esito_listone(_leggi_listone(caricato))
+    ctx = _solo_chi_importa(utente)
+    return _esito_listone(_leggi_listone(caricato, ctx))
 
 
 @rotte.post("/importazione/listone", response_model=Riepilogo)
-def scrivi_listone(caricato: FileCaricato, utente: UtenteDentro) -> Riepilogo:
+def scrivi_listone(caricato: ListoneDaScrivere, utente: UtenteDentro) -> Riepilogo:
     """Scrive il catalogo. Chi c'e' gia' tiene ingaggio e contratto."""
     ctx = _solo_chi_importa(utente)
-    esito = _leggi_listone(caricato)
-    if not esito.importabile:
-        raise HTTPException(
-            status_code=NON_ELABORABILE,
-            detail=f"{len(esito.errori)} errori da correggere prima di importare.",
+    esito = _leggi_listone(caricato, ctx)
+    if not esito.riuscito:
+        dettaglio = next(
+            (f.dettaglio for f in esito.fonti if not f.ok), "file non leggibile"
         )
-    riepilogo = applica_listone(ctx.arch, esito)
-    return Riepilogo(
-        messaggio=(
-            f"{riepilogo['totali']} giocatori nel catalogo "
-            f"({riepilogo['nuovi']} nuovi, {riepilogo['aggiornati']} aggiornati)."
-        )
-    )
+        raise HTTPException(status_code=NON_ELABORABILE, detail=dettaglio)
+
+    riepilogo = applica_catalogo(ctx.arch, esito.righe, sostituisci=caricato.sostituisci)
+    pezzi = [
+        f"{riepilogo['totali']} giocatori nel catalogo",
+        f"{riepilogo['nuovi']} nuovi",
+        f"{riepilogo['con_stipendio']} con lo stipendio",
+    ]
+    if riepilogo["rimossi"]:
+        pezzi.append(f"{riepilogo['rimossi']} cancellati")
+    return Riepilogo(messaggio=f"{pezzi[0]} ({', '.join(pezzi[1:])}).")
 
 
 # ---------------------------------------------------------------------------
@@ -462,3 +540,52 @@ def scrivi_risultati(caricato: FileCaricato, utente: UtenteDentro) -> Riepilogo:
         # squadra del file che nella lega non esiste.
         raise HTTPException(status_code=NON_ELABORABILE, detail=str(errore)) from errore
     return Riepilogo(messaggio=f"Importate {riepilogo['partite']} partite.")
+
+
+# ---------------------------------------------------------------------------
+# Cancellare tutto il listone
+# ---------------------------------------------------------------------------
+
+
+class DaSvuotare(BaseModel):
+    """La parola di conferma, scritta a mano.
+
+    Non e' un fastidio inventato: cancellare il listone porta via **anche i
+    contratti**, cioe' tutte le rose. Un bottone che lo fa al primo clic e'
+    un bottone che prima o poi qualcuno preme per sbaglio.
+    """
+
+    conferma: str
+
+
+class Svuotato(BaseModel):
+    messaggio: str
+    giocatori: int
+    contratti: int
+
+
+@rotte.post("/importazione/listone/svuota", response_model=Svuotato)
+def svuota(richiesta: DaSvuotare, utente: UtenteDentro) -> Svuotato:
+    """Cancella tutti i giocatori e tutti i contratti. Non si torna indietro.
+
+    Per ricaricare un listone sbagliato **non serve**: basta caricare il file
+    giusto con «sostituisci». Questo esiste per il caso in cui si vuole
+    ripartire da zero davvero.
+    """
+    ctx = _solo_chi_importa(utente)
+    if richiesta.conferma.strip().upper() != "CANCELLA":
+        raise HTTPException(
+            status_code=NON_ELABORABILE,
+            detail="Scrivi CANCELLA per confermare: questa cancella anche le rose.",
+        )
+
+    andati = svuota_listone(ctx.arch)
+    return Svuotato(
+        messaggio=(
+            f"Cancellati {andati['giocatori']} giocatori e "
+            f"{andati['contratti']} contratti. Le squadre restano, le rose "
+            f"sono vuote."
+        ),
+        giocatori=andati["giocatori"],
+        contratti=andati["contratti"],
+    )

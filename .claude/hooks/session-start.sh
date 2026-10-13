@@ -1,6 +1,6 @@
 #!/bin/bash
 # Prepara l'ambiente delle sessioni Claude Code sul web: crea il virtualenv e
-# installa le dipendenze, cosi' pytest, ruff e streamlit sono subito pronti.
+# installa le dipendenze, cosi' pytest e ruff sono subito pronti.
 set -euo pipefail
 
 # In locale l'ambiente se lo gestisce lo sviluppatore (venv, conda, ...).
@@ -34,4 +34,4 @@ fi
 # Genera subito il database di demo, cosi' l'app parte senza credenziali.
 .venv/bin/python -m fantacalcio.demo_data
 
-echo "Ambiente pronto in $RADICE/.venv (pytest, ruff, streamlit)"
+echo "Ambiente pronto in $RADICE/.venv (pytest, ruff)"

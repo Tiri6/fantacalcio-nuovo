@@ -22,7 +22,7 @@ chat perche' la chat rilegge questo file.
 Gestionale della lega: contratti, monte anni, Salary Cap/Floor, draft, scambi.
 Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 
-**Ultimo aggiornamento:** 13 ottobre 2026 — la Draft Room nel sito e la finestra per correggere gli anni dopo la sala (12 ott); da oggi questo file e' la memoria condivisa anche con la chat di progetto.
+**Ultimo aggiornamento:** 13 ottobre 2026 — Streamlit dismesso: il sito e' React + FastAPI su Fly.io, con la Draft Room, il listone completo (stipendi, nascita, nazionalita'), il recupero password, le regole di lega modificabili, il ricalcolo Under 21, la Lottery dell'articolo 3 e le assegnazioni. Da oggi questo file e' la memoria condivisa anche con la chat di progetto.
 
 ---
 
@@ -32,7 +32,7 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 |---|---|---|
 | Fasce di gol: **primo gol a 66**, poi uno ogni 6 | confermata dalla lega | L'art. 1 cita anche 60: e' la formulazione del regolamento a essere imprecisa, non il codice |
 | Il **draft si fa offline** e si carica via CSV | confermata | Il sito non conduce l'asta: serve l'import, che c'e' |
-| Stack **Streamlit + Supabase** | scelta iniziale | La logica e' Python puro senza Streamlit: un cambio di frontend non la tocca |
+| Stack **Streamlit + Supabase** | scelta iniziale | **Superata**: il sito e' React + FastAPI dal 13 ottobre. La logica era Python puro, e infatti non si e' toccata |
 | Il campo squadra si chiama **presidente** | rinominato da `fantallenatore` | |
 | Maglie **disegnate dai colori sociali** in SVG | | Chi vuole carica un'immagine propria |
 | **Registrazione autonoma**: ognuno si crea l'account | 21 ago | Il primo che si registra diventa presidente |
@@ -40,7 +40,8 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 | Gli **inviti per email non spediscono niente** | 21 ago | Registrano chi e' atteso. Un server di posta per dieci persone non si giustifica |
 | Le **opzioni di lega** stanno in JSON, non in colonne | 21 ago | Cambiano ogni stagione: una migrazione per casella sarebbe un costo continuo |
 | La **squadra si puo' rimandare** ("Lo faccio dopo") | 21 ago | Chi amministra e basta non deve restare chiuso fuori |
-| **Si resta su Streamlit per la stagione di prova** | 22 ago | La migrazione a un'autenticazione vera si valuta l'anno prossimo, dopo aver visto cosa serve davvero giocando |
+| **Si resta su Streamlit per la stagione di prova** | 22 ago | **Rimangiata il 13 ott**: la Draft Room in tempo reale e l'uso da telefono hanno spinto a finire il sito React prima del previsto |
+| **Streamlit si dismette**: il sito e' React + FastAPI, servito da un contenitore solo | 13 ott | Fatto dopo un confronto schermata per schermata: le pagine, i comandi di chi amministra e perfino il recupero password. Il vecchio sito resta nella cronologia di Git |
 | Le cache si invalidano con **`ui.invalida_dati()`** | | Vedi le trappole sotto |
 | Le **sostituzioni Mantra** si scelgono creando la lega: Easy / Basic / Master | set | Sono le tre della piattaforma. Cambiano *l'ordine delle priorita'*, non il numero di sostituzioni |
 | Il **portiere non si adatta mai**, in nessuna delle due direzioni | set | Verificata sul regolamento: un giocatore di movimento non va in porta, e un portiere non gioca in campo. La tabella lo isola riga e colonna |
@@ -103,9 +104,10 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 - **Password**: cambio autonomo da «Il mio profilo», e reimpostazione da
   parte del presidente che genera una temporanea mostrata una volta sola.
   Chi la riceve e' obbligato a sostituirla al primo accesso.
-- **Tema grafico** (`tema.py`): fondo scuro, verde campo, testate, schede,
-  riquadri numerici con barra, pastiglie nei colori sociali. Non importa
-  Streamlit: produce stringhe, quindi si prova nei test.
+- **Tema grafico**: fondo scuro o chiaro, verde campo, testate, schede,
+  riquadri numerici con barra, pastiglie nei colori sociali. I colori sono
+  token in cima a `web/src/stile.css`, in due blocchi (scuro e chiaro): una
+  regola che scrive un colore suo resta scura anche sul tema chiaro.
 - **Formazione**: si schiera e si salva fino a un minuto prima del calcio
   d'inizio; dopo il blocco si vedono quelle di tutti, disegnate sul campo
   secondo il modulo scelto. Cambiando modulo i giocatori restano dove il
@@ -143,14 +145,32 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
   chi ha preso qualcuno puo' correggerne gli anni fino alla giornata
   successiva.
 
+- **Il listone in un file solo**: l'xlsx ufficiale **o** un CSV completo con
+  stipendio, data di nascita e nazionalita'. Si riconoscono dal contenuto (un
+  xlsx e' uno zip, comincia per `PK`), non da due pulsanti diversi. Ricaricare
+  l'xlsx non azzera gli stipendi gia' inseriti, e le righe scartate si leggono
+  prima di scrivere.
+- **Rientrare senza la password**: il codice di recupero che ognuno si salva
+  dal profilo (vale una volta sola) e la richiesta al presidente, che resta
+  scritta nel sito. Le due rotte rispondono sempre allo stesso modo che il
+  nome utente esista o no.
+- **Le regole di lega si cambiano dal sito**, con l'anteprima di cosa cambia e
+  gli avvisi su quel che tocca roba gia' salvata. Il modulo non e' scritto a
+  mano: `descrivi_opzioni` racconta le opzioni e il sito le disegna, quindi
+  un'opzione nuova compare da sola (e un test lo pretende).
+- **Il ricalcolo annuale degli Under 21** (art. 2), con la tabella dei posti
+  congelati accanto a quelli contati dal vivo.
+- **Assegnazioni**: registrare un contratto alla volta fuori dal draft. Una
+  rosa che sfora avvisa e registra lo stesso — si sta prendendo nota di quel
+  che e' successo davvero.
+
 ## Cosa manca (in ordine di utilita')
 
-1. **Assegnazioni, contratti e ingaggi**: il listone e' caricato (509 giocatori
-   con ruoli Mantra e quotazioni) ma non dice chi appartiene a quale squadra,
-   con quanti anni e con quale ingaggio. Gli ingaggi vanno da Capology
-   (art. 4). Finche' mancano, Salary Cap e Floor sono a zero.
-2. **Data di nascita e nazionalita'**: senza, lo status Under 21 non si puo'
-   determinare e l'espansione rosa non si applica.
+1. **I dati veri di stipendi, date di nascita e nazionalita'.** Il modo per
+   caricarli adesso c'e' — il CSV completo del listone, con anteprima e conti
+   di quanti ne porta — ma il file va preparato a mano mettendo insieme il
+   listone ufficiale e Capology (art. 4). Finche' non si carica, Salary Cap,
+   Floor e Under 21 lavorano su zeri.
 3. **Svincoli registrati**: oggi il Dead Money si calcola ma non si scrive.
    Serve un flusso come quello degli scambi.
 4. **Registro dei lodi**: la tabella c'e' nello schema, manca la pagina.
@@ -166,7 +186,33 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 Cose decise ma non ancora eseguibili: manca un dato o un permesso. Quando
 l'innesco scatta, si riprende da qui senza ricostruire il contesto.
 
+### Il trasloco su Fly.io
+
+**Innesco:** Marco davanti al PC di casa, con `flyctl` installato. Richiede
+un suo account: da qui non si puo' fare, e non si puo' nemmeno provare —
+`fly.io` e' fuori dalla rete di questo contenitore.
+
+Pronto nel repository: `fly.toml` in cima e le istruzioni in README.md →
+*Pubblicare su Fly.io*. Non cambia niente nel codice: stesso `Dockerfile`,
+stesso Supabase. Cambia chi lo esegue, e che la macchina **non si ferma**
+(`auto_stop_machines = "off"`), che e' tutta la ragione del trasloco: su
+Render il primo che entra dopo una pausa aspetta cinquanta secondi, e in una
+draft room con dieci collegati e' il momento peggiore.
+
+In sintesi: `fly auth login`, `fly apps create fantacalcio-nuovo`,
+`fly secrets set` coi tre valori (segreto delle sessioni, URL e chiave
+`service_role` di Supabase), `fly deploy`, poi `/api/salute` deve dire
+`"backend": "supabase"`.
+
+Due differenze da ricordare: Fly **non ridispiega da solo a ogni push** (si
+lancia `fly deploy` dal PC dopo un `git pull`), e non serve nessun volume
+perche' i dati stanno su Supabase.
+
 ### Pubblicare il sito nuovo su Render
+
+> **Superato da Fly.io**, qui sopra. Resta scritto perche' `render.yaml` c'e'
+> ancora e funziona: se Fly dovesse dare problemi, questa e' la strada che
+> era gia' stata provata.
 
 **Innesco:** Marco davanti al PC di casa. Richiede un suo account: da qui non
 si puo' fare.
@@ -195,8 +241,8 @@ repository (e' privato: va autorizzato l'accesso a GitHub).
 | Variabile | Valore |
 |---|---|
 | `FANTA_SEGRETO_JWT` | quello del punto 1 |
-| `SUPABASE_URL` | identico a quello nei Secrets di Streamlit |
-| `SUPABASE_KEY` | identico a quello nei Secrets di Streamlit |
+| `SUPABASE_URL` | l'URL del progetto Supabase |
+| `SUPABASE_KEY` | la chiave `service_role` (`sb_secret_…`) |
 
 `FANTA_AMBIENTE` **non si imposta**: vale solo in sviluppo.
 
@@ -205,10 +251,9 @@ repository (e' privato: va autorizzato l'accesso a GitHub).
 `demo (SQLite)` mancano le due variabili di Supabase — e lo dice anche nei
 log, a chiare lettere.
 
-Da sapere: sul piano gratuito il servizio **si addormenta** quando nessuno lo
-usa, e il primo che entra dopo aspetta ~50 secondi. Streamlit resta in piedi
-sullo stesso database: i due convivono, e il link da dare alla lega si cambia
-solo quando il nuovo e' in pari.
+Da sapere: sul piano gratuito di Render il servizio **si addormenta** quando
+nessuno lo usa, e il primo che entra dopo aspetta ~50 secondi. E' la ragione
+del trasloco su Fly.io, qui sopra.
 
 ### Far scorrere la pila di PR aperte
 
@@ -237,7 +282,7 @@ tabelle mancano e produce la query di riparazione.
 **Innesco:** Marco incolla una chiave dell'API di Anthropic nei secret.
 
 Serve `ANTHROPIC_API_KEY` (console.anthropic.com → Settings → API keys), da
-mettere nei Secrets di Streamlit Cloud o in `.streamlit/secrets.toml` in
+passare con `fly secrets set` in produzione o da esportare nella shell in
 locale. Senza, la pagina si apre lo stesso e spiega come attivarla: non e'
 una rottura, e' una funzione spenta.
 
@@ -268,17 +313,13 @@ Da fare, in quest'ordine:
 
 1. `github.com/Tiri6/fantacalcio-nuovo` → **Settings** → **Collaborators** →
    *Add people* → username dell'amico → permesso **Write** (non Admin).
-2. Girargli [COLLABORARE.md](COLLABORARE.md). Copre invito, collegamento a
-   Streamlit, ciclo branch/pull request e le cinque regole.
-3. Ricordargli il permesso sulle **repo private** quando Streamlit chiede
-   l'autorizzazione a GitHub: senza, Streamlit risponde *"This repository does
-   not exist"*, che e' fuorviante.
+2. Girargli [COLLABORARE.md](COLLABORARE.md). Copre invito, ciclo
+   branch/pull request e le cinque regole.
 
-Perche' Write basta: su Streamlit Community Cloud i permessi dell'app non si
-impostano su Streamlit, li decide l'accesso in scrittura al repository. Un
-invito solo copre codice e deploy. Admin servirebbe solo per cancellare il
-repository o renderlo pubblico — e la cronologia contiene ancora la vecchia
-chiave Supabase al commit `ea2a62c`, quindi pubblico non va bene.
+Perche' Write basta: serve a lavorare sul codice, e il deploy lo lancia chi
+ha l'account Fly. Admin servirebbe solo per cancellare il repository o
+renderlo pubblico — e la cronologia contiene ancora la vecchia chiave
+Supabase al commit `ea2a62c`, quindi pubblico non va bene.
 
 ### Leggere le rose da Leghe Fantacalcio
 
@@ -311,6 +352,27 @@ sara' di 18 o 27 giornate.
 
 ## Trappole gia' pagate (non ripeterle)
 
+- **`pkill -f "uvicorn api.main:app"` uccide la propria shell**, perche' il
+  pattern combacia con la riga di comando del comando stesso (prima succedeva
+  con `streamlit run app.py`: cambia il nome, non la trappola). Si prende il
+  PID con `pgrep` e si fa `kill` su quello.
+- **Il server locale non si accorge del codice nuovo.** Dopo aver aggiunto una
+  rotta bisogna riavviarlo: i test passano perche' importano l'app da zero, e
+  il browser riceve un 405 su una rotta che «c'e'». Prima di cercare il bug,
+  controllare quale versione sta girando.
+
+- **Un commento sulla stessa riga di un comando, in zsh, non e' un commento.**
+  Sul Mac di Marco `fly apps create nome # nota` e' diventato undici
+  argomenti («accepts between 0 and 1 arg(s), received 11»): zsh interattivo
+  di suo ha `interactive_comments` spento. Nei README e nei messaggi, i
+  blocchi da incollare vanno **senza commenti in riga** — la spiegazione sta
+  prima o dopo il blocco, non dentro.
+- **`flyctl` cerca `fly.toml` nella cartella da cui lo lanci.** Dalla home
+  risponde «the config for your app is missing an app name», che sembra un
+  problema del file e invece e' un problema di dove sei. Prima `cd` nel
+  repository — e il file dev'esserci davvero: se sta su un ramo non ancora
+  unito, in locale non c'e'.
+
 - **`npx tsc --noEmit` non e' quello che gira in CI.** Lo script del progetto
   e' `npm run build`, cioe' `tsc -b && vite build`: il `-b` usa i tsconfig
   dell'app, piu' severi. Un `const x = [];` dentro una funzione passava il
@@ -340,13 +402,6 @@ sara' di 18 o 27 giornate.
   chiede `scrypt_di_produzione`.
 
 - **`st.html` non renderizza l'SVG inline.** Passa da un data URI e `st.image`.
-- **`st.cache_data.clear()` provoca un rerun** che cancella il messaggio di
-  conferma appena mostrato. Usa `ui.invalida_dati()`.
-- **I messaggi prima di `st.rerun()` non si vedono.** Mettili nel
-  `session_state` e mostrali in cima alla pagina al giro dopo.
-- **Il contatore di versione deve essere globale**, non nel session_state: le
-  cache di Streamlit sono condivise fra sessioni, e con dieci persone collegate
-  chi entra dopo leggerebbe dati vecchi.
 - **Il ruolo Mantra `B` (braccetto) esisteva nel listone vero e non nel mio
   modello.** Trovato solo caricando il file ufficiale: i dati veri scoprono
   buchi che i dati inventati non mostrano.
@@ -358,15 +413,11 @@ sara' di 18 o 27 giornate.
   policy. La cura sta in `db/permessi.sql`, che chiude anche gli
   `alter default privileges` perche' la prossima tabella non ricada nel
   problema.
-- **Streamlit ricarica `app.py` e le pagine in `viste/`, non i moduli gia'
-  importati.** Dopo un aggiornamento senza riavvio, `app.py` e' nuovo e
-  `fantacalcio/` e' vecchio: il primo campo aggiunto di recente alza un
-  AttributeError che uccide il sito. L'unico rimedio e' *Reboot app*, e la
-  guardia in `app.py` lo dice invece di mostrare un traceback.
 - **Una guardia contro il codice disallineato non puo' stare nel modulo che
-  protegge.** Prima versione: `ui.spiega_codice_disallineato()`, che nel
-  modulo vecchio non esisteva — l'errore si spostava dentro il gestore
-  dell'errore. Ora vive in `app.py` e usa solo `streamlit`.
+  protegge.** Il gestore dell'errore chiamava una funzione che nel modulo
+  vecchio non esisteva: l'errore si spostava dentro il gestore dell'errore.
+  Era una trappola di Streamlit, che ricaricava i sorgenti senza riavviare il
+  processo, ma la forma vale ovunque.
 - **Ricostruire una dataclass per salvarla perde i campi che non nomini.**
   Salvando l'identita' si costruiva una `Squadra` senza `lega_id`, che
   quindi tornava a None: la squadra si scollegava dalla lega a ogni
@@ -380,9 +431,6 @@ sara' di 18 o 27 giornate.
 - **Con le squadre create e il draft non ancora fatto, mezzo sito lavora su
   tabelle vuote.** E' lo stato normale di una lega appena nata, non un caso
   limite: ogni pagina va provata anche cosi'.
-- **Nelle cache di Streamlit vanno solo DataFrame, mai oggetti di dominio.**
-  Un oggetto in cache conserva la forma che aveva quando e' entrato.
-  `tests/test_cache.py` lo verifica staticamente.
 - **Un turno di coppa non cancella una giornata di campionato**: la fa
   slittare. Il contatore del campionato non avanza nei weekend di coppa,
   altrimenti una giornata sparisce dal calendario senza che nessuno se ne
@@ -395,30 +443,12 @@ sara' di 18 o 27 giornate.
   scrivendone una corta la registrazione falliva *prima* della scrittura,
   quindi nessun utente nel database e nessuna idea del perche'. Le regole
   vanno scritte accanto al campo, non solo nell'errore.
-- **Streamlit rende le tendine come `input[type=text]`**: contare gli input
-  per posizione in un test sfalsa gli indici. Selezionare per placeholder.
-- **Oltre la decina di pagine `st.navigation` tronca il menu** e nasconde
-  le ultime dietro un «altro»: le voci in fondo sembrano non esistere. Le
-  sezioni non bastano, serve `expanded=True`.
-- **Un'app Streamlit pubblicata da una repo privata e' privata**: la vedono
-  solo i collaboratori del repository. In incognito risponde "l'app non
-  esiste", e i partecipanti vedrebbero lo stesso. Si apre da *Settings ->
-  Sharing -> Who can view this app*.
-- **Streamlit non ridispiega sempre da solo.** Se dopo un push il sito mostra
-  ancora la versione vecchia, e' il deploy fermo, non il codice: *Reboot app*.
-  Prima di cercare un bug, verificare quale versione sta girando davvero.
 - **La schermata col codice d'invito va mostrata da *ogni* pagina che puo'
   venire dopo la creazione.** Appena la lega esiste, il cancello successivo
   scatta: metterla solo dentro `scegli_lega` significa non mostrarla mai.
-- **`pkill -f "streamlit run app.py"` uccide la propria shell**, perche' il
-  pattern combacia con la riga di comando del comando stesso. Costa un giro di
-  diagnosi su un bug che non esiste.
 - **`create table if not exists` non aggiunge colonne** a una tabella che c'e'
   gia'. Ogni colonna nuova vuole anche un `alter table ... add column if not
   exists` in fondo a `schema.sql`.
-- **Ricaricare la pagina fa uscire dal login** (session_state di Streamlit).
-  Navigando col menu non succede. Scelta consapevole: un token in cookie
-  aggiungerebbe superficie d'attacco per poco guadagno.
 - **Un import sotto `TYPE_CHECKING` non esiste a runtime.**
   `carica_richieste_password` costruiva una `RichiestaPassword` importata solo
   per i tipi: NameError a ogni chiamata. Non si e' visto per settimane perche'
@@ -513,5 +543,6 @@ entrato. Se cambia uno, cambia l'altro.
 ## Attenzione
 
 Il repository e' privato, ma restano fuori comunque: il PDF del regolamento,
-il database con i dati veri e ogni credenziale. `.streamlit/secrets.toml` e'
-in `.gitignore`.
+il database con i dati veri e ogni credenziale. I segreti si passano come
+variabili d'ambiente (`fly secrets set`), e `test_segreti.py` rilegge i file
+versionati per cercarne di veri.

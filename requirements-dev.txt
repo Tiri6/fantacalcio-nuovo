@@ -1,6 +1,5 @@
--r requirements.txt
-# L'API React-facing: i suoi test stanno in `tests/`, quindi la CI deve
-# poterla importare. Senza questa riga `pytest` non raccoglie nemmeno
+# Il sito: i suoi test stanno in `tests/`, quindi la CI deve poterlo
+# importare. Senza questa riga `pytest` non raccoglie nemmeno
 # `test_api_accesso.py` e il lavoro si ferma su un errore di import.
 -r requirements-api.txt
 pytest>=8.0

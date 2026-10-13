@@ -220,3 +220,26 @@ class TestAssegnareLaF1:
         entra(client)
         dati = client.get("/api/f1-rush").json()
         assert dati["squadre"][0] == dati["classifica"][0]["squadra"]
+
+
+class TestLaBachecaDiUnaSquadra:
+    """I titoli nella pagina della squadra, contati per competizione."""
+
+    def test_dice_quanti_ne_ha_vinti_per_competizione(self, client):
+        """Contare le pastiglie a schermo funziona con tre titoli e smette di
+        funzionare con venti: il conto lo fa il dominio."""
+        entra(client)
+
+        dettaglio = client.get("/api/squadre/1").json()
+
+        conti = dettaglio["titoli_per_competizione"]
+        assert sum(c["quanti"] for c in conti) == len(dettaglio["titoli"])
+        assert all(c["etichetta"] and c["icona"] for c in conti)
+
+    def test_una_competizione_a_zero_non_si_mostra(self, client):
+        """Una bacheca piena di zeri sembra un elenco di sconfitte."""
+        entra(client)
+
+        for squadra in client.get("/api/squadre").json():
+            dettaglio = client.get(f"/api/squadre/{squadra['id']}").json()
+            assert all(c["quanti"] > 0 for c in dettaglio["titoli_per_competizione"])

@@ -751,3 +751,128 @@ class TestLOrdineIncompleto:
         ).json()
 
         assert pagina["chiamate_totali"] == 10
+
+
+class TestLaLotteryDellArticolo3:
+    """L'estrazione vera, non un mescolamento.
+
+    Il pulsante della sala mescolava a caso: comodo per mettere in fila dieci
+    squadre, sbagliato come Lottery. L'articolo 3 vuole due estrazioni
+    distinte con pesi 50/20/15/10/5, e la seconda meta' della classifica che
+    si gioca le pick 1-5 — che e' tutto il senso di avere una Lottery.
+    """
+
+    def test_solo_chi_amministra_la_estrae(self, client):
+        entra(client, "luca")
+
+        assert client.post("/api/sala/lottery").status_code == 403
+
+    def test_estrae_tutte_le_squadre_una_volta_sola(self, client):
+        entra(client)
+
+        esito = client.post("/api/sala/lottery").json()
+
+        assert len(esito["ordine"]) == 10
+        assert len({s["squadra_id"] for s in esito["ordine"]}) == 10
+
+    def test_le_prime_cinque_pick_vanno_alla_fascia_bassa(self, client):
+        """E' la regola che distingue una Lottery da un sorteggio."""
+        entra(client)
+
+        ordine = client.post("/api/sala/lottery").json()["ordine"]
+
+        assert [s["fascia"] for s in ordine[:5]] == ["bassa"] * 5
+        assert [s["fascia"] for s in ordine[5:]] == ["alta"] * 5
+
+    def test_porta_i_pesi_e_la_spiegazione(self, client):
+        """Chi guarda l'estrazione deve poter capire perche' e' uscita cosi'."""
+        entra(client)
+
+        esito = client.post("/api/sala/lottery").json()
+
+        assert esito["pesi"] == [50, 20, 15, 10, 5]
+        assert "art. 3" in esito["spiegazione"]
+
+    def test_non_e_un_mescolamento_uniforme(self, client):
+        """Su cento estrazioni, l'ultima in classifica deve prendere la prima
+        pick molto piu' spesso di una su dieci: e' il peso del 50%."""
+        entra(client)
+        tabella = client.get("/api/campionato").json()
+        ultima = tabella["classifica"][-1]["squadra"]
+
+        prime = [
+            client.post("/api/sala/lottery").json()["ordine"][0]["squadra"]
+            for _ in range(100)
+        ]
+
+        assert prime.count(ultima) > 25
+
+    def test_non_salva_niente(self, client):
+        """L'ordine si guarda e poi si apre la sala con quello: una sala che
+        si apre da sola a ogni estrazione non la vuole nessuno."""
+        entra(client)
+
+        client.post("/api/sala/lottery")
+
+        assert client.get("/api/sala").json()["c_e_una_sala"] is False
+
+
+class TestIlTabelloneELaDraftList:
+    def test_il_tabellone_ha_un_round_per_riga(self, client):
+        """«Quando richiamo?» e' la seconda domanda che fanno tutti."""
+        apri_sala(client, round_totali=3)
+
+        tabellone = client.get("/api/sala/tabellone").json()
+
+        assert tabellone["c_e_una_sala"] is True
+        assert [r["numero"] for r in tabellone["round"]] == [1, 2, 3]
+        assert all(len(r["squadre"]) == 10 for r in tabellone["round"])
+
+    def test_il_terzo_round_segue_la_classifica_e_non_la_lottery(self, client):
+        """La deroga dell'articolo 3 si deve vedere dal tabellone, non solo
+        fidarsi che ci sia. Serve una Lottery diversa dalla classifica,
+        altrimenti i due ordini coincidono e il test non prova niente."""
+        entra(client)
+        client.post(
+            "/api/sala",
+            json={
+                "tipo": "SETTEMBRE",
+                "round_totali": 3,
+                "ordine_lottery": [10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+            },
+        )
+
+        round = client.get("/api/sala/tabellone").json()["round"]
+
+        assert round[0]["squadre"] == round[1]["squadre"]  # Lottery
+        assert round[2]["squadre"] != round[0]["squadre"]  # classifica
+
+    def test_senza_sala_non_c_e_tabellone(self, client):
+        entra(client)
+
+        tabellone = client.get("/api/sala/tabellone").json()
+
+        assert tabellone["c_e_una_sala"] is False
+        assert tabellone["round"] == []
+
+    def test_la_draft_list_sono_i_contratti_annuali(self, client):
+        from fantacalcio.data import archivio, carica_rose
+
+        entra(client)
+
+        scadenze = client.get("/api/sala/scadenze").json()
+
+        attesi = sum(len(r.contratti_annuali) for r in carica_rose(archivio()).values())
+        assert len(scadenze) == attesi
+        assert all(s["squadra"] and s["giocatore"] for s in scadenze)
+
+    def test_la_lottery_dice_anche_quanto_era_probabile(self, client):
+        """E' il modo piu' onesto di mostrare che non e' un sorteggio."""
+        entra(client)
+
+        esito = client.post("/api/sala/lottery").json()
+
+        assert len(esito["probabilita"]) == 10
+        riga = esito["probabilita"][-1]  # l'ultima in classifica
+        assert riga["per_pick"][0] > 20  # la prima pick, molto piu' di 10%
+        assert sum(riga["per_pick"]) == pytest.approx(100, abs=2)

@@ -5,7 +5,7 @@
 # **mai** — nemmeno per sbaglio, nemmeno in una fase intermedia.
 
 # Segreti, prima di tutto il resto.
-.streamlit/secrets.toml
+.env
 .env
 *.pem
 *.key
@@ -30,11 +30,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 tests/
-viste/
 scripts/
 dati/
 db/
-app.py
-requirements.txt
 requirements-dev.txt
 *.md

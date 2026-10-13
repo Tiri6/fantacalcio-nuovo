@@ -87,8 +87,14 @@ def test_nessun_url_supabase_reale_nei_file_versionati(tracciati):
     )
 
 
-def test_il_file_delle_credenziali_vere_non_e_tracciato(tracciati):
-    """`secrets.toml` deve restare fuori da Git; il `.example` e' il modello."""
+def test_nessun_file_di_credenziali_e_tracciato(tracciati):
+    """`secrets.toml` deve restare fuori da Git.
+
+    Il modello `.example` se n'e' andato con Streamlit — i segreti adesso si
+    passano come variabili d'ambiente, `fly secrets set` — ma la guardia
+    resta: se qualcuno rimette in piedi un file di credenziali e lo aggiunge,
+    questo test lo ferma.
+    """
     nomi = {p.name for p in tracciati}
     assert "secrets.toml" not in nomi
-    assert "secrets.toml.example" in nomi
+    assert ".env" not in nomi

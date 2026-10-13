@@ -25,7 +25,7 @@ Il gioco vero e proprio — voti, formazioni, risultati di giornata — resta su
 **Leghe Fantacalcio**. Questo sito non lo sostituisce: gestisce tutto cio' che
 un fantacalcio manageriale ha in piu' e che quella piattaforma non prevede.
 
-**Indirizzo**: https://fantacalcio-nuovo.streamlit.app
+**Indirizzo**: https://fantacalcio-nuovo.fly.dev
 **Codice**: https://github.com/Tiri6/fantacalcio-nuovo (privato)
 
 ---
@@ -38,7 +38,7 @@ Non si riaprono senza un motivo nuovo.
 |---|---|
 | **Primo gol a 66**, poi uno ogni 6 | Confermato dalla lega. L'art. 1 cita anche 60: e' la formulazione del regolamento a essere imprecisa, non il codice |
 | Il **draft si fa offline**, i risultati si caricano | Il sito non conduce l'asta: registra chi si e' preso chi |
-| Stack **Streamlit + Supabase** | La logica e' Python puro senza Streamlit: cambiare frontend non la tocca |
+| Stack **React + FastAPI + Supabase** | Il primo sito era in Streamlit; cambiarlo non ha toccato una riga di regole, che e' esattamente quel che la separazione prometteva |
 | **Registrazione autonoma**, email obbligatoria e unica | L'email e' l'unico dato che lega un account a una persona |
 | Si entra con un **codice d'invito** di 8 caratteri | Alfabeto senza `O`/`0` e `I`/`1`: si ricopia da uno screenshot senza sbagliare |
 | Gli **inviti per email non spediscono niente** | Non c'e' un server di posta, e montarne uno per dieci persone non si giustifica |
@@ -46,7 +46,7 @@ Non si riaprono senza un motivo nuovo.
 | **Under 21 al 31 agosto**, data fissa tutti gli anni | L'articolo 2 dice «alla data del draft»; la lega preferisce una data che non si muove se l'asta slitta. Divergenza voluta, annotata in PUNTI_APERTI.md |
 | **Niente recupero password via email** | Non c'e' un server di posta. Al suo posto: un **codice di recupero** che ognuno si salva e usa da solo, e la **richiesta al presidente**, che resta scritta nel sito |
 | La **squadra si puo' rimandare** | Chi amministra e basta non deve restare chiuso fuori |
-| **Si resta su Streamlit** per la stagione di prova | La migrazione a un'autenticazione vera si valuta dopo aver giocato |
+| **Il draft si puo' fare anche nel sito** (Draft Room) | Non annulla la riga qui sopra: l'import resta. Chi vuole chiamare a turno sul sito adesso puo', e la sala si aggiorna da sola per tutti |
 
 ---
 
@@ -457,49 +457,49 @@ del sito che non gira da solo, e non deve far sembrare rotto il resto.
 ## 10. Com'e' fatto
 
 ```
-app.py            i quattro cancelli e la navigazione
-fantacalcio/      la logica: non importa Streamlit (tranne ui e schermate)
-viste/            una pagina per file, eseguite da st.navigation
+fantacalcio/      la logica: non importa ne' FastAPI ne' altro
+api/              le rotte che servono il sito, e la traduzione in JSON
+web/              il sito (React + Vite); `web/dist` e' quel che l'app serve
 db/schema.sql     lo schema Postgres, rieseguibile
-tests/            1088 test, una decina di secondi
+tests/            1719 test
 ```
 
 ### Le regole che tengono in piedi il progetto
 
 - **Nessun numero del regolamento fuori da `ParametriLega`.** La lega cambia le
   regole per votazione: devono essere modificabili in un punto solo.
-- **La logica non importa Streamlit.** Solo `ui.py`, `schermate.py` e `viste/`.
-  E' quello che tiene i test veloci. `tema.py` produce stringhe di CSS e HTML:
-  non importa Streamlit nemmeno lui.
+- **La logica non conosce il web.** `fantacalcio/` non importa FastAPI e non
+  sa che esiste un browser: traducono le rotte in `api/`. E' quello che tiene
+  i test veloci, ed e' gia' stato messo alla prova: il sito e' stato rifatto
+  da zero senza toccare le regole.
 - **Le verifiche restituiscono violazioni, non booleani.** Ogni controllo
   produce una `Violazione` con articolo, valore e limite: chi la subisce deve
   sapere *di quanto* sfora.
 - **I permessi si controllano nel dominio.**
-- **Il testo scritto dagli utenti non finisce mai in `unsafe_allow_html`** senza
-  passare da `tema._scudo()`. Gli annunci della bacheca si rendono con
-  `st.markdown`, che scuda l'HTML da solo.
+- **Il testo scritto dagli utenti non si inietta mai come HTML.** React scuda
+  da solo quel che mette fra parentesi graffe: nome squadra, motto, curva e
+  annunci li scrivono i partecipanti, e `dangerouslySetInnerHTML` su quelli
+  sarebbe un modo per far eseguire uno `<script>` a tutti gli altri.
 
 ### Le trappole gia' pagate
 
-- **Streamlit ricarica `app.py` e le viste, non i moduli importati.** Dopo un
-  aggiornamento senza riavvio il primo campo nuovo alza un AttributeError. La
-  guardia sta in `app.py` e usa solo `streamlit`: una guardia dentro il modulo
-  che protegge manca proprio quando serve.
+- **Una guardia dentro il modulo che protegge manca proprio quando serve.**
+  Il gestore dell'errore chiamava una funzione che nel modulo vecchio non
+  esisteva, e l'errore si spostava dentro il gestore dell'errore.
 - **SQLite e PostgREST rispondono diversamente al «non c'e' niente».** SQLite
   da' una tabella vuota con le colonne, PostgREST un DataFrame senza colonne.
   `data.con_colonne()` normalizza; `tests/test_backend_vuoto.py` simula la
   forma di PostgREST, perche' provare su SQLite non basta.
-- **Nelle cache di Streamlit vanno solo DataFrame**, mai oggetti di dominio: un
-  oggetto in cache conserva la forma che aveva quando e' entrato.
-- **`st.cache_data.clear()` provoca un rerun** che cancella il messaggio appena
-  mostrato. Si usa `ui.invalida_dati()`.
-- **I messaggi prima di `st.rerun()` non si vedono.**
-- **`st.stop()` dentro una scheda ferma tutto lo script.**
-- **Oltre la decina di pagine `st.navigation` tronca il menu**: serve
-  `expanded=True`.
+- **`insert or replace` rende inutile un `unique`.** Su SQLite cancella la
+  riga che c'era invece di rifiutare: il vincolo che doveva impedire a due
+  persone di prendere lo stesso posto nel draft non serviva a niente.
+  `Archivio.aggiungi` fa un `insert` secco e lascia salire l'errore.
 - **Una regola di validazione non scritta nel modulo e' una trappola.** La
   password minima non era dichiarata: chi ne scriveva una corta non veniva
   creato e non capiva perche'.
+- **`npm run build` e' piu' severo di `npx tsc --noEmit`.** Lo script fa
+  `tsc -b`, coi tsconfig dell'app: un array che nasce vuoto senza tipo passa
+  il secondo e fa fallire il primo, su `main`, dopo il merge.
 
 ---
 

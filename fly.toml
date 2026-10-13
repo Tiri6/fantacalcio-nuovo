@@ -1,0 +1,68 @@
+# Il sito su Fly.io: lo stesso Dockerfile di Render, ma su una macchina che
+# non si addormenta.
+#
+# E' tutta qui la ragione del trasloco. Su Render il piano gratuito ferma il
+# servizio quando non lo usa nessuno, e il primo che apre il link aspetta
+# cinquanta secondi: per una sala del draft con dieci persone collegate e'
+# proprio il momento sbagliato in cui far aspettare qualcuno.
+#
+# Si pubblica da riga di comando (`fly deploy`), non collegando il
+# repository: Fly non guarda GitHub da solo. Le istruzioni per intero stanno
+# in README.md, «Pubblicare su Fly.io».
+#
+# Qui dentro non c'e' nessun segreto e non ce ne deve finire mai. Il segreto
+# delle sessioni e le chiavi di Supabase si danno con `fly secrets set`:
+# restano fuori dal repository e arrivano all'app come variabili d'ambiente.
+
+# Il nome e' unico su tutto Fly: se e' gia' preso, scegline un altro qui e
+# usa lo stesso in `fly apps create`.
+app = "fantacalcio-nuovo"
+
+# Francoforte: la piu' vicina all'Italia fra quelle sicuramente attive.
+# `fly platform regions` stampa la lista di oggi — Milano (mxp) nel tempo e'
+# andata e venuta, e una regione che non esiste fa fallire il deploy.
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # La porta su cui ascolta uvicorn dentro il contenitore. Deve combaciare
+  # con `internal_port` qui sotto, che e' dove Fly manda il traffico.
+  PORT = "8000"
+  NOME_LEGA = "FantaCalcio NuoVo"
+  # `FANTA_AMBIENTE` non si imposta: vale solo in sviluppo, dove toglie
+  # `Secure` dal cookie e apre il CORS verso Vite. In produzione quei due
+  # sconti non si fanno.
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+
+  # **Il motivo del trasloco.** Con `off` la macchina non si ferma quando
+  # nessuno la usa: niente letargo, niente risveglio da cinquanta secondi.
+  #
+  # `min_machines_running` non serve e sarebbe fuorviante metterlo: vale solo
+  # quando l'arresto automatico e' acceso. Con l'arresto spento e una
+  # macchina sola, quella macchina resta su.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+
+  # Fly chiede qui se il servizio e' vivo: una rotta che risponde senza
+  # credenziali e senza toccare il database.
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    # Il primo avvio deve installare niente, ma importare pandas e FastAPI
+    # qualche secondo lo chiede: senza questa finestra Fly ammazzerebbe la
+    # macchina mentre sta ancora partendo, in un ciclo che sembra un guasto.
+    grace_period = "20s"
+    method = "GET"
+    path = "/api/salute"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  # 512 e non 256: l'API si porta dietro pandas. Una macchina che finisce la
+  # memoria non da' un errore chiaro — si riavvia e basta, e dal di fuori
+  # sembra un sito che cade a caso.
+  memory = "512mb"

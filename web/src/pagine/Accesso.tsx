@@ -15,7 +15,7 @@ import { useSessione } from "../sessione";
  * dire che la pagina promette una cosa e il server ne pretende un'altra.
  */
 
-type Scheda = "entra" | "iscriviti";
+type Scheda = "entra" | "iscriviti" | "recupero";
 
 function Entra() {
   const { entra } = useSessione();
@@ -367,6 +367,180 @@ const PUNTI = [
   },
 ];
 
+/**
+ * Le due strade per rientrare quando la password non si ricorda piu'.
+ *
+ * Non parte nessuna mail — il sito non ne manda, e dirlo e' piu' onesto che
+ * far aspettare un messaggio che non arrivera'. Restano il codice di
+ * recupero, che chi se l'e' salvato usa da solo, e la richiesta al
+ * presidente, che resta scritta nel sito invece di vivere in una chat.
+ *
+ * Le due risposte del server non dicono mai se quel nome utente esista:
+ * sarebbe un modo comodo per farsi l'elenco degli iscritti.
+ */
+function Recupera({ onFatto }: { onFatto: () => void }) {
+  const [via, setVia] = useState<"codice" | "presidente">("codice");
+  const [nomeUtente, setNomeUtente] = useState("");
+  const [codice, setCodice] = useState("");
+  const [nuova, setNuova] = useState("");
+  const [conferma, setConferma] = useState("");
+  const [errore, setErrore] = useState<string | null>(null);
+  const [fatto, setFatto] = useState<string | null>(null);
+  const [inCorso, setInCorso] = useState(false);
+
+  async function invia(evento: FormEvent) {
+    evento.preventDefault();
+    setErrore(null);
+    setFatto(null);
+    setInCorso(true);
+    try {
+      if (via === "codice") {
+        await api.rientraConCodice({
+          nome_utente: nomeUtente,
+          codice,
+          nuova,
+          conferma,
+        });
+        setFatto(
+          "Password cambiata: adesso entra con quella nuova. Il codice che " +
+            "hai usato non vale più — se ne vuoi un altro, lo generi dal tuo " +
+            "profilo.",
+        );
+        setCodice("");
+        setNuova("");
+        setConferma("");
+      } else {
+        await api.chiediAlPresidente(nomeUtente);
+        setFatto(
+          "Richiesta registrata. Il presidente la vede nel sito e ti manda " +
+            "una password temporanea, che al primo accesso dovrai sostituire.",
+        );
+      }
+    } catch (guasto) {
+      setErrore(
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a contattare il server.",
+      );
+    } finally {
+      setInCorso(false);
+    }
+  }
+
+  return (
+    <form onSubmit={invia} noValidate>
+      <div className="porta-schede" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={via === "codice"}
+          className={via === "codice" ? "scheda attiva" : "scheda"}
+          onClick={() => setVia("codice")}
+        >
+          Ho un codice
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={via === "presidente"}
+          className={via === "presidente" ? "scheda attiva" : "scheda"}
+          onClick={() => setVia("presidente")}
+        >
+          Chiedi al presidente
+        </button>
+      </div>
+
+      <p className="porta-spiega">
+        {via === "codice" ? (
+          <>
+            È il codice che hai salvato dal tuo profilo, tipo{" "}
+            <code>H7KP-2MQX-9TBW</code>. Vale una volta sola: dopo averlo usato,
+            se ne vuoi un altro lo generi da lì.
+          </>
+        ) : (
+          <>
+            Il presidente vede la richiesta nel sito e ti manda una password
+            temporanea, che al primo accesso dovrai sostituire. Non parte
+            nessuna mail: il sito non ne manda.
+          </>
+        )}
+      </p>
+
+      <div className="campo">
+        <label htmlFor="rec-nome">Nome utente</label>
+        <input
+          id="rec-nome"
+          value={nomeUtente}
+          onChange={(e) => setNomeUtente(e.target.value)}
+          autoComplete="username"
+          required
+        />
+      </div>
+
+      {via === "codice" ? (
+        <>
+          <div className="campo">
+            <label htmlFor="rec-codice">Codice di recupero</label>
+            <input
+              id="rec-codice"
+              value={codice}
+              onChange={(e) => setCodice(e.target.value)}
+              placeholder="H7KP-2MQX-9TBW"
+              required
+            />
+          </div>
+          <div className="campo">
+            <label htmlFor="rec-nuova">Password nuova</label>
+            <input
+              id="rec-nuova"
+              type="password"
+              value={nuova}
+              onChange={(e) => setNuova(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
+          </div>
+          <div className="campo">
+            <label htmlFor="rec-conferma">Ripeti la password nuova</label>
+            <input
+              id="rec-conferma"
+              type="password"
+              value={conferma}
+              onChange={(e) => setConferma(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
+          </div>
+        </>
+      ) : null}
+
+      <button className="principale" type="submit" disabled={inCorso}>
+        {inCorso
+          ? "Un attimo…"
+          : via === "codice"
+            ? "Rientra"
+            : "Avvisa il presidente"}
+      </button>
+
+      {errore && (
+        <div className="errore" role="alert">
+          {errore}
+        </div>
+      )}
+      {fatto && (
+        <>
+          <div className="conferma">{fatto}</div>
+          <p className="porta-passaggio">
+            <button type="button" onClick={onFatto}>
+              Torna all'accesso
+            </button>
+          </p>
+        </>
+      )}
+    </form>
+  );
+}
+
 export function Accesso() {
   const [scheda, setScheda] = useState<Scheda>("entra");
 
@@ -425,11 +599,31 @@ export function Accesso() {
             </button>
           </div>
 
-          {scheda === "entra" ? (
+          {scheda === "recupero" ? (
+            <>
+              <h2>Rientra</h2>
+              <p className="porta-spiega">
+                Due strade: il codice che ti sei salvato, o il presidente.
+              </p>
+              <Recupera onFatto={() => setScheda("entra")} />
+              <p className="porta-passaggio">
+                Ti è tornata in mente?{" "}
+                <button type="button" onClick={() => setScheda("entra")}>
+                  Entra
+                </button>
+              </p>
+            </>
+          ) : scheda === "entra" ? (
             <>
               <h2>Bentornato</h2>
               <p className="porta-spiega">Entra con le tue credenziali.</p>
               <Entra />
+              <p className="porta-passaggio">
+                Password dimenticata?{" "}
+                <button type="button" onClick={() => setScheda("recupero")}>
+                  Rientra con un codice o chiedi al presidente
+                </button>
+              </p>
               <p className="porta-passaggio">
                 Non hai ancora un account?{" "}
                 <button type="button" onClick={() => setScheda("iscriviti")}>

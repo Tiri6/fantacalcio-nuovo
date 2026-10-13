@@ -18,7 +18,8 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from fantacalcio.data import carica_rose, prossimo_id
+from fantacalcio.competizioni import inizio_giornata
+from fantacalcio.data import calendario_dettagliato, carica_rose, prossimo_id
 from fantacalcio.mercato import PropostaScambio, stato_mercato
 from fantacalcio.scambi import (
     Scambio,
@@ -29,6 +30,7 @@ from fantacalcio.scambi import (
     applica_alle_rose,
     carica_scambi,
     conta_conclusi,
+    giornata_di_efficacia,
     proponi,
     ratifica,
     rifiuta,
@@ -74,6 +76,10 @@ class ScambioLetto(BaseModel):
     note: str
     creato_il: str
     giornata_efficacia: int | None
+    # Da che giornata avrebbe effetto se si ratificasse adesso (art. 8: serve
+    # un preavviso di 24 ore sul calcio d'inizio). La regola sta nel dominio,
+    # e chi ratifica la deve **leggere**, non indovinare.
+    efficacia_proposta: int
     # Cosa puo' fare **chi sta guardando**, deciso dal dominio e non dedotto
     # dal front-end: se la regola cambia, cambia in un posto solo.
     posso_accettare: bool
@@ -93,6 +99,10 @@ class PaginaScambi(BaseModel):
     mercato_aperto: bool
     finestra: str
     squadre: list[dict]
+    # Il V3 li ha aboliti, ma e' un parametro: se la lega li rivota, la pagina
+    # deve adeguarsi da sola invece di continuare a dire che non si fanno.
+    prolungamenti_ammessi: bool
+    anni_contratto_massimo: int
 
 
 def _nomi(ctx) -> dict[int, str]:
@@ -117,6 +127,23 @@ def _violazioni_di(ctx, scambio: Scambio) -> list[ViolazioneLetta]:
         )
         for v in trovate
     ]
+
+
+def _efficacia(ctx, scambio: Scambio) -> int:
+    """Da che giornata avrebbe effetto, ratificando adesso.
+
+    L'articolo 8 vuole ventiquattr'ore di preavviso sul calcio d'inizio: uno
+    scambio comunicato dopo non vale per la giornata imminente. La regola sta
+    in `giornata_di_efficacia`, e chi ratifica la deve leggere invece di
+    indovinarla — su Streamlit la leggeva, qui no.
+    """
+    prossima = giornate_disputate(ctx) + 1
+    return giornata_di_efficacia(
+        scambio,
+        prossima,
+        inizio_giornata(calendario_dettagliato(ctx.arch), prossima),
+        ctx.parametri,
+    )
 
 
 def _leggi(ctx, scambio: Scambio, utente, nomi: dict[int, str]) -> ScambioLetto:
@@ -151,6 +178,7 @@ def _leggi(ctx, scambio: Scambio, utente, nomi: dict[int, str]) -> ScambioLetto:
         note=scambio.note,
         creato_il=scambio.creato_il.strftime("%d/%m/%Y %H:%M"),
         giornata_efficacia=scambio.giornata_efficacia,
+        efficacia_proposta=_efficacia(ctx, scambio),
         posso_accettare=proposto and riceve,
         posso_rifiutare=proposto and riceve,
         posso_annullare=scambio.stato.aperto and propone,
@@ -189,6 +217,8 @@ def elenco(utente: UtenteDentro) -> PaginaScambi:
             mercato.finestra_piu_recente.value if mercato.finestra_piu_recente else ""
         ),
         squadre=[{"id": id_, "nome": nome} for id_, nome in sorted(nomi.items())],
+        prolungamenti_ammessi=ctx.parametri.prolungamenti_ammessi,
+        anni_contratto_massimo=ctx.parametri.contratto_anni_massimo,
     )
 
 
@@ -206,6 +236,11 @@ class Proposta(BaseModel):
     da_me: list[int] = Field(default_factory=list)
     da_loro: list[int] = Field(default_factory=list)
     note: str = Field(default="", max_length=500)
+    # giocatore_id -> durata nuova. Vuoto quando i prolungamenti non si fanno,
+    # e in quel caso `valida_scambio` li rifiuta da se': qui non si controlla
+    # una seconda volta, si passa quel che arriva e si lascia decidere al
+    # dominio, che e' l'unico posto dove la regola e' scritta.
+    prolungamenti: dict[int, int] = Field(default_factory=dict)
 
 
 class EsitoProposta(BaseModel):
@@ -240,6 +275,7 @@ def proponi_scambio(richiesta: Proposta, utente: UtenteDentro) -> EsitoProposta:
     proposta = PropostaScambio(
         da_squadra_a=tuple(richiesta.da_me),
         da_squadra_b=tuple(richiesta.da_loro),
+        prolungamenti={int(k): int(v) for k, v in richiesta.prolungamenti.items()},
     )
 
     try:
