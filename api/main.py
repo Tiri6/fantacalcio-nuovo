@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .rotte import (
     accesso,
     albo,
+    assegnazioni,
     bacheca,
     campionato,
     competizioni,
@@ -92,6 +93,7 @@ app.include_router(accesso.rotte, prefix="/api")
 app.include_router(registrazione.rotte, prefix="/api")
 app.include_router(onboarding.rotte, prefix="/api")
 app.include_router(albo.rotte, prefix="/api")
+app.include_router(assegnazioni.rotte, prefix="/api")
 app.include_router(campionato.rotte, prefix="/api")
 app.include_router(bacheca.rotte, prefix="/api")
 app.include_router(cruscotto.rotte, prefix="/api")

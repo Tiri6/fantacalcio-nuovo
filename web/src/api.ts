@@ -1102,6 +1102,52 @@ export type Lottery = {
   spiegazione: string;
 };
 
+/* --- assegnazioni --------------------------------------------------------- */
+
+export type LiberoAssegnabile = {
+  id: number;
+  nome: string;
+  club: string;
+  ruoli: string[];
+  ingaggio: number;
+  nazionalita: string;
+  u21: boolean;
+};
+
+export type SquadraAssegnabile = {
+  id: number;
+  nome: string;
+  giocatori: number;
+  anni_impegnati: number;
+  monte_ingaggi: number;
+  /** Sul Cap pesa anche il Dead Money: questo numero lo tiene già dentro. */
+  spazio_salariale: number;
+};
+
+export type ViolazioneAssegnazione = {
+  codice: string;
+  articolo: string;
+  messaggio: string;
+  bloccante: boolean;
+};
+
+export type PaginaAssegnazioni = {
+  posso_assegnare: boolean;
+  anni_minimo: number;
+  anni_massimo: number;
+  monte_anni: number;
+  limite_cap: number;
+  in_listone: number;
+  liberi: LiberoAssegnabile[];
+  squadre: SquadraAssegnabile[];
+};
+
+export type EsitoAssegnazione = {
+  fatta: boolean;
+  messaggio: string;
+  violazioni: ViolazioneAssegnazione[];
+};
+
 export type NuovaSala = {
   tipo: "SETTEMBRE" | "RIPARAZIONE";
   round_totali: number;
@@ -1367,6 +1413,21 @@ export const api = {
         ? "/sala"
         : `/sala?versione=${encodeURIComponent(versione)}`,
     ),
+  assegnazioni: () => chiama<PaginaAssegnazioni>("/assegnazioni"),
+  anteprimaAssegnazione: (
+    giocatore_id: number,
+    squadra_id: number,
+    anni: number,
+  ) =>
+    chiama<EsitoAssegnazione>("/assegnazioni/anteprima", {
+      method: "POST",
+      body: JSON.stringify({ giocatore_id, squadra_id, anni }),
+    }),
+  assegna: (giocatore_id: number, squadra_id: number, anni: number) =>
+    chiama<EsitoAssegnazione>("/assegnazioni", {
+      method: "POST",
+      body: JSON.stringify({ giocatore_id, squadra_id, anni }),
+    }),
   estraiLottery: () => chiama<Lottery>("/sala/lottery", { method: "POST" }),
   apriSala: (corpo: NuovaSala) =>
     chiama<PaginaSala>("/sala", {
