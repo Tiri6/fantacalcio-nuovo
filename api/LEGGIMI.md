@@ -1,8 +1,8 @@
 # L'API, e il front-end React che ci sta sopra
 
-Il passaggio da Streamlit a React, fatto a pezzi. Streamlit **resta in piedi
-e funzionante** finché il nuovo non è in pari: finché `app.py` c'è, la lega
-continua a usare quello.
+Il sito della lega. È nato per sostituire quello in Streamlit, un pezzo alla
+volta, e dal 13 ottobre 2026 è l'unico: Streamlit è stato dismesso dopo un
+confronto schermata per schermata.
 
 ## Perché un'API in mezzo
 
@@ -48,22 +48,21 @@ La documentazione interattiva dell'API sta su http://localhost:8000/docs.
 | `FANTA_AMBIENTE` | A `sviluppo` apre il CORS verso Vite e toglie `Secure` dal cookie (su `http://localhost` un cookie Secure non tornerebbe mai indietro, e il login sembrerebbe rotto). In produzione **non si imposta**. |
 
 `SUPABASE_URL` e `SUPABASE_KEY` restano quelle di sempre: senza, si cade sul
-database di demo SQLite, esattamente come fa Streamlit.
+database di demo SQLite, e `/api/salute` lo dice.
 
 ## La sessione
 
-È il pezzo che Streamlit regalava e che qui si scrive a mano.
+È il pezzo che il vecchio sito regalava e che qui si scrive a mano.
 
-Lì la sessione viveva nel processo del server (`st.session_state`): il browser
-non teneva niente, e **ricaricare la pagina buttava fuori**. Qui c'è un token
-firmato in un **cookie httpOnly** — nessun JavaScript della pagina lo legge,
-quindi un XSS non se lo porta via — e ricaricare non butta più fuori.
+Lì la sessione viveva nel processo del server: il browser non teneva niente, e
+**ricaricare la pagina buttava fuori**. Qui c'è un token firmato in un
+**cookie httpOnly** — nessun JavaScript della pagina lo legge, quindi un XSS
+non se lo porta via — e ricaricare non butta più fuori.
 
-Dentro il token c'è **solo il nome utente**, mai l'oggetto `Utente`. È la
-stessa regola del `session_state`, per la stessa ragione: appena uno entra in
-una lega o fonda la squadra la sua riga cambia, e un utente congelato al
-momento dell'accesso mostrerebbe lo stato vecchio. Il token dice *chi*, il
-database dice *com'è adesso*.
+Dentro il token c'è **solo il nome utente**, mai l'oggetto `Utente`: appena
+uno entra in una lega o fonda la squadra la sua riga cambia, e un utente
+congelato al momento dell'accesso mostrerebbe lo stato vecchio. Il token dice
+*chi*, il database dice *com'è adesso*.
 
 Le password non si toccano: restano gli stessi hash scrypt di prima, quindi
 nessuno deve reimpostare niente.
@@ -73,8 +72,7 @@ nessuno deve reimpostare niente.
 Stanno nel dominio, come prima: `Utente.puo_gestire()`, `puo_svincolare`,
 le transizioni di `scambi.py`. Le rotte chiedono «puoi?» e il dominio
 risponde. Un controllo riscritto in questo strato sarebbe la seconda copia
-della regola — e nascondere un bottone in React è ancora meno un controllo di
-quanto lo fosse nasconderlo in Streamlit.
+della regola — e nascondere un bottone in React non è un controllo.
 
 ## Dove gira, una volta pubblicato
 

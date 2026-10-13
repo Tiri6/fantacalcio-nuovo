@@ -34,8 +34,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Solo le dipendenze dell'API: niente Streamlit, che si porta dietro 156 MB
-# di pyarrow e qui non serve a nessuno.
+# Le dipendenze del servizio. Erano separate da quelle di Streamlit finche'
+# Streamlit c'era; adesso sono le uniche.
 COPY requirements-api.txt ./
 RUN pip install --no-cache-dir -r requirements-api.txt
 

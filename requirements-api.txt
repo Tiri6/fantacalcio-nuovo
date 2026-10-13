@@ -1,6 +1,5 @@
-# L'API React-facing. Tenuta separata da requirements.txt perche' non ha
-# bisogno di Streamlit: e' quello che la fa stare dentro i 250 MB delle
-# funzioni serverless (streamlit si porta dietro pyarrow, 156 MB da solo).
+# Le dipendenze del sito. Erano separate da quelle di Streamlit finche'
+# Streamlit c'era; adesso sono le uniche, e questo file e' l'elenco vero.
 fastapi>=0.110
 uvicorn[standard]>=0.29
 pydantic>=2.6
@@ -9,6 +8,10 @@ pandas>=2.0
 supabase>=2.4
 
 # Il listone ufficiale e' un .xlsx, e lo legge `importa_listone`. Senza,
-# l'import del listone muore in produzione e solo li': in sviluppo
-# openpyxl c'e' comunque, se lo porta requirements.txt per Streamlit.
+# l'import del listone muore in produzione e solo li'.
 openpyxl>=3.1
+
+# La chat sul regolamento. L'import e' pigro — chi non apre la chat non lo
+# paga — e proprio per questo mancava qui senza che niente lo segnalasse:
+# in produzione la chat sarebbe morta al primo messaggio, e solo li'.
+anthropic>=1.0

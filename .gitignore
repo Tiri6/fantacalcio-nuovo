@@ -1,5 +1,7 @@
-# Secret: mai nel repo. Usa .streamlit/secrets.toml.example come modello.
+# Secret: mai nel repo. In produzione si passano come variabili d'ambiente
+# (`fly secrets set`), in sviluppo si esportano nella shell.
 .streamlit/secrets.toml
+.env
 .env
 
 # Database di demo: viene rigenerato da solo.
