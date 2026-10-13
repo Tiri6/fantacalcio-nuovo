@@ -527,3 +527,47 @@ class TestIlListoneInUnFileSolo:
 
         assert "stipendio lordo" in formati["modello_listone"]
         assert "data di nascita" in formati["modello_listone"]
+
+
+class TestSvuotareIlListone:
+    """L'azione piu' distruttiva del sito: senza giocatori non esistono rose."""
+
+    def test_serve_la_parola_scritta_a_mano(self, client):
+        from fantacalcio.data import archivio, carica_giocatori
+
+        entra(client)
+
+        risposta = client.post(
+            "/api/importazione/listone/svuota", json={"conferma": "si"}
+        )
+
+        assert risposta.status_code == 422
+        assert "CANCELLA" in risposta.json()["detail"]
+        assert carica_giocatori(archivio())
+
+    def test_con_la_parola_giusta_porta_via_anche_le_rose(self, client):
+        from fantacalcio.data import archivio, carica_giocatori, carica_rose
+
+        entra(client)
+
+        esito = client.post(
+            "/api/importazione/listone/svuota", json={"conferma": "cancella"}
+        )
+
+        assert esito.status_code == 200
+        assert esito.json()["giocatori"] > 0
+        assert esito.json()["contratti"] > 0
+        assert carica_giocatori(archivio()) == {}
+        # Le squadre restano: sono le rose a svuotarsi.
+        rose = carica_rose(archivio())
+        assert len(rose) == 10
+        assert all(r.dimensione == 0 for r in rose.values())
+
+    def test_non_lo_fa_chi_non_importa(self, client):
+        entra(client, "luca")
+
+        risposta = client.post(
+            "/api/importazione/listone/svuota", json={"conferma": "CANCELLA"}
+        )
+
+        assert risposta.status_code == 403

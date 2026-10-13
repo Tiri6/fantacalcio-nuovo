@@ -28,7 +28,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from fantacalcio.conformita import StatoRosa
-from fantacalcio.data import carica_giocatori
+from fantacalcio.data import carica_giocatori, svuota_listone
 from fantacalcio.fonti_web import (
     MODELLO_CSV_LISTONE,
     EsitoAggiornamento,
@@ -540,3 +540,52 @@ def scrivi_risultati(caricato: FileCaricato, utente: UtenteDentro) -> Riepilogo:
         # squadra del file che nella lega non esiste.
         raise HTTPException(status_code=NON_ELABORABILE, detail=str(errore)) from errore
     return Riepilogo(messaggio=f"Importate {riepilogo['partite']} partite.")
+
+
+# ---------------------------------------------------------------------------
+# Cancellare tutto il listone
+# ---------------------------------------------------------------------------
+
+
+class DaSvuotare(BaseModel):
+    """La parola di conferma, scritta a mano.
+
+    Non e' un fastidio inventato: cancellare il listone porta via **anche i
+    contratti**, cioe' tutte le rose. Un bottone che lo fa al primo clic e'
+    un bottone che prima o poi qualcuno preme per sbaglio.
+    """
+
+    conferma: str
+
+
+class Svuotato(BaseModel):
+    messaggio: str
+    giocatori: int
+    contratti: int
+
+
+@rotte.post("/importazione/listone/svuota", response_model=Svuotato)
+def svuota(richiesta: DaSvuotare, utente: UtenteDentro) -> Svuotato:
+    """Cancella tutti i giocatori e tutti i contratti. Non si torna indietro.
+
+    Per ricaricare un listone sbagliato **non serve**: basta caricare il file
+    giusto con «sostituisci». Questo esiste per il caso in cui si vuole
+    ripartire da zero davvero.
+    """
+    ctx = _solo_chi_importa(utente)
+    if richiesta.conferma.strip().upper() != "CANCELLA":
+        raise HTTPException(
+            status_code=NON_ELABORABILE,
+            detail="Scrivi CANCELLA per confermare: questa cancella anche le rose.",
+        )
+
+    andati = svuota_listone(ctx.arch)
+    return Svuotato(
+        messaggio=(
+            f"Cancellati {andati['giocatori']} giocatori e "
+            f"{andati['contratti']} contratti. Le squadre restano, le rose "
+            f"sono vuote."
+        ),
+        giocatori=andati["giocatori"],
+        contratti=andati["contratti"],
+    )

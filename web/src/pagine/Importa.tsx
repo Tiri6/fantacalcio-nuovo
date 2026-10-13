@@ -346,6 +346,75 @@ function AnteprimaListone({ esito }: { esito: EsitoListoneImport }) {
   );
 }
 
+/**
+ * Cancellare tutto il listone: l'azione più distruttiva del sito.
+ *
+ * Porta via **anche i contratti**, cioè tutte le rose. La parola scritta a
+ * mano non è un fastidio inventato: è l'unica cosa che distingue questo da un
+ * bottone che prima o poi qualcuno preme per sbaglio.
+ */
+function SvuotaListone({ quanti }: { quanti: number }) {
+  const [conferma, setConferma] = useState("");
+  const [errore, setErrore] = useState<string | null>(null);
+  const [fatto, setFatto] = useState<string | null>(null);
+  const [inCorso, setInCorso] = useState(false);
+
+  async function svuota() {
+    setErrore(null);
+    setInCorso(true);
+    try {
+      const esito = await api.svuotaListone(conferma);
+      setFatto(esito.messaggio);
+      setConferma("");
+    } catch (guasto) {
+      setErrore(
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a contattare il server.",
+      );
+    } finally {
+      setInCorso(false);
+    }
+  }
+
+  return (
+    <details className="formato">
+      <summary>🗑️ Cancella tutto il listone</summary>
+      <div className="riquadro avviso">
+        ⚠️ Cancella tutti i {quanti} giocatori e, con loro, i contratti che li
+        assegnano alle squadre. Le squadre restano, ma le rose si svuotano. Non
+        si torna indietro.
+      </div>
+      <p className="didascalia">
+        Per ricaricare un listone sbagliato non serve: basta caricare il file
+        giusto con «Sostituisci il listone».
+      </p>
+      <div className="campo">
+        <label htmlFor="svuota-conferma">Scrivi CANCELLA per confermare</label>
+        <input
+          id="svuota-conferma"
+          value={conferma}
+          placeholder="CANCELLA"
+          onChange={(e) => setConferma(e.target.value)}
+        />
+      </div>
+      {errore && (
+        <div className="errore" role="alert">
+          {errore}
+        </div>
+      )}
+      {fatto && <div className="conferma">{fatto}</div>}
+      <button
+        className="principale"
+        onClick={svuota}
+        disabled={inCorso || conferma.trim().toUpperCase() !== "CANCELLA"}
+      >
+        {inCorso ? "Cancello…" : "Cancella il listone e tutte le rose"}
+      </button>
+    </details>
+  );
+}
+
 function SchedaListone({ formati }: { formati: FormatiImport }) {
   const [sostituisci, setSostituisci] = useState(false);
 
@@ -412,6 +481,10 @@ function SchedaListone({ formati }: { formati: FormatiImport }) {
           </label>
         }
       />
+
+      {formati.giocatori_in_catalogo > 0 && (
+        <SvuotaListone quanti={formati.giocatori_in_catalogo} />
+      )}
     </div>
   );
 }

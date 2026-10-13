@@ -41,7 +41,7 @@ from fantacalcio.data import (
     salva_sala,
     svincolati,
 )
-from fantacalcio.draft import PESI_FASCIA, sorteggia_lottery
+from fantacalcio.draft import PESI_FASCIA, distribuzione_pick, sorteggia_lottery
 from fantacalcio.sala import (
     Sala,
     SalaNonAmmessa,
@@ -58,7 +58,7 @@ from fantacalcio.sala import (
     turno,
     verifica_chiamata,
 )
-from fantacalcio.vista import classifica
+from fantacalcio.vista import classifica, contratti_in_scadenza
 
 from ..contesto import DATA_DRAFT, Contesto, contesto_di
 from ..dipendenze import UtenteDentro
@@ -510,10 +510,20 @@ class SquadraEstratta(BaseModel):
     fascia: str
 
 
+class ProbabilitaPick(BaseModel):
+    squadra: str
+    # Per ogni pick, la probabilita' in percentuale. L'indice 0 e' la prima.
+    per_pick: list[float]
+
+
 class Lottery(BaseModel):
     ordine: list[SquadraEstratta]
     pesi: list[int]
     spiegazione: str
+    # Quanto era probabile ogni pick, prima dell'estrazione. Si guarda **dopo**
+    # per capire se e' uscita una sorpresa, ed e' il modo piu' onesto di
+    # mostrare che la Lottery non e' un sorteggio.
+    probabilita: list[ProbabilitaPick]
 
 
 @rotte.post("/sala/lottery", response_model=Lottery)
@@ -545,6 +555,11 @@ def estrai_lottery(utente: UtenteDentro) -> Lottery:
     except ValueError as errore:
         raise HTTPException(status_code=NON_ELABORABILE, detail=str(errore)) from errore
 
+    # Diecimila simulazioni costano due decimi di secondo e si fanno una
+    # volta per estrazione: le probabilita' delle pick dopo la prima
+    # dipendono da chi e' gia' uscito, e in chiuso non si scrivono.
+    stimate = distribuzione_pick(nomi, simulazioni=10_000)
+
     bassa = set(esito.fascia_bassa)
     return Lottery(
         ordine=[
@@ -561,7 +576,98 @@ def estrai_lottery(utente: UtenteDentro) -> Lottery:
             f"le ultime {len(nomi) // 2} classificate, le altre fra le prime. "
             f"Dentro ogni fascia la peggio classificata ha il peso piu' alto."
         ),
+        probabilita=[
+            ProbabilitaPick(
+                squadra=nome,
+                per_pick=[
+                    round(stimate[nome].get(pick, 0.0) * 100, 1)
+                    for pick in range(1, len(nomi) + 1)
+                ],
+            )
+            for nome in nomi
+        ],
     )
+
+
+# ---------------------------------------------------------------------------
+# Il tabellone, e la draft list dei contratti in scadenza
+# ---------------------------------------------------------------------------
+
+
+class RoundLetto(BaseModel):
+    numero: int
+    squadre: list[str]
+
+
+class Tabellone(BaseModel):
+    c_e_una_sala: bool
+    tipo_etichetta: str
+    round: list[RoundLetto]
+
+
+@rotte.get("/sala/tabellone", response_model=Tabellone)
+def tabellone(utente: UtenteDentro) -> Tabellone:
+    """Tutti i round della sala aperta, uno sotto l'altro.
+
+    «Quando richiamo?» e' la seconda domanda che fanno tutti, dopo «a chi
+    tocca adesso»: l'ordine e' congelato all'apertura, quindi la risposta c'e'
+    per intero e non solo per le prossime cinque chiamate.
+    """
+    ctx = contesto_di(utente)
+    sala = _sala_corrente(ctx)
+    if sala is None:
+        return Tabellone(c_e_una_sala=False, tipo_etichetta="", round=[])
+
+    rose = carica_rose(ctx.arch)
+    nomi = {id_: r.squadra.nome for id_, r in rose.items()}
+    quante = len(sala.squadre) or 1
+    return Tabellone(
+        c_e_una_sala=True,
+        tipo_etichetta=sala.tipo.etichetta,
+        round=[
+            RoundLetto(
+                numero=n + 1,
+                squadre=[
+                    nomi.get(s, str(s))
+                    for s in sala.chiamate_previste[n * quante : (n + 1) * quante]
+                ],
+            )
+            for n in range(sala.round_totali)
+        ],
+    )
+
+
+class InScadenza(BaseModel):
+    squadra: str
+    giocatore: str
+    club: str
+    ruoli: str
+    eta: int | None
+    ingaggio: float
+
+
+@rotte.get("/sala/scadenze", response_model=list[InScadenza])
+def scadenze(utente: UtenteDentro) -> list[InScadenza]:
+    """Chi arriva a scadenza naturale: la draft list della prossima asta.
+
+    Non e' una previsione: sono i contratti annuali di adesso, cioe' chi
+    rientra nel draft se nessuno lo rinnova.
+    """
+    ctx = contesto_di(utente)
+    tabella = contratti_in_scadenza(carica_rose(ctx.arch), DATA_DRAFT)
+    if tabella.empty:
+        return []
+    return [
+        InScadenza(
+            squadra=r["Squadra"],
+            giocatore=r["Giocatore"],
+            club=r["Club"],
+            ruoli=r["Ruoli"],
+            eta=None if r["Eta"] is None or r["Eta"] != r["Eta"] else int(r["Eta"]),
+            ingaggio=float(r["Ingaggio"]),
+        )
+        for _, r in tabella.iterrows()
+    ]
 
 
 # ---------------------------------------------------------------------------

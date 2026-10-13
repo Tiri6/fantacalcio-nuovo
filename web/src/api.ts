@@ -567,6 +567,9 @@ export type PaginaScambi = {
   mercato_aperto: boolean;
   finestra: string;
   squadre: { id: number; nome: string }[];
+  /** Il V3 li ha aboliti, ma è un parametro: la lega può rivotarlo. */
+  prolungamenti_ammessi: boolean;
+  anni_contratto_massimo: number;
 };
 
 export type EsitoProposta = {
@@ -1100,6 +1103,23 @@ export type Lottery = {
   ordine: SquadraEstratta[];
   pesi: number[];
   spiegazione: string;
+  /** Quanto era probabile ogni pick, prima dell'estrazione. */
+  probabilita: { squadra: string; per_pick: number[] }[];
+};
+
+export type Tabellone = {
+  c_e_una_sala: boolean;
+  tipo_etichetta: string;
+  round: { numero: number; squadre: string[] }[];
+};
+
+export type InScadenza = {
+  squadra: string;
+  giocatore: string;
+  club: string;
+  ruoli: string;
+  eta: number | null;
+  ingaggio: number;
 };
 
 /* --- assegnazioni --------------------------------------------------------- */
@@ -1196,6 +1216,7 @@ export const api = {
     da_me: number[];
     da_loro: number[];
     note: string;
+    prolungamenti?: Record<number, number>;
   }) =>
     chiama<EsitoProposta>("/scambi", {
       method: "POST",
@@ -1322,6 +1343,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ contenuto_base64, nome }),
     }),
+  svuotaListone: (conferma: string) =>
+    chiama<{ messaggio: string; giocatori: number; contratti: number }>(
+      "/importazione/listone/svuota",
+      { method: "POST", body: JSON.stringify({ conferma }) },
+    ),
   importaListone: (
     contenuto_base64: string,
     nome: string,
@@ -1429,6 +1455,8 @@ export const api = {
       body: JSON.stringify({ giocatore_id, squadra_id, anni }),
     }),
   estraiLottery: () => chiama<Lottery>("/sala/lottery", { method: "POST" }),
+  tabellone: () => chiama<Tabellone>("/sala/tabellone"),
+  scadenze: () => chiama<InScadenza[]>("/sala/scadenze"),
   apriSala: (corpo: NuovaSala) =>
     chiama<PaginaSala>("/sala", {
       method: "POST",

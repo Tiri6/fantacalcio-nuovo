@@ -93,6 +93,10 @@ class PaginaScambi(BaseModel):
     mercato_aperto: bool
     finestra: str
     squadre: list[dict]
+    # Il V3 li ha aboliti, ma e' un parametro: se la lega li rivota, la pagina
+    # deve adeguarsi da sola invece di continuare a dire che non si fanno.
+    prolungamenti_ammessi: bool
+    anni_contratto_massimo: int
 
 
 def _nomi(ctx) -> dict[int, str]:
@@ -189,6 +193,8 @@ def elenco(utente: UtenteDentro) -> PaginaScambi:
             mercato.finestra_piu_recente.value if mercato.finestra_piu_recente else ""
         ),
         squadre=[{"id": id_, "nome": nome} for id_, nome in sorted(nomi.items())],
+        prolungamenti_ammessi=ctx.parametri.prolungamenti_ammessi,
+        anni_contratto_massimo=ctx.parametri.contratto_anni_massimo,
     )
 
 
@@ -206,6 +212,11 @@ class Proposta(BaseModel):
     da_me: list[int] = Field(default_factory=list)
     da_loro: list[int] = Field(default_factory=list)
     note: str = Field(default="", max_length=500)
+    # giocatore_id -> durata nuova. Vuoto quando i prolungamenti non si fanno,
+    # e in quel caso `valida_scambio` li rifiuta da se': qui non si controlla
+    # una seconda volta, si passa quel che arriva e si lascia decidere al
+    # dominio, che e' l'unico posto dove la regola e' scritta.
+    prolungamenti: dict[int, int] = Field(default_factory=dict)
 
 
 class EsitoProposta(BaseModel):
@@ -240,6 +251,7 @@ def proponi_scambio(richiesta: Proposta, utente: UtenteDentro) -> EsitoProposta:
     proposta = PropostaScambio(
         da_squadra_a=tuple(richiesta.da_me),
         da_squadra_b=tuple(richiesta.da_loro),
+        prolungamenti={int(k): int(v) for k, v in richiesta.prolungamenti.items()},
     )
 
     try:
