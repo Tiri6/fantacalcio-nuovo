@@ -164,12 +164,16 @@ export type Emergenza = {
   candidati: PortiereLibero[];
 };
 
+export type ContoTitoli = { etichetta: string; icona: string; quanti: number };
+
 export type SquadraInDettaglio = Squadra & {
   posso_gestirla: boolean;
   conti: Conti;
   rosa: GiocatoreInRosa[];
   violazioni: Violazione[];
   titoli: Titolo[];
+  /** Quanti per competizione: contare le pastiglie smette di funzionare a venti. */
+  titoli_per_competizione: ContoTitoli[];
   riferimento_u21: string;
   emergenza: Emergenza;
 };
