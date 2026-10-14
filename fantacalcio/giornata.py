@@ -13,6 +13,7 @@ test, ed e' giusto cosi', perche' e' il pezzo che decide chi vince.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from .formazioni import (
@@ -250,6 +251,7 @@ def calcola_giornata(
     fasce_difesa: tuple[FasciaModificatore, ...] = (),
     sostituzioni_massime: int = SOSTITUZIONI_MASSIME,
     modalita: ModalitaSostituzioni = ModalitaSostituzioni.BASIC,
+    moduli_ammessi: Sequence[str] = (),
 ) -> EsitoGiornata:
     """Calcola tutte le partite di una giornata, saltando quelle che non si puo'.
 
@@ -300,6 +302,7 @@ def calcola_giornata(
                     fasce_difesa,
                     sostituzioni_massime,
                     modalita,
+                    moduli_ammessi,
                 ),
             )
         )
@@ -321,3 +324,480 @@ def abbinamento(giocatori) -> tuple[dict[str, int], dict[int, int]]:
         {normalizza_nome_giocatore(g.nome): g.id for g in valori},
         {g.id_ufficiale: g.id for g in valori if g.id_ufficiale},
     )
+
+
+# L'export «formazioni» di Leghe Fantacalcio
+# ---------------------------------------------------------------------------
+#
+# E' la giornata **gia' giocata e gia' calcolata** dalla piattaforma: per ogni
+# partita le due formazioni con modulo, titolari e panchina, il voto e il
+# fantavoto di ognuno, i bonus in punti, il modificatore di difesa, il totale
+# e il risultato. Non e' un file di voti: e' il tabellino ufficiale.
+#
+# Due cose stanno **nel colore delle celle** e non in una colonna, e chi legge
+# solo i valori le perde:
+#
+# - la cella dopo il nome, gialla o rossa, e' l'ammonizione o l'espulsione.
+#   Nessuna colonna le riporta: il fantavoto le contiene gia', ma ricalcolarlo
+#   dalle colonne darebbe mezzo punto in piu' a ogni ammonito;
+# - il nome in grigio e' di chi **non e' entrato nel punteggio** — i panchinari
+#   rimasti fuori. E' l'unico modo per sapere chi e' entrato davvero al posto
+#   di chi non ha preso voto.
+
+GIALLO_AMMONIZIONE = "FFFACC15"
+ROSSO_ESPULSIONE = "FFDC2626"
+GRIGIO_NON_ENTRATO = "00A0A7B1"
+
+# Le colonne dei bonus, nell'ordine in cui le scrive il file. I valori sono
+# **punti**, non conteggi: «G 3» vuol dire tre punti di gol, cioe' un gol con
+# la tabella di questa lega.
+COLONNE_BONUS = ("G", "GS", "AU", "RS", "RSb", "RP", "A", "AS", "AG")
+
+# Quanto e' larga mezza pagina: la partita sta su due colonne di blocchi, casa
+# a sinistra e trasferta a destra.
+SCOSTAMENTO_TRASFERTA = 16
+
+
+@dataclass(frozen=True)
+class RigaFormazione:
+    """Un giocatore schierato, come lo scrive la piattaforma."""
+
+    ruolo: str
+    ruoli: tuple[str, ...]
+    nome: str
+    club: str
+    # Il voto puro, `None` quando e' «SV». Il fantavoto e' quello ufficiale,
+    # bonus, malus e cartellini gia' compresi.
+    voto: float | None
+    fantavoto: float | None
+    bonus: dict[str, float]
+    ammonito: bool
+    espulso: bool
+    # Falso per chi e' rimasto in panchina senza entrare nel punteggio.
+    conta: bool
+
+    @property
+    def ha_giocato(self) -> bool:
+        return self.voto is not None
+
+
+@dataclass
+class SquadraInCampo:
+    nome: str
+    modulo: str
+    totale: float
+    modificatore_difesa: float
+    titolari: list[RigaFormazione] = field(default_factory=list)
+    panchina: list[RigaFormazione] = field(default_factory=list)
+
+    @property
+    def entrati(self) -> list[RigaFormazione]:
+        """Chi dalla panchina e' entrato nel punteggio."""
+        return [g for g in self.panchina if g.conta and g.ha_giocato]
+
+
+@dataclass
+class PartitaGiocata:
+    casa: SquadraInCampo
+    trasferta: SquadraInCampo
+    gol_casa: int | None
+    gol_trasferta: int | None
+
+
+@dataclass
+class EsitoFormazioniLeghe:
+    giornata: int = 0
+    partite: list[PartitaGiocata] = field(default_factory=list)
+    problemi: list[str] = field(default_factory=list)
+
+    @property
+    def squadre(self) -> list[SquadraInCampo]:
+        return [s for p in self.partite for s in (p.casa, p.trasferta)]
+
+    @property
+    def leggibile(self) -> bool:
+        return bool(self.partite) and not self.problemi
+
+
+def _valore(testo) -> float | None:
+    """Un numero del tabellino. «SV» e «-» non sono zero: sono «non c'e'»."""
+    if testo is None or str(testo).strip() in ("", "-", "SV"):
+        return None
+    try:
+        return float(str(testo).replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _giornata_dal_titolo(testo: str) -> int:
+    import re
+
+    trovata = re.search(r"giornata\s+(\d+)", str(testo or ""), re.IGNORECASE)
+    return int(trovata.group(1)) if trovata else 0
+
+
+def _riga_formazione(foglio, riga: int, colonna: int) -> RigaFormazione | None:
+    """Legge un giocatore, colore delle celle compreso."""
+
+    def cella(scostamento: int):
+        return foglio.cell(row=riga, column=colonna + scostamento)
+
+    ruolo = str(cella(1).value or "").strip()
+    if not ruolo or ruolo in ("Panchina", "Modificatori", "Modulo", "Ruolo"):
+        return None
+
+    cartellino = cella(3)
+    colore_cartellino = (
+        str(cartellino.fill.fgColor.rgb or "") if cartellino.fill.patternType else ""
+    )
+    nome_cella = cella(2)
+    colore_nome = (
+        str(nome_cella.font.color.rgb or "")
+        if nome_cella.font and nome_cella.font.color
+        else ""
+    )
+
+    return RigaFormazione(
+        ruolo=ruolo,
+        ruoli=tuple(r.strip() for r in ruolo.split("/") if r.strip()),
+        nome=str(nome_cella.value or "").strip(),
+        club=str(cella(4).value or "").strip(),
+        voto=_valore(cella(5).value),
+        fantavoto=_valore(cella(6).value),
+        bonus={
+            chiave: _valore(cella(7 + n).value) or 0.0
+            for n, chiave in enumerate(COLONNE_BONUS)
+        },
+        ammonito=colore_cartellino == GIALLO_AMMONIZIONE,
+        espulso=colore_cartellino == ROSSO_ESPULSIONE,
+        conta=colore_nome != GRIGIO_NON_ENTRATO,
+    )
+
+
+def _squadra_in_campo(foglio, riga_risultato: int, colonna: int) -> SquadraInCampo:
+    """Un blocco: dal nome della squadra fino al modificatore."""
+    squadra = SquadraInCampo(
+        nome=str(foglio.cell(row=riga_risultato, column=colonna + 1).value or "").strip(),
+        modulo=str(foglio.cell(row=riga_risultato + 2, column=colonna + 2).value or ""),
+        totale=_valore(foglio.cell(row=riga_risultato + 2, column=colonna + 6).value)
+        or 0.0,
+        modificatore_difesa=0.0,
+    )
+
+    dove = squadra.titolari
+    riga = riga_risultato + 5
+    while riga <= foglio.max_row:
+        prima = str(foglio.cell(row=riga, column=colonna + 1).value or "").strip()
+        if prima == "Panchina":
+            dove = squadra.panchina
+        elif prima == "Modificatori":
+            dove = None
+        elif prima == "Modificatore difesa":
+            # Quando vale zero la riga non c'e' proprio: e' il motivo per cui
+            # il valore parte da zero invece che da «non letto».
+            squadra.modificatore_difesa = (
+                _valore(foglio.cell(row=riga, column=colonna + 6).value) or 0.0
+            )
+        elif not prima:
+            break
+        elif dove is not None:
+            letta = _riga_formazione(foglio, riga, colonna)
+            if letta is not None:
+                dove.append(letta)
+        riga += 1
+    return squadra
+
+
+def leggi_formazioni_leghe(contenuto: bytes) -> EsitoFormazioniLeghe:
+    """Legge il tabellino di giornata esportato da Leghe Fantacalcio.
+
+    Restituisce le partite com'erano: chi era in campo, chi e' entrato, i voti
+    e i totali **della piattaforma**. Qui non si calcola niente — e' il
+    tabellino ufficiale, e serve sia per registrarlo sia per confrontarlo con
+    il conto che fa il sito.
+    """
+    import io
+
+    from openpyxl import load_workbook
+
+    esito = EsitoFormazioniLeghe()
+    try:
+        # Niente `read_only`: ammonizioni e panchinari entrati stanno nel
+        # colore delle celle, e in sola lettura openpyxl non lo porta.
+        cartella = load_workbook(io.BytesIO(contenuto), data_only=True)
+    except Exception as errore:  # noqa: BLE001 - openpyxl alza tipi eterogenei
+        esito.problemi.append(f"Non e' un file Excel leggibile: {errore}")
+        return esito
+
+    foglio = cartella[cartella.sheetnames[0]]
+    esito.giornata = _giornata_dal_titolo(
+        foglio.cell(row=1, column=1).value
+    ) or _giornata_dal_titolo(foglio.title)
+
+    for riga in range(1, foglio.max_row + 1):
+        risultato = str(foglio.cell(row=riga, column=16).value or "")
+        casa = foglio.cell(row=riga, column=1).value
+        if not casa or "-" not in risultato:
+            continue
+        gol = [_valore(p) for p in risultato.split("-")]
+        esito.partite.append(
+            PartitaGiocata(
+                casa=_squadra_in_campo(foglio, riga, 0),
+                trasferta=_squadra_in_campo(foglio, riga, SCOSTAMENTO_TRASFERTA),
+                gol_casa=int(gol[0]) if len(gol) == 2 and gol[0] is not None else None,
+                gol_trasferta=(
+                    int(gol[1]) if len(gol) == 2 and gol[1] is not None else None
+                ),
+            )
+        )
+
+    if not esito.partite:
+        esito.problemi.append(
+            "Nessuna partita leggibile: serve il file «formazioni» esportato "
+            "da Leghe Fantacalcio, quello con il tabellino di ogni squadra."
+        )
+    return esito
+
+
+def _conteggio(punti: float, valore_unitario: float) -> int:
+    """Quanti eventi valgono quei punti, con la tabella di questa lega.
+
+    Il file scrive «G 3» e non «1 gol»: per tornare al numero di gol serve il
+    valore che la lega da' al gol. Se quel bonus vale zero il conto non si
+    puo' fare, e si preferisce zero eventi a una divisione per zero.
+    """
+    if not punti or not valore_unitario:
+        return 0
+    return int(round(punti / valore_unitario))
+
+
+def voto_dal_tabellino(
+    riga: RigaFormazione,
+    giocatore_id: int,
+    giornata: int,
+    bonus: Bonus | None = None,
+) -> Voto:
+    """Dal tabellino della piattaforma al `Voto` che il dominio sa calcolare.
+
+    Serve a confrontare il nostro conto con il loro: ricostruisce gli eventi
+    (gol, assist, cartellini) dai punti scritti nel file, cosi' il punteggio
+    lo rifa' la lega con la **sua** tabella invece di copiare il fantavoto.
+    Quando interessa solo il risultato ufficiale, `riga.fantavoto` lo dice
+    gia' e non serve passare di qui.
+    """
+    bonus = bonus or Bonus()
+    punti = riga.bonus
+    return Voto(
+        giocatore_id=giocatore_id,
+        giornata=giornata,
+        voto=riga.voto,
+        gol=_conteggio(punti.get("G", 0), bonus.gol_segnato),
+        gol_su_rigore=_conteggio(punti.get("RS", 0), bonus.gol_su_rigore),
+        rigori_sbagliati=_conteggio(punti.get("RSb", 0), bonus.rigore_sbagliato),
+        rigori_parati=_conteggio(punti.get("RP", 0), bonus.rigore_parato),
+        autogol=_conteggio(punti.get("AU", 0), bonus.autogol),
+        # Il file distingue assist, assist soft e assist gold; la tabella
+        # della lega ha un valore solo, quindi i tre si sommano in punti e si
+        # riconvertono una volta sola.
+        assist=_conteggio(
+            punti.get("A", 0) + punti.get("AS", 0) + punti.get("AG", 0), bonus.assist
+        ),
+        ammonizioni=1 if riga.ammonito else 0,
+        espulsioni=1 if riga.espulso else 0,
+        gol_subiti=_conteggio(punti.get("GS", 0), bonus.gol_subito),
+    )
+
+
+@dataclass
+class EsitoScrittura:
+    """Cosa e' entrato nel database, e chi non si e' saputo abbinare."""
+
+    partite: int = 0
+    formazioni: int = 0
+    voti: int = 0
+    # I nomi del file che non corrispondono a nessun giocatore in listone:
+    # non spariscono in silenzio, perche' ognuno e' un voto che manca.
+    non_abbinati: list[str] = field(default_factory=list)
+    # Le partite che nel calendario non ci sono: il risultato non si scrive,
+    # ma formazioni e voti si'.
+    senza_partita: list[str] = field(default_factory=list)
+
+
+def _squadre_per_nome(arch) -> dict[str, int]:
+    squadre = arch.squadre()
+    if squadre.empty:
+        return {}
+    return {str(r["nome"]).strip().lower(): int(r["id"]) for _, r in squadre.iterrows()}
+
+
+def _partite_per_accoppiamento(arch, giornata: int) -> dict[tuple[int, int], int]:
+    """Le partite di quella giornata, per (casa, trasferta)."""
+    calendario = arch.calendario()
+    if calendario.empty:
+        return {}
+    trovate = {}
+    for _, riga in calendario.iterrows():
+        try:
+            if int(riga["giornata"]) != giornata:
+                continue
+            trovate[(int(riga["casa_id"]), int(riga["trasferta_id"]))] = int(riga["id"])
+        except (TypeError, ValueError):  # pragma: no cover - righe rotte
+            continue
+    return trovate
+
+
+def applica_formazioni_leghe(
+    arch,
+    esito: EsitoFormazioniLeghe,
+    competizione: str = "CAMPIONATO",
+    bonus: Bonus | None = None,
+) -> EsitoScrittura:
+    """Registra la giornata come l'ha giocata la piattaforma.
+
+    Scrive tre cose che oggi arrivano insieme in un file solo: le
+    **formazioni** (modulo, titolari, panchina), i **voti** di ogni giocatore
+    e il **risultato** delle partite. Il risultato e' quello del tabellino,
+    non uno che ricalcoliamo: la partita l'ha gia' giocata la piattaforma, e
+    due numeri diversi sulla stessa partita sarebbero il modo peggiore di
+    sbagliare.
+
+    Chi non si abbina al listone finisce in `non_abbinati` invece di sparire:
+    ogni nome li' dentro e' un voto che manca, e chi importa deve saperlo
+    prima che qualcuno se ne accorga dalla classifica.
+    """
+    from .data import (
+        carica_giocatori,
+        salva_formazione,
+        salva_risultato,
+        salva_voti,
+    )
+
+    if not esito.leggibile:
+        raise ValueError("Il tabellino non e' leggibile: niente da scrivere.")
+
+    squadre = _squadre_per_nome(arch)
+    sconosciute = sorted(
+        {s.nome for s in esito.squadre if s.nome.strip().lower() not in squadre}
+    )
+    if sconosciute:
+        raise ValueError(f"Squadre non presenti in lega: {', '.join(sconosciute)}")
+
+    per_nome, per_id_ufficiale = abbinamento(carica_giocatori(arch))
+    del per_id_ufficiale  # il tabellino non porta l'id del listone
+    scrittura = EsitoScrittura()
+    partite = _partite_per_accoppiamento(arch, esito.giornata)
+    voti: list[Voto] = []
+    visti: set[int] = set()
+
+    def identifica(riga: RigaFormazione) -> int | None:
+        from .importazione import normalizza_nome_giocatore
+
+        return per_nome.get(normalizza_nome_giocatore(riga.nome))
+
+    for partita in esito.partite:
+        for squadra in (partita.casa, partita.trasferta):
+            squadra_id = squadre[squadra.nome.strip().lower()]
+            schierati: list[list[int]] = [[], []]
+            for quali, righe in enumerate((squadra.titolari, squadra.panchina)):
+                for riga in righe:
+                    giocatore = identifica(riga)
+                    if giocatore is None:
+                        scrittura.non_abbinati.append(riga.nome)
+                        continue
+                    schierati[quali].append(giocatore)
+                    # Un giocatore puo' comparire in un tabellino solo, ma due
+                    # squadre possono avere lo stesso nome abbinato per errore:
+                    # il voto si scrive una volta.
+                    if riga.ha_giocato and giocatore not in visti:
+                        visti.add(giocatore)
+                        voti.append(
+                            voto_dal_tabellino(riga, giocatore, esito.giornata, bonus)
+                        )
+
+            salva_formazione(
+                arch,
+                Formazione(
+                    squadra_id=squadra_id,
+                    giornata=esito.giornata,
+                    modulo=squadra.modulo,
+                    titolari=tuple(schierati[0]),
+                    panchina=tuple(schierati[1]),
+                    competizione=competizione,
+                ),
+            )
+            scrittura.formazioni += 1
+
+        casa_id = squadre[partita.casa.nome.strip().lower()]
+        trasferta_id = squadre[partita.trasferta.nome.strip().lower()]
+        partita_id = partite.get((casa_id, trasferta_id))
+        if partita_id is None:
+            scrittura.senza_partita.append(
+                f"{partita.casa.nome} - {partita.trasferta.nome}"
+            )
+            continue
+        if partita.gol_casa is None or partita.gol_trasferta is None:
+            continue
+        salva_risultato(
+            arch,
+            partita_id,
+            partita.gol_casa,
+            partita.gol_trasferta,
+            partita.casa.totale,
+            partita.trasferta.totale,
+        )
+        scrittura.partite += 1
+
+    scrittura.voti = salva_voti(arch, voti)
+    return scrittura
+
+
+@dataclass
+class ControlloTabellino:
+    """Cosa succederebbe a caricare questo tabellino, senza caricarlo."""
+
+    giornata: int = 0
+    partite: int = 0
+    squadre_mancanti: list[str] = field(default_factory=list)
+    non_abbinati: list[str] = field(default_factory=list)
+    senza_partita: list[str] = field(default_factory=list)
+    voti: int = 0
+
+    @property
+    def scrivibile(self) -> bool:
+        """Le squadre devono esserci; il resto e' un avviso, non un divieto."""
+        return self.partite > 0 and not self.squadre_mancanti
+
+
+def controlla_tabellino(arch, esito: EsitoFormazioniLeghe) -> ControlloTabellino:
+    """L'anteprima: chi non si abbina, quali partite non sono in calendario.
+
+    Gli stessi conti che fa `applica_formazioni_leghe`, senza scrivere niente.
+    Chi carica deve poter vedere **prima** quanti voti andrebbero persi per
+    un nome che non combacia: dopo si vedrebbero solo dalla classifica.
+    """
+    from .data import carica_giocatori
+    from .importazione import normalizza_nome_giocatore
+
+    controllo = ControlloTabellino(giornata=esito.giornata, partite=len(esito.partite))
+    squadre = _squadre_per_nome(arch)
+    controllo.squadre_mancanti = sorted(
+        {s.nome for s in esito.squadre if s.nome.strip().lower() not in squadre}
+    )
+
+    per_nome, _ = abbinamento(carica_giocatori(arch))
+    for squadra in esito.squadre:
+        for riga in squadra.titolari + squadra.panchina:
+            if per_nome.get(normalizza_nome_giocatore(riga.nome)) is None:
+                controllo.non_abbinati.append(riga.nome)
+            elif riga.ha_giocato:
+                controllo.voti += 1
+
+    partite = _partite_per_accoppiamento(arch, esito.giornata)
+    for partita in esito.partite:
+        casa = squadre.get(partita.casa.nome.strip().lower())
+        trasferta = squadre.get(partita.trasferta.nome.strip().lower())
+        if casa is None or trasferta is None or (casa, trasferta) not in partite:
+            controllo.senza_partita.append(
+                f"{partita.casa.nome} - {partita.trasferta.nome}"
+            )
+    return controllo

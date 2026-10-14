@@ -131,7 +131,17 @@ class TestFasceGol:
 class TestModificatori:
     @pytest.mark.parametrize(
         "media,atteso",
-        [(5.5, 0.0), (6.0, 1.0), (6.24, 1.0), (6.25, 2.0), (6.5, 3.0), (9.0, 6.0)],
+        [
+            (5.5, 0.0),
+            (6.0, 0.5),
+            (6.24, 0.5),
+            (6.25, 1.0),
+            (6.5, 1.5),
+            (6.75, 2.0),
+            (7.0, 2.5),
+            # Oltre l'ultima fascia non si sale piu': la tabella finisce li'.
+            (9.0, 2.5),
+        ],
     )
     def test_tabella_difesa(self, media, atteso):
         assert bonus_modificatore(media, FASCE_DIFESA) == atteso

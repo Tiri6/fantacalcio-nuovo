@@ -267,6 +267,11 @@ def _ingredienti(ctx: Contesto, giornata: int, competizione: str):
         "modalita": (
             opzioni.modalita_sostituzioni if opzioni else ModalitaSostituzioni.BASIC
         ),
+        # I moduli della lega servono al **cambio modulo**: quando in panchina
+        # nessuno sta in piedi nello schema scelto, la piattaforma ne prova un
+        # altro pur di far entrare qualcuno. Senza l'elenco, il cambio non si
+        # fa e quel posto resta a zero.
+        "moduli": opzioni.moduli_ammessi if opzioni else (),
     }
 
 
@@ -285,6 +290,7 @@ def _esito(partita, ingredienti, ruoli) -> EsitoPartita | None:
         ingredienti["fasce"],
         ingredienti["sostituzioni"],
         ingredienti["modalita"],
+        ingredienti["moduli"],
     )
 
 
@@ -530,6 +536,7 @@ def calcola(
         ingredienti["fasce"],
         ingredienti["sostituzioni"],
         ingredienti["modalita"],
+        ingredienti["moduli"],
     )
 
     scritte = 0

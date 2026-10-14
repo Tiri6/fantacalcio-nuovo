@@ -35,6 +35,11 @@ from fantacalcio.fonti_web import (
     aggiorna_da_file,
 )
 from fantacalcio.fonti_web import applica as applica_catalogo
+from fantacalcio.giornata import (
+    applica_formazioni_leghe,
+    controlla_tabellino,
+    leggi_formazioni_leghe,
+)
 from fantacalcio.importazione import (
     CAMPI_CALENDARIO,
     CAMPI_LISTONE,
@@ -243,6 +248,34 @@ class EsitoCalendario(Esito):
     # in piu' invece di riconoscere quella che c'e'.
     squadre_nuove: list[str]
     senza_giornata_serie_a: int
+
+
+class PartitaTabellino(BaseModel):
+    casa: str
+    trasferta: str
+    modulo_casa: str
+    modulo_trasferta: str
+    punti_casa: float
+    punti_trasferta: float
+    gol_casa: int | None
+    gol_trasferta: int | None
+
+
+class EsitoTabellino(BaseModel):
+    """Il tabellino di giornata esportato da Leghe, prima di scriverlo."""
+
+    leggibile: bool
+    giornata: int
+    partite: list[PartitaTabellino]
+    problemi: list[str]
+    # Le squadre del file che la lega non ha: finche' ci sono, non si scrive.
+    squadre_mancanti: list[str]
+    # I nomi che non combaciano con nessun giocatore in listone. Non fermano
+    # l'import, ma ognuno e' un voto che non entrera' da nessuna parte.
+    non_abbinati: list[str]
+    senza_partita: list[str]
+    voti: int
+    scrivibile: bool
 
 
 class Riepilogo(BaseModel):
@@ -661,6 +694,88 @@ def scrivi_calendario(caricato: FileCaricato, utente: UtenteDentro) -> Riepilogo
             f"file non corrispondono alle fasce della lega "
             f"({riepilogo['discordanze'][0]}). Controlla soglia e passo in "
             f"«Impostazioni lega»."
+        )
+    return Riepilogo(messaggio=" ".join(pezzi))
+
+
+# ---------------------------------------------------------------------------
+# Tabellino di giornata
+# ---------------------------------------------------------------------------
+
+
+def _esito_tabellino(esito, ctx: Contesto) -> EsitoTabellino:
+    controllo = controlla_tabellino(ctx.arch, esito) if esito.partite else None
+    return EsitoTabellino(
+        leggibile=esito.leggibile,
+        giornata=esito.giornata,
+        partite=[
+            PartitaTabellino(
+                casa=p.casa.nome,
+                trasferta=p.trasferta.nome,
+                modulo_casa=p.casa.modulo,
+                modulo_trasferta=p.trasferta.modulo,
+                punti_casa=p.casa.totale,
+                punti_trasferta=p.trasferta.totale,
+                gol_casa=p.gol_casa,
+                gol_trasferta=p.gol_trasferta,
+            )
+            for p in esito.partite
+        ],
+        problemi=list(esito.problemi),
+        squadre_mancanti=controllo.squadre_mancanti if controllo else [],
+        non_abbinati=sorted(set(controllo.non_abbinati)) if controllo else [],
+        senza_partita=controllo.senza_partita if controllo else [],
+        voti=controllo.voti if controllo else 0,
+        scrivibile=bool(controllo and controllo.scrivibile),
+    )
+
+
+@rotte.post("/importazione/tabellino/anteprima", response_model=EsitoTabellino)
+def anteprima_tabellino(caricato: FileCaricato, utente: UtenteDentro) -> EsitoTabellino:
+    """Cosa c'e' nel tabellino, e cosa entrerebbe davvero.
+
+    I nomi che non si abbinano al listone si vedono **prima**: dopo si
+    vedrebbero solo dalla classifica, come punti che mancano.
+    """
+    ctx = _solo_chi_importa(utente)
+    return _esito_tabellino(leggi_formazioni_leghe(_grezzo(caricato)), ctx)
+
+
+@rotte.post("/importazione/tabellino", response_model=Riepilogo)
+def scrivi_tabellino(caricato: FileCaricato, utente: UtenteDentro) -> Riepilogo:
+    """Registra la giornata: formazioni, voti e risultati come li ha fatti
+    la piattaforma.
+
+    Il risultato e' quello del tabellino, non uno che ricalcoliamo: la
+    partita l'ha gia' giocata Leghe Fantacalcio, e due numeri diversi sulla
+    stessa partita sarebbero il modo peggiore di sbagliare.
+    """
+    ctx = _solo_chi_importa(utente)
+    esito = leggi_formazioni_leghe(_grezzo(caricato))
+    opzioni = ctx.lega.opzioni if ctx.lega else None
+    try:
+        scritto = applica_formazioni_leghe(
+            ctx.arch, esito, bonus=opzioni.bonus if opzioni else None
+        )
+    except ValueError as errore:
+        raise HTTPException(status_code=NON_ELABORABILE, detail=str(errore)) from errore
+
+    pezzi = [
+        f"Giornata {esito.giornata}: {scritto.formazioni} formazioni, "
+        f"{scritto.voti} voti e {scritto.partite} risultati."
+    ]
+    if scritto.non_abbinati:
+        quanti = len(set(scritto.non_abbinati))
+        pezzi.append(
+            f"{quanti} giocatori non sono in listone e restano senza voto: "
+            f"{', '.join(sorted(set(scritto.non_abbinati))[:5])}"
+            + (" e altri." if quanti > 5 else ".")
+        )
+    if scritto.senza_partita:
+        pezzi.append(
+            f"{len(scritto.senza_partita)} partite non sono in calendario, "
+            f"quindi il risultato non e' stato scritto: carica prima il "
+            f"calendario."
         )
     return Riepilogo(messaggio=" ".join(pezzi))
 

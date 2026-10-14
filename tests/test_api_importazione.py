@@ -701,3 +701,74 @@ class TestIlCalendarioUfficiale:
         nomi = [c["nome"] for c in dati["campi_calendario"]]
         assert any("Giornata lega" in n for n in nomi)
         assert any("serie a" in n.lower() for n in nomi)
+
+
+@pytest.fixture
+def tabellino_g1() -> bytes:
+    from pathlib import Path
+
+    return (Path(__file__).parent / "dati" / "formazioni_leghe_g1.xlsx").read_bytes()
+
+
+class TestIlTabellinoDiGiornata:
+    """Registrare la giornata com'e' andata sulla piattaforma."""
+
+    def test_l_anteprima_dice_cosa_entrerebbe(self, client, tabellino_g1):
+        entra(client)
+
+        dati = client.post(
+            "/api/importazione/tabellino/anteprima", json=caricato(tabellino_g1)
+        ).json()
+
+        assert dati["leggibile"] is True
+        assert dati["giornata"] == 1
+        assert len(dati["partite"]) == 5
+        assert dati["partite"][0]["punti_casa"] > 0
+
+    def test_dice_quali_squadre_mancano_e_non_lascia_scrivere(self, client, tabellino_g1):
+        """La demo ha altre squadre: senza quelle del file non si scrive
+        niente, e il motivo si legge prima di premere."""
+        entra(client)
+
+        dati = client.post(
+            "/api/importazione/tabellino/anteprima", json=caricato(tabellino_g1)
+        ).json()
+
+        assert dati["scrivibile"] is False
+        assert len(dati["squadre_mancanti"]) == 9
+
+    def test_i_giocatori_che_non_si_abbinano_si_vedono_prima(self, client, tabellino_g1):
+        """Ognuno e' un voto che non entrera': dopo si vedrebbe solo dalla
+        classifica."""
+        entra(client)
+
+        dati = client.post(
+            "/api/importazione/tabellino/anteprima", json=caricato(tabellino_g1)
+        ).json()
+
+        assert len(dati["non_abbinati"]) > 100
+
+    def test_un_file_che_non_e_il_tabellino_lo_dice(self, client):
+        entra(client)
+
+        dati = client.post(
+            "/api/importazione/tabellino/anteprima", json=caricato(QUALUNQUE)
+        ).json()
+
+        assert dati["leggibile"] is False
+        assert dati["problemi"]
+
+    def test_scrivere_senza_le_squadre_non_passa(self, client, tabellino_g1):
+        entra(client)
+
+        risposta = client.post("/api/importazione/tabellino", json=caricato(tabellino_g1))
+
+        assert risposta.status_code == 422
+        assert "non presenti in lega" in risposta.json()["detail"]
+
+    def test_lo_carica_solo_il_presidente(self, client, tabellino_g1):
+        entra(client, "luca")
+
+        risposta = client.post("/api/importazione/tabellino", json=caricato(tabellino_g1))
+
+        assert risposta.status_code == 403

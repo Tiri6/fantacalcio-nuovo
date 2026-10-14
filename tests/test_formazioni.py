@@ -21,6 +21,8 @@ from fantacalcio.formazioni import (
     adattamenti,
     calcola_partita,
     calcola_squadra,
+    disponi_in_caselle,
+    esito_casella,
     formazione_suggerita,
     leggi_modulo,
     punteggio_giocatore,
@@ -29,6 +31,7 @@ from fantacalcio.formazioni import (
     valida,
 )
 from fantacalcio.leghe import FASCE_DIFESA, Bonus, ModalitaSostituzioni
+from fantacalcio.mantra import Esito
 from fantacalcio.regole import ParametriLega
 
 # Una rosa finta con i ruoli che servono: 1 portiere, 5 difensori,
@@ -286,11 +289,30 @@ class TestCalcoloSquadra:
         assert tabellino.sostituzioni[0].adattato
 
     def test_chi_entra_deve_aver_giocato(self):
-        # Buco in difesa: il 41 sarebbe l'unico che puo' coprirlo, ma e' senza
-        # voto anche lui. Nessun altro in panchina puo' fare il difensore, e
-        # il posto resta a zero.
+        """Il difensore di panchina e' senza voto anche lui: entra qualcun
+        altro e la squadra si risistema.
+
+        Non e' il posto che si cerca di coprire, e' la squadra che deve
+        stare in piedi: entra il centrocampista, un altro arretra pagando il
+        malus. E' quello che fa la piattaforma, e vale piu' di uno zero in
+        difesa — a conti fatti, quattro punti in piu'.
+        """
         voti = voti_pieni(6.0, {10: Voto(10, 1, voto=None), 41: Voto(41, 1, voto=None)})
+
         tabellino = calcola_squadra(formazione_343(), voti, RUOLI, ParametriLega())
+
+        assert [s.entrato for s in tabellino.sostituzioni] == [22]
+        # Nessuno resta in campo senza voto, e due si sono adattati.
+        assert 10 not in [g for _, g, _ in tabellino.schierati]
+        assert len(tabellino.adattati) == 2
+
+    def test_se_proprio_non_entra_nessuno_il_posto_vale_zero(self):
+        """Con la panchina tutta senza voto non c'e' niente da fare."""
+        fermi = {g: Voto(g, 1, voto=None) for g in (10, 2, 22, 41, 25)}
+        voti = voti_pieni(6.0, fermi)
+
+        tabellino = calcola_squadra(formazione_343(), voti, RUOLI, ParametriLega())
+
         assert tabellino.sostituzioni == []
         assert (Reparto.DIFESA, 10, 0.0) in tabellino.schierati
 
@@ -320,13 +342,13 @@ class TestCalcoloSquadra:
 
 class TestModificatoreDifesa:
     def test_premia_la_difesa_che_gioca_bene(self):
-        # Portiere e tre difensori a 7: media 7.0 -> +5 con le fasce di default.
+        # Portiere e difensori a 7: media 7.0 -> +2,5, l'ultima fascia.
         alti = {g: Voto(g, 1, voto=7.0) for g in (1, 10, 11, 12)}
         voti = voti_pieni(6.0, alti)
         tabellino = calcola_squadra(
             formazione_343(), voti, RUOLI, ParametriLega(), fasce_difesa=FASCE_DIFESA
         )
-        assert tabellino.modificatore_difesa == pytest.approx(5.0)
+        assert tabellino.modificatore_difesa == pytest.approx(2.5)
 
     def test_guarda_il_voto_puro_non_i_bonus(self):
         # Un difensore che segna prende +3 nel punteggio ma il modificatore
@@ -335,8 +357,41 @@ class TestModificatoreDifesa:
         tabellino = calcola_squadra(
             formazione_343(), voti, RUOLI, ParametriLega(), fasce_difesa=FASCE_DIFESA
         )
-        assert tabellino.modificatore_difesa == pytest.approx(1.0)
+        assert tabellino.modificatore_difesa == pytest.approx(0.5)
         assert tabellino.somma_voti == pytest.approx(69.0)
+
+    def test_gli_esterni_contano_come_difensori(self):
+        """In un 3-4-x i due «E» sono i quinti: stanno in una casella di
+        centrocampo, ma per il modificatore restano difensori.
+
+        Contandoli per casella, sui tabellini veri otto squadre su dieci
+        prendevano il bonus sbagliato (PUNTI_APERTI, punto 21). Qui il
+        terzino 13 gioca nella casella «E» e il suo 7 entra nella media.
+        """
+        voti = voti_pieni(6.0, {13: Voto(13, 1, voto=7.0)})
+
+        tabellino = calcola_squadra(
+            formazione_343(), voti, RUOLI, ParametriLega(), fasce_difesa=FASCE_DIFESA
+        )
+
+        # (6 portiere + 7 + 6 + 6) / 4 = 6,25 -> +1. Senza l'esterno sarebbe 6.
+        assert tabellino.modificatore_difesa == pytest.approx(1.0)
+
+    def test_quanti_difensori_contano_lo_dice_la_lega(self):
+        """Sulla piattaforma sono due opzioni: quanti difensori e se il
+        portiere entra nella media."""
+        voti = voti_pieni(6.0, {1: Voto(1, 1, voto=8.0)})
+        senza_portiere = ParametriLega(modificatore_con_portiere=False)
+
+        con = calcola_squadra(
+            formazione_343(), voti, RUOLI, ParametriLega(), fasce_difesa=FASCE_DIFESA
+        )
+        senza = calcola_squadra(
+            formazione_343(), voti, RUOLI, senza_portiere, fasce_difesa=FASCE_DIFESA
+        )
+
+        assert con.modificatore_difesa == pytest.approx(1.5)  # (8+6+6+6)/4 = 6,5
+        assert senza.modificatore_difesa == pytest.approx(0.5)  # i difensori: 6,0
 
     def test_senza_fasce_non_si_applica(self):
         tabellino = calcola_squadra(
@@ -638,3 +693,145 @@ class TestFraseAdattamenti:
         from fantacalcio.formazioni import frase_adattamenti
 
         assert frase_adattamenti(0, 1.0) == ""
+
+
+class TestDisporreNelleCaselle:
+    """Gli stessi undici, messi dove costano meno.
+
+    Serve quando l'ordine in cui arrivano non e' una scelta di nessuno: il
+    tabellino della piattaforma elenca i titolari a modo suo, e accoppiarli
+    alle caselle uno per uno darebbe malus che nessuno ha pagato — o uno zero
+    al posto di un punteggio pieno.
+    """
+
+    def ruoli(self, *coppie) -> dict[int, tuple[str, ...]]:
+        return {n: tuple(r.split("/")) for n, r in enumerate(coppie)}
+
+    def test_la_punta_finisce_nella_casella_che_la_accetta(self):
+        """Nel 3-4-3 l'attacco e' «W/A W/A A/Pc»: una punta centrale ci sta
+        solo nell'ultima, e chi arriva in mezzo non deve pagare per questo."""
+        ruoli = self.ruoli("Por", "Dc", "Dc", "Dc", "E", "M/C", "C", "E", "A", "Pc", "A")
+
+        disposti = disponi_in_caselle("3-4-3", range(11), ruoli)
+
+        caselle = leggi_modulo("3-4-3").caselle
+        for casella, giocatore in zip(caselle, disposti, strict=True):
+            assert esito_casella(casella, ruoli[giocatore], "3-4-3") is Esito.LIBERA
+
+    def test_non_tocca_una_disposizione_gia_giusta(self):
+        ruoli = self.ruoli("Por", "Dc", "Dc", "Dc", "E", "M/C", "C", "E", "A", "A", "Pc")
+
+        assert disponi_in_caselle("3-4-3", range(11), ruoli) == tuple(range(11))
+
+    def test_sceglie_la_disposizione_che_costa_meno_malus(self):
+        """Un braccetto, un terzino e un centrale per «Dc Dc Dc/B»: qualcuno
+        si adatta per forza, ma **uno solo**. Presi nell'ordine in cui
+        arrivano, di adattati ce ne sarebbero due."""
+        ruoli = self.ruoli("Por", "B", "Dd", "Dc", "E", "M/C", "C", "E", "A", "A", "Pc")
+
+        disposti = disponi_in_caselle("3-4-3", range(11), ruoli)
+
+        caselle = leggi_modulo("3-4-3").caselle
+        adattati = sum(
+            1
+            for casella, giocatore in zip(caselle, disposti, strict=True)
+            if esito_casella(casella, ruoli[giocatore], "3-4-3") is Esito.MALUS
+        )
+        assert adattati == 1
+
+    def test_torna_gli_stessi_giocatori(self):
+        ruoli = self.ruoli("Por", "Dc", "Dc", "Dc", "E", "M/C", "C", "E", "A", "Pc", "A")
+
+        disposti = disponi_in_caselle("3-4-3", range(11), ruoli)
+
+        assert sorted(disposti) == list(range(11))
+
+    def test_una_formazione_incompleta_resta_com_e(self):
+        """Mentre la si compone i titolari sono meno di undici: li' non c'e'
+        niente da disporre, e alzare un errore fermerebbe la pagina."""
+        ruoli = self.ruoli("Por", "Dc", "Dc")
+
+        assert disponi_in_caselle("3-4-3", range(3), ruoli) == (0, 1, 2)
+
+
+class TestCambioModulo:
+    """Quando nello schema scelto non entra nessuno, se ne prova un altro.
+
+    E' l'ultima regola della formula Basic: prima si guarda tutta la panchina
+    nel modulo di partenza, e solo se la squadra non sta in piedi con nessuno
+    si cambia schema. Senza, quel posto resta a zero — che e' il modo piu'
+    caro di rispettare un modulo.
+    """
+
+    RUOLI = {
+        1: ("Por",),
+        10: ("Dc",),
+        11: ("Dc",),
+        12: ("Dc",),
+        20: ("E",),
+        21: ("M",),
+        22: ("C",),
+        23: ("E",),
+        30: ("A",),
+        31: ("A",),
+        32: ("Pc",),
+        # In panchina un'ala pura: nel 3-4-3 non c'e' casella che la accetti
+        # — le due «E» sono esterni bassi e l'attacco e' pieno — ma nel
+        # 3-4-2-1 le caselle larghe sono «E/W», e lei ci sta.
+        40: ("W",),
+    }
+
+    def formazione(self) -> Formazione:
+        return Formazione(
+            squadra_id=1,
+            giornata=1,
+            modulo="3-4-3",
+            titolari=(1, 10, 11, 12, 20, 21, 22, 23, 30, 31, 32),
+            panchina=(40,),
+        )
+
+    def voti(self) -> dict[int, Voto]:
+        voti = {g: Voto(g, 1, voto=6.0) for g in self.RUOLI}
+        voti[23] = Voto(23, 1, voto=None)
+        return voti
+
+    def test_cambiando_schema_il_panchinaro_entra(self):
+        tabellino = calcola_squadra(
+            self.formazione(),
+            self.voti(),
+            self.RUOLI,
+            ParametriLega(),
+            moduli_ammessi=("3-4-3", "3-4-2-1"),
+        )
+
+        assert tabellino.modulo == "3-4-2-1"
+        assert [s.entrato for s in tabellino.sostituzioni] == [40]
+        assert tabellino.adattati == []
+
+    def test_senza_altri_moduli_il_posto_resta_a_zero(self):
+        """E' anche il comportamento di una lega che il cambio modulo non ce
+        l'ha acceso."""
+        tabellino = calcola_squadra(
+            self.formazione(), self.voti(), self.RUOLI, ParametriLega()
+        )
+
+        assert tabellino.modulo == "3-4-3"
+        assert tabellino.sostituzioni == []
+        assert (Reparto.CENTROCAMPO, 23, 0.0) in tabellino.schierati
+
+    def test_lo_schema_scelto_ha_la_precedenza(self):
+        """Se nel modulo di partenza qualcuno entra, non si cambia niente:
+        il modulo e' una scelta di chi schiera, non un dettaglio."""
+        voti = self.voti()
+        ruoli = {**self.RUOLI, 40: ("E",)}
+
+        tabellino = calcola_squadra(
+            self.formazione(),
+            voti,
+            ruoli,
+            ParametriLega(),
+            moduli_ammessi=("3-4-3", "3-4-2-1"),
+        )
+
+        assert tabellino.modulo == "3-4-3"
+        assert [s.entrato for s in tabellino.sostituzioni] == [40]

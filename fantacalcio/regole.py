@@ -113,6 +113,11 @@ class ParametriLega:
     soglia_primo_gol: float = 66.0
     passo_gol: float = 6.0
     modificatore_difesa: bool = True
+    # Quanti difensori entrano nella media e se il portiere conta: sulla
+    # piattaforma sono due opzioni di lega, e questa lega le ha su «3» e
+    # «includi portiere».
+    modificatore_difensori: int = 3
+    modificatore_con_portiere: bool = True
 
     # Mantra: chi gioca in un posto che non e' suo prende un malus. E' la
     # regola della piattaforma (un punto pieno), e vale sia per chi parte

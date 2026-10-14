@@ -176,6 +176,10 @@ MODULI_CLASSIC = (
     "5-4-1",
 )
 
+# Gli undici del Mantra, confermati dalla lega a ottobre 2026. Non e' un
+# elenco a piacere: nel Mantra i moduli sono quelli e basta, e **la difesa a
+# cinque non esiste** — chi la cercava qui dentro la trovava, e il sito
+# avrebbe accettato una formazione che la piattaforma rifiuta.
 MODULI_MANTRA = (
     "3-4-3",
     "3-4-1-2",
@@ -183,16 +187,11 @@ MODULI_MANTRA = (
     "3-5-2",
     "3-5-1-1",
     "4-3-3",
-    "4-4-2",
     "4-3-1-2",
+    "4-4-2",
     "4-1-4-1",
     "4-2-3-1",
-    "4-4-1-1",
     "4-3-2-1",
-    "5-3-2",
-    "5-4-1",
-    "5-2-2-1",
-    "5-3-1-1",
 )
 
 
@@ -229,16 +228,17 @@ class FasciaModificatore:
         return successiva is None or media < successiva
 
 
-# Tabelle di default. NOTA: le soglie esatte della piattaforma vanno
-# confermate dalla lega — vedi PUNTI_APERTI.md. Sono parametri proprio perche'
-# cambiarle non deve richiedere di toccare il codice.
+# Tabelle di default. Quella della difesa e' la tabella **vera** della lega,
+# confermata a ottobre 2026 e verificata sui tabellini di giornata: mezzo
+# punto ogni quarto di media, da 6 in su. Le altre due vanno ancora
+# confrontate con la piattaforma (vedi PUNTI_APERTI.md). Sono parametri
+# proprio perche' cambiarle non deve richiedere di toccare il codice.
 FASCE_DIFESA = (
-    FasciaModificatore(6.0, 1.0),
-    FasciaModificatore(6.25, 2.0),
-    FasciaModificatore(6.5, 3.0),
-    FasciaModificatore(6.75, 4.0),
-    FasciaModificatore(7.0, 5.0),
-    FasciaModificatore(7.25, 6.0),
+    FasciaModificatore(6.0, 0.5),
+    FasciaModificatore(6.25, 1.0),
+    FasciaModificatore(6.5, 1.5),
+    FasciaModificatore(6.75, 2.0),
+    FasciaModificatore(7.0, 2.5),
 )
 
 FASCE_CENTROCAMPO = (

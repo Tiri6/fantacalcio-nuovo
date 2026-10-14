@@ -30,6 +30,8 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 
 | Decisione | Quando | Nota |
 |---|---|---|
+| Modificatore difesa: mezzo punto ogni quarto di media, da 6 in su | 14 ott | Tabella della lega, verificata su nove tabellini veri su dieci. L'esterno conta come difensore anche se gioca a centrocampo |
+| I moduli Mantra sono **undici**, la difesa a cinque non esiste | 14 ott | `MODULI_MANTRA` ne aveva sedici |
 | Fasce di gol: **primo gol a 66**, poi uno ogni 6 | confermata dalla lega | L'art. 1 cita anche 60: e' la formulazione del regolamento a essere imprecisa, non il codice |
 | Il **draft si fa offline** e si carica via CSV | confermata | Il sito non conduce l'asta: serve l'import, che c'e' |
 | Stack **Streamlit + Supabase** | scelta iniziale | **Superata**: il sito e' React + FastAPI dal 13 ottobre. La logica era Python puro, e infatti non si e' toccata |
@@ -172,6 +174,26 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 - **Chi entra col codice sceglie la sua squadra** fra quelle che aspettano un
   presidente, invece di fondarne un'undicesima. Fondarla resta possibile, ma
   come seconda strada.
+- **Il tabellino di giornata si carica dal sito** (Importa dati → Tabellino):
+  registra formazioni, voti e risultati di tutte e cinque le partite in un
+  colpo. Il risultato e' quello della piattaforma, non uno ricalcolato. Sul
+  file vero: 10 formazioni, 189 voti, 5 risultati e **un solo nome** non
+  abbinato al listone su 230.
+- **Si legge il tabellino di giornata di Leghe** (`leggi_formazioni_leghe`):
+  formazioni, chi e' entrato, voti, bonus, modificatore, totali e risultato,
+  comprese le due cose che stanno **nel colore delle celle** — l'ammonizione
+  e chi dalla panchina e' entrato nel punteggio. Serve a registrare la
+  giornata vera e, soprattutto, a misurare il nostro calcolo contro il loro.
+- **Il calcolo e' tarato sulla giornata vera**: **nove squadre su dieci hanno
+  il totale esatto**, la decima sbaglia di mezzo punto (si partiva da nove
+  sbagliate, fino a −8,5). Tornano i punteggi dei singoli titolari, i
+  fantavoti, chi entra dalla panchina e il modificatore nove volte su dieci.
+  Il sito sa anche **cambiare modulo** per far entrare un panchinaro, come la
+  piattaforma. Punto 21 di PUNTI_APERTI.
+- **Le caselle si scelgono**: `disponi_in_caselle` mette gli undici dove
+  costano meno malus. Serve quando l'ordine non e' una scelta — il tabellino
+  elenca i titolari a modo suo — e senza, una punta finiva in una casella
+  vietata e prendeva zero.
 
 ## Cosa manca (in ordine di utilita')
 
@@ -301,9 +323,14 @@ frase in italiano). La prima risposta vera la vedra' Marco: se sbaglia un
 numero, il difetto e' nel dossier di `assistente.scheda_regolamento()`, non
 nel modello.
 
-### Le sei tabelle di moduli non trascritte
+### Le quattro tabelle di moduli che restano
 
-**Innesco:** Marco rimanda l'immagine leggibile, o detta gli slot.
+**Innesco:** Marco rimanda l'immagine leggibile, o detta gli slot. Dal 14
+ottobre c'e' anche una seconda strada: i **tabellini di giornata** di Leghe
+(`tests/dati/formazioni_leghe_g1.xlsx`) dicono, giornata dopo giornata, chi
+la piattaforma accetta in quale casella. Cosi' sono stati ricostruiti il
+3-4-2-1 e il 3-5-2. Mancano **3-5-1-1, 4-3-3, 4-4-2 e 4-3-2-1**; i moduli ammessi sono undici e la difesa a cinque
+non esiste (confermato dalla lega).
 
 `CASELLE_PER_MODULO` in `mantra.py` copre cinque moduli su undici. Mancano
 **3-4-2-1, 3-5-2, 3-5-1-1, 4-3-3, 4-4-2, 4-4-1-1**: nell'immagine ricevuta
