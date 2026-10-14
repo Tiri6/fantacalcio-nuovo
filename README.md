@@ -62,7 +62,7 @@ che ricarica a ogni salvataggio e parla con l'API sulla 8000.
 | **Mercato** | Componi uno scambio, verifica contro i lodi e invialo alla controparte. Calcolo del Dead Money prima di svincolare. |
 | **Identita' squadre** | Presidente, motto, stadio, citta', curva, colori sociali, maglia e logo. La maglia si disegna dai colori: nessuno resta senza. |
 | **La lega** | Codice d'invito, chi c'e', inviti per email e tutte le regole di gioco. Chi ha creato la lega puo' **cambiarle anche dopo**, senza rifarla da capo: prima di salvare legge l'elenco di cosa cambia. |
-| **Importa dati** | Il listone, il CSV del draft, i risultati di giornata e il calendario ufficiale esportato da Leghe, con anteprima ed errori riga per riga prima di scrivere. |
+| **Importa dati** | Il listone, il CSV del draft, i risultati di giornata, il calendario ufficiale e il tabellino di giornata esportati da Leghe, con anteprima ed errori riga per riga prima di scrivere. |
 | **Draft** | Draft Lottery riproducibile, ordine di chiamata round per round, probabilita' delle pick, draft list delle scadenze. |
 | **Campionato** | Classifica e risultati importati da Leghe: servono a determinare l'ordine del draft. |
 | **Scambi** | Proposte ricevute e inviate, ratifica del presidente, storico di chi ha fatto cosa. |
@@ -205,6 +205,26 @@ scopri prima di importare, non dopo.
 
 Stessa cosa per i **risultati di giornata**: carichi giornata, squadre e punti,
 e i gol vengono calcolati dalle fasce della lega.
+
+### Il tabellino di giornata
+
+L'altro file che Leghe esporta e' la **giornata gia' giocata**: per ogni
+partita le due formazioni con modulo, titolari e panchina, i voti, i bonus,
+il modificatore di difesa, i totali e il risultato. Si carica dalla scheda
+**Tabellino** e registra tutto insieme — formazioni, voti e risultati.
+
+Il risultato che entra e' **quello della piattaforma**, non uno ricalcolato:
+la partita l'ha gia' giocata lei, e due numeri diversi sulla stessa partita
+sarebbero il modo peggiore di sbagliare. Il sito *sa* rifare il conto — ci
+sono le regole del Mantra, le fasce e le sostituzioni — e sulla prima
+giornata vera ne azzecca nove su dieci al centesimo (vedi PUNTI_APERTI.md,
+punto 21); finche' non sono dieci su dieci, il conto buono resta quello di
+Leghe.
+
+Prima di caricarlo servono il **listone** (i voti si abbinano per nome) e il
+**calendario** (il risultato si scrive su una partita che esiste). L'anteprima
+dice quanti nomi non si abbinano, uno per uno: ognuno e' un voto che non
+entrerebbe, e si vedrebbe solo dalla classifica.
 
 ### Il calendario ufficiale
 

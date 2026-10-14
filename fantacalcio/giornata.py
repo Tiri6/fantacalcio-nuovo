@@ -606,3 +606,198 @@ def voto_dal_tabellino(
         espulsioni=1 if riga.espulso else 0,
         gol_subiti=_conteggio(punti.get("GS", 0), bonus.gol_subito),
     )
+
+
+@dataclass
+class EsitoScrittura:
+    """Cosa e' entrato nel database, e chi non si e' saputo abbinare."""
+
+    partite: int = 0
+    formazioni: int = 0
+    voti: int = 0
+    # I nomi del file che non corrispondono a nessun giocatore in listone:
+    # non spariscono in silenzio, perche' ognuno e' un voto che manca.
+    non_abbinati: list[str] = field(default_factory=list)
+    # Le partite che nel calendario non ci sono: il risultato non si scrive,
+    # ma formazioni e voti si'.
+    senza_partita: list[str] = field(default_factory=list)
+
+
+def _squadre_per_nome(arch) -> dict[str, int]:
+    squadre = arch.squadre()
+    if squadre.empty:
+        return {}
+    return {str(r["nome"]).strip().lower(): int(r["id"]) for _, r in squadre.iterrows()}
+
+
+def _partite_per_accoppiamento(arch, giornata: int) -> dict[tuple[int, int], int]:
+    """Le partite di quella giornata, per (casa, trasferta)."""
+    calendario = arch.calendario()
+    if calendario.empty:
+        return {}
+    trovate = {}
+    for _, riga in calendario.iterrows():
+        try:
+            if int(riga["giornata"]) != giornata:
+                continue
+            trovate[(int(riga["casa_id"]), int(riga["trasferta_id"]))] = int(riga["id"])
+        except (TypeError, ValueError):  # pragma: no cover - righe rotte
+            continue
+    return trovate
+
+
+def applica_formazioni_leghe(
+    arch,
+    esito: EsitoFormazioniLeghe,
+    competizione: str = "CAMPIONATO",
+    bonus: Bonus | None = None,
+) -> EsitoScrittura:
+    """Registra la giornata come l'ha giocata la piattaforma.
+
+    Scrive tre cose che oggi arrivano insieme in un file solo: le
+    **formazioni** (modulo, titolari, panchina), i **voti** di ogni giocatore
+    e il **risultato** delle partite. Il risultato e' quello del tabellino,
+    non uno che ricalcoliamo: la partita l'ha gia' giocata la piattaforma, e
+    due numeri diversi sulla stessa partita sarebbero il modo peggiore di
+    sbagliare.
+
+    Chi non si abbina al listone finisce in `non_abbinati` invece di sparire:
+    ogni nome li' dentro e' un voto che manca, e chi importa deve saperlo
+    prima che qualcuno se ne accorga dalla classifica.
+    """
+    from .data import (
+        carica_giocatori,
+        salva_formazione,
+        salva_risultato,
+        salva_voti,
+    )
+
+    if not esito.leggibile:
+        raise ValueError("Il tabellino non e' leggibile: niente da scrivere.")
+
+    squadre = _squadre_per_nome(arch)
+    sconosciute = sorted(
+        {s.nome for s in esito.squadre if s.nome.strip().lower() not in squadre}
+    )
+    if sconosciute:
+        raise ValueError(f"Squadre non presenti in lega: {', '.join(sconosciute)}")
+
+    per_nome, per_id_ufficiale = abbinamento(carica_giocatori(arch))
+    del per_id_ufficiale  # il tabellino non porta l'id del listone
+    scrittura = EsitoScrittura()
+    partite = _partite_per_accoppiamento(arch, esito.giornata)
+    voti: list[Voto] = []
+    visti: set[int] = set()
+
+    def identifica(riga: RigaFormazione) -> int | None:
+        from .importazione import normalizza_nome_giocatore
+
+        return per_nome.get(normalizza_nome_giocatore(riga.nome))
+
+    for partita in esito.partite:
+        for squadra in (partita.casa, partita.trasferta):
+            squadra_id = squadre[squadra.nome.strip().lower()]
+            schierati: list[list[int]] = [[], []]
+            for quali, righe in enumerate((squadra.titolari, squadra.panchina)):
+                for riga in righe:
+                    giocatore = identifica(riga)
+                    if giocatore is None:
+                        scrittura.non_abbinati.append(riga.nome)
+                        continue
+                    schierati[quali].append(giocatore)
+                    # Un giocatore puo' comparire in un tabellino solo, ma due
+                    # squadre possono avere lo stesso nome abbinato per errore:
+                    # il voto si scrive una volta.
+                    if riga.ha_giocato and giocatore not in visti:
+                        visti.add(giocatore)
+                        voti.append(
+                            voto_dal_tabellino(riga, giocatore, esito.giornata, bonus)
+                        )
+
+            salva_formazione(
+                arch,
+                Formazione(
+                    squadra_id=squadra_id,
+                    giornata=esito.giornata,
+                    modulo=squadra.modulo,
+                    titolari=tuple(schierati[0]),
+                    panchina=tuple(schierati[1]),
+                    competizione=competizione,
+                ),
+            )
+            scrittura.formazioni += 1
+
+        casa_id = squadre[partita.casa.nome.strip().lower()]
+        trasferta_id = squadre[partita.trasferta.nome.strip().lower()]
+        partita_id = partite.get((casa_id, trasferta_id))
+        if partita_id is None:
+            scrittura.senza_partita.append(
+                f"{partita.casa.nome} - {partita.trasferta.nome}"
+            )
+            continue
+        if partita.gol_casa is None or partita.gol_trasferta is None:
+            continue
+        salva_risultato(
+            arch,
+            partita_id,
+            partita.gol_casa,
+            partita.gol_trasferta,
+            partita.casa.totale,
+            partita.trasferta.totale,
+        )
+        scrittura.partite += 1
+
+    scrittura.voti = salva_voti(arch, voti)
+    return scrittura
+
+
+@dataclass
+class ControlloTabellino:
+    """Cosa succederebbe a caricare questo tabellino, senza caricarlo."""
+
+    giornata: int = 0
+    partite: int = 0
+    squadre_mancanti: list[str] = field(default_factory=list)
+    non_abbinati: list[str] = field(default_factory=list)
+    senza_partita: list[str] = field(default_factory=list)
+    voti: int = 0
+
+    @property
+    def scrivibile(self) -> bool:
+        """Le squadre devono esserci; il resto e' un avviso, non un divieto."""
+        return self.partite > 0 and not self.squadre_mancanti
+
+
+def controlla_tabellino(arch, esito: EsitoFormazioniLeghe) -> ControlloTabellino:
+    """L'anteprima: chi non si abbina, quali partite non sono in calendario.
+
+    Gli stessi conti che fa `applica_formazioni_leghe`, senza scrivere niente.
+    Chi carica deve poter vedere **prima** quanti voti andrebbero persi per
+    un nome che non combacia: dopo si vedrebbero solo dalla classifica.
+    """
+    from .data import carica_giocatori
+    from .importazione import normalizza_nome_giocatore
+
+    controllo = ControlloTabellino(giornata=esito.giornata, partite=len(esito.partite))
+    squadre = _squadre_per_nome(arch)
+    controllo.squadre_mancanti = sorted(
+        {s.nome for s in esito.squadre if s.nome.strip().lower() not in squadre}
+    )
+
+    per_nome, _ = abbinamento(carica_giocatori(arch))
+    for squadra in esito.squadre:
+        for riga in squadra.titolari + squadra.panchina:
+            if per_nome.get(normalizza_nome_giocatore(riga.nome)) is None:
+                controllo.non_abbinati.append(riga.nome)
+            elif riga.ha_giocato:
+                controllo.voti += 1
+
+    partite = _partite_per_accoppiamento(arch, esito.giornata)
+    for partita in esito.partite:
+        casa = squadre.get(partita.casa.nome.strip().lower())
+        trasferta = squadre.get(partita.trasferta.nome.strip().lower())
+        if casa is None or trasferta is None or (casa, trasferta) not in partite:
+            controllo.senza_partita.append(
+                f"{partita.casa.nome} - {partita.trasferta.nome}"
+            )
+    return controllo

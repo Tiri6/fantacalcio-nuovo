@@ -174,6 +174,11 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 - **Chi entra col codice sceglie la sua squadra** fra quelle che aspettano un
   presidente, invece di fondarne un'undicesima. Fondarla resta possibile, ma
   come seconda strada.
+- **Il tabellino di giornata si carica dal sito** (Importa dati → Tabellino):
+  registra formazioni, voti e risultati di tutte e cinque le partite in un
+  colpo. Il risultato e' quello della piattaforma, non uno ricalcolato. Sul
+  file vero: 10 formazioni, 189 voti, 5 risultati e **un solo nome** non
+  abbinato al listone su 230.
 - **Si legge il tabellino di giornata di Leghe** (`leggi_formazioni_leghe`):
   formazioni, chi e' entrato, voti, bonus, modificatore, totali e risultato,
   comprese le due cose che stanno **nel colore delle celle** — l'ammonizione

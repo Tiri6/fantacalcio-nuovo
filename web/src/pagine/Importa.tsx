@@ -8,6 +8,7 @@ import {
   type EsitoListoneImport,
   type EsitoRisultatiImport,
   type EsitoRoseImport,
+  type EsitoTabellinoImport,
   type FormatiImport,
   type ProblemaFile,
   type StatoRosaImport,
@@ -32,13 +33,19 @@ import { leggiBase64, scarica } from "../file";
  * qui: le prende dallo stesso modulo che poi legge il file.
  */
 
-type Scheda = "Listone" | "Rose dal draft" | "Risultati" | "Calendario";
+type Scheda =
+  | "Listone"
+  | "Rose dal draft"
+  | "Risultati"
+  | "Calendario"
+  | "Tabellino";
 
 const SCHEDE: Scheda[] = [
   "Listone",
   "Rose dal draft",
   "Risultati",
   "Calendario",
+  "Tabellino",
 ];
 
 // ---------------------------------------------------------------------------
@@ -858,6 +865,214 @@ function SchedaCalendario({ formati }: { formati: FormatiImport }) {
 }
 
 // ---------------------------------------------------------------------------
+// Tabellino di giornata
+// ---------------------------------------------------------------------------
+
+/**
+ * La giornata come l'ha giocata la piattaforma: formazioni, voti, risultati.
+ *
+ * Ha un caricatore suo e non quello delle altre schede: il file non è un
+ * elenco di righe con errori riga per riga, è una giornata intera — cinque
+ * partite, dieci formazioni — e le cose da guardare prima di scrivere sono
+ * altre: quali squadre mancano in lega e quali nomi non si abbinano al
+ * listone, perché ognuno di quelli è un voto che non entrerà.
+ */
+function SchedaTabellino() {
+  const [file, setFile] = useState<File | null>(null);
+  const [esito, setEsito] = useState<EsitoTabellinoImport | null>(null);
+  const [errore, setErrore] = useState<string | null>(null);
+  const [fatto, setFatto] = useState<string | null>(null);
+  const [inCorso, setInCorso] = useState(false);
+
+  async function scegli(scelto: File | null) {
+    setFile(scelto);
+    setEsito(null);
+    setErrore(null);
+    setFatto(null);
+    if (!scelto) return;
+    setInCorso(true);
+    try {
+      setEsito(
+        await api.anteprimaTabellino(await leggiBase64(scelto), scelto.name),
+      );
+    } catch (guasto) {
+      setErrore(
+        guasto instanceof ErroreApi ? guasto.message : "Non riesco a leggerlo.",
+      );
+    } finally {
+      setInCorso(false);
+    }
+  }
+
+  async function conferma() {
+    if (!file) return;
+    setInCorso(true);
+    setErrore(null);
+    try {
+      const riepilogo = await api.importaTabellino(
+        await leggiBase64(file),
+        file.name,
+      );
+      setFatto(riepilogo.messaggio);
+      setEsito(null);
+      setFile(null);
+    } catch (guasto) {
+      setErrore(
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a contattare il server.",
+      );
+    } finally {
+      setInCorso(false);
+    }
+  }
+
+  return (
+    <div className="riquadro">
+      <h2>Tabellino di giornata</h2>
+      <p className="prosa">
+        L'export «formazioni» di Leghe Fantacalcio: una giornata intera, con le
+        formazioni di tutti, i voti, i bonus e i risultati. Si carica com'è.
+      </p>
+      <p className="didascalia">
+        Il risultato che entra è <strong>quello della piattaforma</strong>, non
+        uno che ricalcoliamo: la partita l'ha già giocata lei, e due numeri
+        diversi sulla stessa partita sarebbero il modo peggiore di sbagliare.
+        Perché i voti entrino, i giocatori devono essere in listone e le partite
+        in calendario.
+      </p>
+
+      <label className="scegli-file">
+        <input
+          type="file"
+          accept=".xlsx"
+          onChange={(e) => scegli(e.target.files?.[0] ?? null)}
+        />
+        <span>{file ? `📄 ${file.name}` : "Scegli il file…"}</span>
+      </label>
+
+      {fatto && <div className="conferma">{fatto}</div>}
+      {errore && (
+        <div className="errore" role="alert">
+          {errore}
+        </div>
+      )}
+      {inCorso && <div className="fantasma" />}
+
+      {esito && (
+        <>
+          {!esito.leggibile ? (
+            <div className="problemi gravi">
+              {esito.problemi.map((p) => (
+                <p key={p}>{p}</p>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="conti-import">
+                <span className="pastiglia verde">
+                  {esito.giornata}ª giornata
+                </span>
+                <span className="pastiglia verde">
+                  {esito.partite.length} partite
+                </span>
+                <span className={esito.voti ? "pastiglia verde" : "pastiglia"}>
+                  {esito.voti} voti da scrivere
+                </span>
+              </div>
+
+              {esito.squadre_mancanti.length > 0 && (
+                <div className="riquadro avviso">
+                  <p>
+                    <span className="forte">
+                      {esito.squadre_mancanti.length} squadre del file non sono
+                      in lega
+                    </span>{" "}
+                    — {esito.squadre_mancanti.join(", ")}.
+                  </p>
+                  <p className="didascalia">
+                    Si caricano dal calendario ufficiale, nella scheda
+                    «Calendario»: lì nascono con il nome giusto.
+                  </p>
+                </div>
+              )}
+
+              {esito.non_abbinati.length > 0 && (
+                <details className="problemi">
+                  <summary>
+                    {esito.non_abbinati.length === 1
+                      ? "1 giocatore non è in listone: il suo voto non entrerà"
+                      : `${esito.non_abbinati.length} giocatori non sono in listone: i loro voti non entreranno`}
+                  </summary>
+                  <p className="didascalia">{esito.non_abbinati.join(", ")}</p>
+                </details>
+              )}
+
+              {esito.senza_partita.length > 0 && (
+                <p className="didascalia">
+                  {esito.senza_partita.length} partite non sono in calendario:
+                  formazioni e voti entrano lo stesso, il risultato no.
+                </p>
+              )}
+
+              <div className="tabella-contenitore">
+                <table className="tabella">
+                  <thead>
+                    <tr>
+                      <th>Casa</th>
+                      <th className="centrata">Risultato</th>
+                      <th>Trasferta</th>
+                      <th className="numerica">Punti</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {esito.partite.map((p) => (
+                      <tr key={`${p.casa}-${p.trasferta}`}>
+                        <td className="forte">
+                          {p.casa}{" "}
+                          <span className="tenue">{p.modulo_casa}</span>
+                        </td>
+                        <td className="centrata forte">
+                          {p.gol_casa === null
+                            ? "—"
+                            : `${p.gol_casa} - ${p.gol_trasferta}`}
+                        </td>
+                        <td>
+                          {p.trasferta}{" "}
+                          <span className="tenue">{p.modulo_trasferta}</span>
+                        </td>
+                        <td className="numerica">
+                          {p.punti_casa} - {p.punti_trasferta}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <button
+                className="principale"
+                onClick={conferma}
+                disabled={!esito.scrivibile || inCorso}
+              >
+                {inCorso
+                  ? "Scrivo…"
+                  : `Registra la ${esito.giornata}ª giornata`}
+              </button>
+              {!esito.scrivibile && (
+                <p className="didascalia">
+                  Si registra quando tutte le squadre del file sono in lega.
+                </p>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 export function Importa() {
   const { dato, errore, inCorso } = useCarica(() => api.formatiImport(), []);
@@ -907,6 +1122,7 @@ export function Importa() {
       {scheda === "Rose dal draft" && <SchedaRose formati={dato} />}
       {scheda === "Risultati" && <SchedaRisultati formati={dato} />}
       {scheda === "Calendario" && <SchedaCalendario formati={dato} />}
+      {scheda === "Tabellino" && <SchedaTabellino />}
     </>
   );
 }

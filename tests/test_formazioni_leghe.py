@@ -25,6 +25,7 @@ from fantacalcio.formazioni import (
     punteggio_giocatore,
 )
 from fantacalcio.giornata import (
+    applica_formazioni_leghe,
     leggi_formazioni_leghe,
     voto_dal_tabellino,
 )
@@ -265,3 +266,150 @@ class TestIlNostroContoAccantoAlLoro:
                 )
 
         assert len(tabellino.squadre) == 10
+
+
+class TestRegistrareLaGiornata:
+    """Il tabellino che entra nel database: formazioni, voti, risultati.
+
+    E' il modo in cui la giornata arriva sul sito finche' il calcolo resta
+    sulla piattaforma: non si ricalcola niente, si prende nota di quello che
+    e' successo.
+    """
+
+    @pytest.fixture
+    def pronto(self, archivio_demo, tabellino):
+        """La demo con dentro le squadre, le partite e i giocatori del file.
+
+        Le squadre del tabellino non sono quelle della demo e i nomi dei
+        giocatori nemmeno: si mettono prima, com'e' nella realta' — il
+        calendario e il listone si caricano, e solo dopo arrivano i tabellini.
+        """
+        from fantacalcio.data import prossimo_id
+
+        squadre, calendario, giocatori = [], [], []
+        identificativo = prossimo_id(archivio_demo, "squadre")
+        per_nome = {}
+        for squadra in tabellino.squadre:
+            per_nome[squadra.nome] = identificativo
+            squadre.append(
+                {
+                    "id": identificativo,
+                    "nome": squadra.nome,
+                    "presidente": "",
+                    "lega_id": 1,
+                }
+            )
+            identificativo += 1
+
+        partita = prossimo_id(archivio_demo, "calendario")
+        for incontro in tabellino.partite:
+            calendario.append(
+                {
+                    "id": partita,
+                    "giornata": tabellino.giornata,
+                    "competizione": "CAMPIONATO",
+                    "casa_id": per_nome[incontro.casa.nome],
+                    "trasferta_id": per_nome[incontro.trasferta.nome],
+                }
+            )
+            partita += 1
+
+        giocatore = prossimo_id(archivio_demo, "giocatori")
+        nomi = {
+            riga.nome
+            for squadra in tabellino.squadre
+            for riga in squadra.titolari + squadra.panchina
+        }
+        for nome in sorted(nomi):
+            giocatori.append(
+                {
+                    "id": giocatore,
+                    "nome": nome,
+                    "club": "",
+                    "ruoli": "Dc",
+                    "ingaggio": 0,
+                    "nazionalita": "Italia",
+                }
+            )
+            giocatore += 1
+
+        archivio_demo.scrivi("squadre", squadre, chiave="id")
+        archivio_demo.scrivi("calendario", calendario, chiave="id")
+        archivio_demo.scrivi("giocatori", giocatori, chiave="id")
+        return archivio_demo
+
+    def test_scrive_formazioni_voti_e_risultati(self, pronto, tabellino):
+        from fantacalcio.data import carica_formazioni, carica_voti
+
+        esito = applica_formazioni_leghe(pronto, tabellino)
+
+        assert esito.partite == 5
+        assert esito.formazioni == 10
+        assert esito.non_abbinati == []
+        assert esito.senza_partita == []
+        # 189 giocatori hanno preso un voto; gli altri erano senza.
+        assert esito.voti == 189
+        assert len(carica_formazioni(pronto, 1)) == 10
+        assert len(carica_voti(pronto, 1)) == 189
+
+    def test_la_formazione_e_quella_schierata(self, pronto, tabellino):
+        from fantacalcio.data import carica_formazioni
+
+        applica_formazioni_leghe(pronto, tabellino)
+
+        formazioni = carica_formazioni(pronto, 1)
+        prima = tabellino.partite[0].casa
+        sua = next(
+            f
+            for f in formazioni.values()
+            if len(f.titolari) == 11 and f.modulo == prima.modulo
+        )
+        assert len(sua.titolari) == 11
+        assert sua.panchina
+
+    def test_il_risultato_e_quello_della_piattaforma(self, pronto, tabellino):
+        """Non lo ricalcoliamo: la partita l'ha gia' giocata la piattaforma,
+        e due numeri diversi sulla stessa partita sono il modo peggiore di
+        sbagliare."""
+        applica_formazioni_leghe(pronto, tabellino)
+
+        prima = tabellino.partite[0]
+        squadre = pronto.squadre()
+        casa = int(squadre[squadre["nome"] == prima.casa.nome].iloc[0]["id"])
+        calendario = pronto.calendario()
+        riga = calendario[calendario["casa_id"] == casa].iloc[0]
+
+        assert riga["punti_casa"] == prima.casa.totale
+        assert riga["punti_trasferta"] == prima.trasferta.totale
+        assert riga["gol_casa"] == prima.gol_casa
+
+    def test_i_nomi_che_non_si_abbinano_si_dichiarano(self, archivio_demo, tabellino):
+        """La demo ha altri giocatori: nessuno si abbina, e si deve vedere."""
+        from fantacalcio.data import prossimo_id
+
+        identificativo = prossimo_id(archivio_demo, "squadre")
+        archivio_demo.scrivi(
+            "squadre",
+            [
+                {"id": identificativo + n, "nome": s.nome, "presidente": "", "lega_id": 1}
+                for n, s in enumerate(tabellino.squadre)
+            ],
+            chiave="id",
+        )
+
+        esito = applica_formazioni_leghe(archivio_demo, tabellino)
+
+        assert len(esito.non_abbinati) > 200
+        assert esito.voti == 0
+        # Le partite non ci sono in calendario: lo dice invece di tacere.
+        assert len(esito.senza_partita) == 5
+
+    def test_una_squadra_che_la_lega_non_ha_ferma_tutto(self, archivio_demo, tabellino):
+        with pytest.raises(ValueError, match="non presenti in lega"):
+            applica_formazioni_leghe(archivio_demo, tabellino)
+
+    def test_un_file_illeggibile_non_scrive_niente(self, archivio_demo):
+        vuoto = leggi_formazioni_leghe(b"niente")
+
+        with pytest.raises(ValueError, match="non e' leggibile"):
+            applica_formazioni_leghe(archivio_demo, vuoto)

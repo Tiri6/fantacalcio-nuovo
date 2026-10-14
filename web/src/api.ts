@@ -783,6 +783,31 @@ export type EsitoCalendarioImport = EsitoFile & {
   senza_giornata_serie_a: number;
 };
 
+export type PartitaTabellino = {
+  casa: string;
+  trasferta: string;
+  modulo_casa: string;
+  modulo_trasferta: string;
+  punti_casa: number;
+  punti_trasferta: number;
+  gol_casa: number | null;
+  gol_trasferta: number | null;
+};
+
+/** Il tabellino di giornata di Leghe: non ha le righe e gli avvisi degli
+ *  altri import, perche' non e' un file di righe ma una giornata intera. */
+export type EsitoTabellinoImport = {
+  leggibile: boolean;
+  giornata: number;
+  partite: PartitaTabellino[];
+  problemi: string[];
+  squadre_mancanti: string[];
+  non_abbinati: string[];
+  senza_partita: string[];
+  voti: number;
+  scrivibile: boolean;
+};
+
 export type RiepilogoImport = { messaggio: string };
 
 // --- Formazione -------------------------------------------------------------
@@ -1414,6 +1439,16 @@ export const api = {
     }),
   importaRisultati: (contenuto_base64: string, nome: string) =>
     chiama<RiepilogoImport>("/importazione/risultati", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, nome }),
+    }),
+  anteprimaTabellino: (contenuto_base64: string, nome: string) =>
+    chiama<EsitoTabellinoImport>("/importazione/tabellino/anteprima", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, nome }),
+    }),
+  importaTabellino: (contenuto_base64: string, nome: string) =>
+    chiama<RiepilogoImport>("/importazione/tabellino", {
       method: "POST",
       body: JSON.stringify({ contenuto_base64, nome }),
     }),
