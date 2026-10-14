@@ -179,6 +179,7 @@ def esito_sostituzione(ruoli_uscito, ruoli_entrato) -> Esito:
 _CASELLE = """
 3-4-3    | Por | Dc Dc Dc/B  | E M/C C E    | W/A W/A A/Pc
 3-4-1-2  | Por | Dc Dc Dc/B  | E M/C C E    | T          | A/Pc A/Pc
+3-4-2-1  | Por | Dc Dc Dc/B  | E/W M/C C E/W | T/A T/A   | A/Pc
 4-3-1-2  | Por | Dd Dc Dc Ds | M/C M C      | T          | T/A A/Pc
 4-1-4-1  | Por | Dd Dc Dc Ds | M            | E/W C/T T W | A/Pc
 4-2-3-1  | Por | Dd Dc Dc Ds | M/C M/C      | W/T T W/A  | A/Pc

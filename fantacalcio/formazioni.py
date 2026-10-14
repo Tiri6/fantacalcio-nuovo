@@ -23,6 +23,7 @@ serve a non rifiutare una formazione che la piattaforma vera accetterebbe.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -274,6 +275,67 @@ def caselle_e_titolari(
     """
     modulo = leggi_modulo(formazione.modulo)
     return list(zip(modulo.caselle, formazione.titolari, strict=False))
+
+
+# Quanto costa una casella, per scegliere la disposizione migliore. Il
+# divieto non e' «infinito»: e' tanto caro da non sceglierlo mai se esiste
+# un'alternativa, ma lascia una risposta anche quando alternative non ce ne
+# sono — meglio una disposizione imperfetta che nessuna.
+_COSTO = {Esito.LIBERA: 0, Esito.MALUS: 1, Esito.VIETATA: 1000}
+
+
+def disponi_in_caselle(
+    modulo: str,
+    giocatori: Sequence[int],
+    ruoli_per_giocatore: dict[int, tuple[str, ...]],
+) -> tuple[int, ...]:
+    """Gli stessi undici, messi nelle caselle che costano meno malus.
+
+    Serve quando l'ordine in cui arrivano **non e' una scelta**: il tabellino
+    della piattaforma elenca i titolari nel suo ordine, non nel nostro, e
+    accoppiarli alle caselle uno per uno darebbe malus che nessuno ha pagato
+    — o un divieto al posto di un punteggio pieno.
+
+    Chi invece la formazione la compone sul sito sceglie la casella da se', e
+    quella scelta non si tocca: li' l'ordine e' informazione, qui no.
+    """
+    caselle = leggi_modulo(modulo).caselle
+    scelti = list(giocatori)
+    if len(scelti) != len(caselle):
+        return tuple(scelti)
+
+    costi = [
+        [
+            _COSTO[esito_casella(casella, ruoli_per_giocatore.get(g, ()), modulo)]
+            for g in scelti
+        ]
+        for casella in caselle
+    ]
+
+    # Programmazione dinamica sui sottoinsiemi: undici caselle per 2^11 stati
+    # sono poche migliaia di passi, e la risposta e' la migliore in assoluto,
+    # non la prima che capita.
+    migliore: dict[int, tuple[int, tuple[int, ...]]] = {0: (0, ())}
+    for indice_casella, riga in enumerate(costi):
+        prossimo: dict[int, tuple[int, tuple[int, ...]]] = {}
+        for usati, (costo, disposizione) in migliore.items():
+            for indice_giocatore, costo_casella in enumerate(riga):
+                bit = 1 << indice_giocatore
+                if usati & bit:
+                    continue
+                nuovo_costo = costo + costo_casella
+                chiave = usati | bit
+                if chiave not in prossimo or nuovo_costo < prossimo[chiave][0]:
+                    prossimo[chiave] = (
+                        nuovo_costo,
+                        (*disposizione, indice_giocatore),
+                    )
+        migliore = prossimo
+        del indice_casella
+
+    tutti = (1 << len(scelti)) - 1
+    _, disposizione = migliore[tutti]
+    return tuple(scelti[i] for i in disposizione)
 
 
 def adattamenti(

@@ -333,10 +333,11 @@ permissivo della piattaforma, mai piu' severo.
 controllo che i conti tornino col nome del modulo e' gia' scritto.
 
 **Da chiarire anche**: lo schema ufficiale 2026/27 mostra **undici** moduli,
-mentre `MODULI_MANTRA` ne elenca sedici — ci sono ancora 4-3-2-1, 5-3-2,
-5-4-1, 5-2-2-1 e 5-3-1-1. Se la piattaforma li ha tolti vanno tolti anche
-qui; per ora restano, perche' cancellare un modulo che qualcuno ha scelto e'
-peggio che tenerne uno di troppo.
+mentre `MODULI_MANTRA` ne elencava sedici. **Chiuso il 14 ottobre 2026**: la
+lega ha confermato che i moduli sono undici e che la difesa a cinque non
+esiste, quindi 4-4-1-1 e i quattro moduli a cinque difensori sono stati
+tolti. Delle caselle ne restano da leggere cinque: 3-5-2, 3-5-1-1, 4-3-3,
+4-4-2 e 4-3-2-1 — il 3-4-2-1 e' stato ricostruito dai tabellini (punto 21).
 
 ### Quanto costa l'approssimazione
 
@@ -463,54 +464,63 @@ ventiquattr'ore. Il codice si lega al calcio d'inizio, che e' l'unico istante
 su cui sono d'accordo tutte e due — il 9 si corregge, la mattina del 10 si
 corregge, a partita cominciata no.
 
-## 21. Il nostro calcolo non coincide ancora con quello di Leghe
+## 21. Il nostro calcolo contro quello di Leghe: dove siamo
 
-**Misurato, non supposto.** Marco ha mandato il tabellino ufficiale della
-prima giornata — l'export «formazioni» di Leghe Fantacalcio, che contiene le
-dieci formazioni con modulo, titolari, panchina, voti, bonus, modificatore,
-totali e risultato. Il file sta in `tests/dati/formazioni_leghe_g1.xlsx` e
-`tests/test_formazioni_leghe.py` ci fa girare sopra il nostro motore.
+**Misurato, non supposto.** Il tabellino ufficiale della prima giornata —
+l'export «formazioni» di Leghe, con le dieci formazioni, i voti, i bonus, il
+modificatore, i totali e il risultato — sta in
+`tests/dati/formazioni_leghe_g1.xlsx`, e `tests/test_formazioni_leghe.py` ci
+fa girare sopra il nostro motore.
 
-Quanto siamo lontani, per modulo schierato:
+**Quello che torna, dopo la taratura del 14 ottobre:**
 
-| Modulo | Quante | Differenza sul totale |
-|---|---|---|
-| 3-4-2-1 | 4 | −8,5 · −6,5 · −5,0 · −1,0 |
-| 3-4-3 | 2 | −6,0 · −4,0 |
-| 4-2-3-1 | 2 | −5,5 · −2,0 |
-| 3-4-1-2 | 1 | −1,0 |
-| 3-5-2 | 1 | 0 |
+- **la tabella dei bonus**: su 189 giocatori con voto, voto piu' eventi rifa'
+  il fantavoto ufficiale per tutti, cartellini compresi (l'unica differenza
+  e' il malus di adattamento, che la piattaforma somma dentro il fantavoto e
+  noi teniamo separato);
+- **le caselle dei moduli e le adattabilita'**: su tutte e dieci le squadre,
+  ogni titolare prende da noi **esattamente** quello che ha preso sulla
+  piattaforma. Prima non era cosi', e il perche' sta qui sotto.
 
-Non e' poco: una partita finita 2-2 sulla piattaforma, con i nostri numeri
-sarebbe 0-1. **Il sito direbbe un risultato diverso da quello della
-piattaforma su cui la lega gioca davvero**, che e' il modo peggiore di
-sbagliare.
+**Due cose che mancano ancora**, entrambe piccole ma vere:
 
-**Quello che invece torna.** Su 189 giocatori con voto, il nostro conto di
-bonus e malus rifa' il fantavoto ufficiale per **tutti**: la tabella dei
-bonus e' giusta, cartellini compresi. L'unica differenza e' il malus di
-adattamento, che la piattaforma somma dentro il fantavoto e noi teniamo
-separato — e su quell'unico caso il nostro motore e' d'accordo che il
-giocatore fosse adattato.
+1. **Il modificatore di difesa.** Noi diamo 0, 1 o 2 dove la piattaforma da'
+   0, 0,5, 1 o 1,5. E non e' solo questione di soglie: **nessuna** regola
+   della forma «media di N difensori, col portiere o senza, voto o
+   fantavoto» spiega i dieci casi — due squadre con la stessa media hanno
+   preso bonus diversi, e una con media piu' alta ne ha preso meno. Sono
+   state provate diciotto varianti (`tests/test_formazioni_leghe.py` e il
+   punto 12). Serve la regola scritta della piattaforma, o qualche giornata
+   in piu' per ricostruirla.
+2. **Chi entra dalla panchina.** In due casi su dieci il sostituto scelto
+   dalla piattaforma non e' il nostro, per mezzo punto di differenza. Il file
+   dice chi e' entrato davvero — i nomi non in grigio — quindi ogni giornata
+   e' un caso di prova in piu'.
 
-**Le tre cause, in ordine di peso:**
+### Cosa e' servito per arrivarci (14 ottobre 2026)
 
-1. **Le caselle dei moduli Mantra mancanti** (punto 17). Dei moduli giocati in
-   questa giornata, `CASELLE_PER_MODULO` non ha 3-4-2-1, 3-4-3, 3-5-2 e
-   4-2-3-1: con l'approssimazione «tutti i ruoli del reparto», i due
-   trequartisti del 3-4-2-1 diventano caselle di centrocampo, e un attaccante
-   schierato li' prende zero invece del suo punteggio. Da solo, su una
-   squadra, vale −9,5.
-2. **Le fasce del modificatore di difesa** (punto 12). Dieci coppie
-   (media, bonus) dicono che la piattaforma usa **mezzi punti** — 0,5, 1, 1,5 —
-   dove la nostra tabella sale di uno in uno. Serve anche capire come calcola
-   la media: con i voti dopo le sostituzioni, e su quanti difensori.
-3. **L'ordine con cui entra la panchina.** In 4 casi su 10 i sostituti che
-   sceglie la piattaforma non sono i nostri. Il file dice chi e' entrato
-   davvero — i nomi non in grigio — quindi ogni giornata nuova e' un caso di
-   prova in piu'.
+- **Le caselle si scelgono, non si subiscono.** Il tabellino elenca gli undici
+  nell'ordine della piattaforma, che non e' l'ordine delle nostre caselle:
+  accoppiandoli uno per uno, una punta finiva in una casella «W/A» — vietata —
+  e prendeva **zero** invece del suo punteggio pieno. Ora
+  `formazioni.disponi_in_caselle` mette gli stessi undici nelle caselle che
+  costano meno malus, che e' l'unica lettura sensata quando l'ordine non e'
+  una scelta di nessuno. Da sola, questa ha sistemato cinque squadre su dieci.
+- **Il 3-4-2-1 trascritto per deduzione.** Lo giocavano quattro squadre su
+  dieci ed era il buco piu' grosso (−8,5 su una). Lo schema
+  `Dc Dc Dc/B | E/W M/C C E/W | T/A T/A | A/Pc` e' l'unico, fra quelli
+  compatibili con la forma degli altri moduli ufficiali, che spieghi **tutte
+  e quattro** le formazioni senza un malus di troppo o di meno: con le due
+  caselle di trequarti chiuse a «T» un attaccante puro avrebbe preso zero, e
+  invece ha giocato gratis; con la linea di centrocampo uguale a quella del
+  3-4-3 (`E M/C C E`) un'ala pura non ci sarebbe entrata. Resta una
+  deduzione, non una lettura: se arriva lo schema ufficiale, si confronta.
+- **I moduli sono undici.** La lega ha confermato l'elenco (ottobre 2026) e
+  che **la difesa a cinque non esiste**: `MODULI_MANTRA` aveva 4-4-1-1 e
+  quattro moduli a cinque difensori che la piattaforma non accetta, e il sito
+  avrebbe lasciato salvare formazioni impossibili.
 
-**Da fare:** chiudere le tre tabelle con i tabellini di giornata, che adesso
-arrivano ogni settimana. I due test con `xfail` diventano verdi da soli
-quando ci siamo: finche' sono rossi, **le formazioni restano sulla
-piattaforma** e il sito importa il risultato invece di calcolarlo.
+**Da fare:** chiudere le due cose che mancano. I due test con `xfail`
+diventano verdi da soli quando ci siamo: finche' sono rossi, **le formazioni
+restano sulla piattaforma** e il sito importa il risultato invece di
+calcolarlo.

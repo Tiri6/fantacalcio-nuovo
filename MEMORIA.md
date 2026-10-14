@@ -176,8 +176,16 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
   formazioni, chi e' entrato, voti, bonus, modificatore, totali e risultato,
   comprese le due cose che stanno **nel colore delle celle** — l'ammonizione
   e chi dalla panchina e' entrato nel punteggio. Serve a registrare la
-  giornata vera e, soprattutto, a misurare il nostro calcolo contro il loro:
-  oggi non coincide, e il perche' sta nel punto 21 di PUNTI_APERTI.
+  giornata vera e, soprattutto, a misurare il nostro calcolo contro il loro.
+- **Il calcolo e' tarato sulla giornata vera**: ogni titolare delle dieci
+  squadre prende da noi esattamente quello che ha preso sulla piattaforma.
+  Restano fuori il **modificatore di difesa** (nessuna regola «media della
+  difesa» spiega i dieci casi: ne sono state provate diciotto) e, in due
+  casi, **chi entra dalla panchina**. Punto 21 di PUNTI_APERTI.
+- **Le caselle si scelgono**: `disponi_in_caselle` mette gli undici dove
+  costano meno malus. Serve quando l'ordine non e' una scelta — il tabellino
+  elenca i titolari a modo suo — e senza, una punta finiva in una casella
+  vietata e prendeva zero.
 
 ## Cosa manca (in ordine di utilita')
 
@@ -307,14 +315,15 @@ frase in italiano). La prima risposta vera la vedra' Marco: se sbaglia un
 numero, il difetto e' nel dossier di `assistente.scheda_regolamento()`, non
 nel modello.
 
-### Le sei tabelle di moduli non trascritte
+### Le cinque tabelle di moduli che restano
 
 **Innesco:** Marco rimanda l'immagine leggibile, o detta gli slot. Dal 14
 ottobre c'e' anche una seconda strada: i **tabellini di giornata** di Leghe
 (`tests/dati/formazioni_leghe_g1.xlsx`) dicono, giornata dopo giornata, chi
-la piattaforma accetta in quale casella. `tests/test_formazioni_leghe.py`
-misura quanto siamo lontani — oggi fino a −8,5 punti su una squadra — e i due
-`xfail` diventano verdi quando le tabelle sono giuste.
+la piattaforma accetta in quale casella. Cosi' e' stato ricostruito il
+3-4-2-1, che da solo valeva meta' dell'errore. Mancano **3-5-2, 3-5-1-1,
+4-3-3, 4-4-2 e 4-3-2-1**; i moduli ammessi sono undici e la difesa a cinque
+non esiste (confermato dalla lega).
 
 `CASELLE_PER_MODULO` in `mantra.py` copre cinque moduli su undici. Mancano
 **3-4-2-1, 3-5-2, 3-5-1-1, 4-3-3, 4-4-2, 4-4-1-1**: nell'immagine ricevuta

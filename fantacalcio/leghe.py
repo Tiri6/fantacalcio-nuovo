@@ -176,6 +176,10 @@ MODULI_CLASSIC = (
     "5-4-1",
 )
 
+# Gli undici del Mantra, confermati dalla lega a ottobre 2026. Non e' un
+# elenco a piacere: nel Mantra i moduli sono quelli e basta, e **la difesa a
+# cinque non esiste** — chi la cercava qui dentro la trovava, e il sito
+# avrebbe accettato una formazione che la piattaforma rifiuta.
 MODULI_MANTRA = (
     "3-4-3",
     "3-4-1-2",
@@ -183,16 +187,11 @@ MODULI_MANTRA = (
     "3-5-2",
     "3-5-1-1",
     "4-3-3",
-    "4-4-2",
     "4-3-1-2",
+    "4-4-2",
     "4-1-4-1",
     "4-2-3-1",
-    "4-4-1-1",
     "4-3-2-1",
-    "5-3-2",
-    "5-4-1",
-    "5-2-2-1",
-    "5-3-1-1",
 )
 
 

@@ -21,6 +21,7 @@ import pytest
 from fantacalcio.formazioni import (
     Formazione,
     calcola_squadra,
+    disponi_in_caselle,
     punteggio_giocatore,
 )
 from fantacalcio.giornata import (
@@ -164,17 +165,23 @@ class TestIlNostroContoAccantoAlLoro:
 
     @staticmethod
     def conto_nostro(squadra):
-        """Il nostro punteggio per quella squadra, con le sue regole."""
+        """Il nostro punteggio per quella squadra, con le sue regole.
+
+        Le caselle le sceglie `disponi_in_caselle`: il file elenca i titolari
+        nell'ordine della piattaforma, che non e' il nostro, e accoppiarli
+        uno per uno darebbe malus che nessuno ha pagato.
+        """
         tutti = squadra.titolari + squadra.panchina
         bonus = Bonus()
         voti = {n: voto_dal_tabellino(r, n, 1, bonus) for n, r in enumerate(tutti)}
         ruoli = {n: r.ruoli for n, r in enumerate(tutti)}
+        quanti = len(squadra.titolari)
         formazione = Formazione(
             squadra_id=1,
             giornata=1,
             modulo=squadra.modulo,
-            titolari=tuple(range(len(squadra.titolari))),
-            panchina=tuple(range(len(squadra.titolari), len(tutti))),
+            titolari=disponi_in_caselle(squadra.modulo, range(quanti), ruoli),
+            panchina=tuple(range(quanti, len(tutti))),
         )
         return calcola_squadra(
             formazione,
@@ -185,6 +192,28 @@ class TestIlNostroContoAccantoAlLoro:
             fasce_difesa=FASCE_DIFESA,
             modalita=ModalitaSostituzioni.BASIC,
         )
+
+    def test_i_titolari_prendono_quello_che_hanno_preso_davvero(self, tabellino):
+        """Dove non c'e' stata nessuna sostituzione, il nostro conto dei
+        titolari deve fare **esattamente** la somma dei loro fantavoti.
+
+        E' la prova delle caselle dei moduli e della tabella delle
+        adattabilita' messe insieme: un ruolo accettato dove noi lo vietiamo
+        vale zero, e si vede subito.
+        """
+        fuori = []
+        for squadra in tabellino.squadre:
+            if any(not g.ha_giocato for g in squadra.titolari):
+                continue  # con una sostituzione di mezzo si prova altro
+            nostro = self.conto_nostro(squadra)
+            atteso = sum(g.fantavoto for g in squadra.titolari)
+            somma = sum(p for _, _, p in nostro.schierati)
+            if abs(somma - atteso) > 0.001:
+                fuori.append(
+                    f"{squadra.nome} ({squadra.modulo}): {somma} invece di {atteso}"
+                )
+
+        assert fuori == []
 
     @pytest.mark.xfail(
         reason=(

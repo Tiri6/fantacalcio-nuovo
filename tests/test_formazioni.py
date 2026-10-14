@@ -21,6 +21,8 @@ from fantacalcio.formazioni import (
     adattamenti,
     calcola_partita,
     calcola_squadra,
+    disponi_in_caselle,
+    esito_casella,
     formazione_suggerita,
     leggi_modulo,
     punteggio_giocatore,
@@ -29,6 +31,7 @@ from fantacalcio.formazioni import (
     valida,
 )
 from fantacalcio.leghe import FASCE_DIFESA, Bonus, ModalitaSostituzioni
+from fantacalcio.mantra import Esito
 from fantacalcio.regole import ParametriLega
 
 # Una rosa finta con i ruoli che servono: 1 portiere, 5 difensori,
@@ -638,3 +641,62 @@ class TestFraseAdattamenti:
         from fantacalcio.formazioni import frase_adattamenti
 
         assert frase_adattamenti(0, 1.0) == ""
+
+
+class TestDisporreNelleCaselle:
+    """Gli stessi undici, messi dove costano meno.
+
+    Serve quando l'ordine in cui arrivano non e' una scelta di nessuno: il
+    tabellino della piattaforma elenca i titolari a modo suo, e accoppiarli
+    alle caselle uno per uno darebbe malus che nessuno ha pagato — o uno zero
+    al posto di un punteggio pieno.
+    """
+
+    def ruoli(self, *coppie) -> dict[int, tuple[str, ...]]:
+        return {n: tuple(r.split("/")) for n, r in enumerate(coppie)}
+
+    def test_la_punta_finisce_nella_casella_che_la_accetta(self):
+        """Nel 3-4-3 l'attacco e' «W/A W/A A/Pc»: una punta centrale ci sta
+        solo nell'ultima, e chi arriva in mezzo non deve pagare per questo."""
+        ruoli = self.ruoli("Por", "Dc", "Dc", "Dc", "E", "M/C", "C", "E", "A", "Pc", "A")
+
+        disposti = disponi_in_caselle("3-4-3", range(11), ruoli)
+
+        caselle = leggi_modulo("3-4-3").caselle
+        for casella, giocatore in zip(caselle, disposti, strict=True):
+            assert esito_casella(casella, ruoli[giocatore], "3-4-3") is Esito.LIBERA
+
+    def test_non_tocca_una_disposizione_gia_giusta(self):
+        ruoli = self.ruoli("Por", "Dc", "Dc", "Dc", "E", "M/C", "C", "E", "A", "A", "Pc")
+
+        assert disponi_in_caselle("3-4-3", range(11), ruoli) == tuple(range(11))
+
+    def test_sceglie_la_disposizione_che_costa_meno_malus(self):
+        """Un braccetto, un terzino e un centrale per «Dc Dc Dc/B»: qualcuno
+        si adatta per forza, ma **uno solo**. Presi nell'ordine in cui
+        arrivano, di adattati ce ne sarebbero due."""
+        ruoli = self.ruoli("Por", "B", "Dd", "Dc", "E", "M/C", "C", "E", "A", "A", "Pc")
+
+        disposti = disponi_in_caselle("3-4-3", range(11), ruoli)
+
+        caselle = leggi_modulo("3-4-3").caselle
+        adattati = sum(
+            1
+            for casella, giocatore in zip(caselle, disposti, strict=True)
+            if esito_casella(casella, ruoli[giocatore], "3-4-3") is Esito.MALUS
+        )
+        assert adattati == 1
+
+    def test_torna_gli_stessi_giocatori(self):
+        ruoli = self.ruoli("Por", "Dc", "Dc", "Dc", "E", "M/C", "C", "E", "A", "Pc", "A")
+
+        disposti = disponi_in_caselle("3-4-3", range(11), ruoli)
+
+        assert sorted(disposti) == list(range(11))
+
+    def test_una_formazione_incompleta_resta_com_e(self):
+        """Mentre la si compone i titolari sono meno di undici: li' non c'e'
+        niente da disporre, e alzare un errore fermerebbe la pagina."""
+        ruoli = self.ruoli("Por", "Dc", "Dc")
+
+        assert disponi_in_caselle("3-4-3", range(3), ruoli) == (0, 1, 2)
