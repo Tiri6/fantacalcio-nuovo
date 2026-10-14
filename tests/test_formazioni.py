@@ -323,13 +323,13 @@ class TestCalcoloSquadra:
 
 class TestModificatoreDifesa:
     def test_premia_la_difesa_che_gioca_bene(self):
-        # Portiere e tre difensori a 7: media 7.0 -> +5 con le fasce di default.
+        # Portiere e difensori a 7: media 7.0 -> +2,5, l'ultima fascia.
         alti = {g: Voto(g, 1, voto=7.0) for g in (1, 10, 11, 12)}
         voti = voti_pieni(6.0, alti)
         tabellino = calcola_squadra(
             formazione_343(), voti, RUOLI, ParametriLega(), fasce_difesa=FASCE_DIFESA
         )
-        assert tabellino.modificatore_difesa == pytest.approx(5.0)
+        assert tabellino.modificatore_difesa == pytest.approx(2.5)
 
     def test_guarda_il_voto_puro_non_i_bonus(self):
         # Un difensore che segna prende +3 nel punteggio ma il modificatore
@@ -338,8 +338,41 @@ class TestModificatoreDifesa:
         tabellino = calcola_squadra(
             formazione_343(), voti, RUOLI, ParametriLega(), fasce_difesa=FASCE_DIFESA
         )
-        assert tabellino.modificatore_difesa == pytest.approx(1.0)
+        assert tabellino.modificatore_difesa == pytest.approx(0.5)
         assert tabellino.somma_voti == pytest.approx(69.0)
+
+    def test_gli_esterni_contano_come_difensori(self):
+        """In un 3-4-x i due «E» sono i quinti: stanno in una casella di
+        centrocampo, ma per il modificatore restano difensori.
+
+        Contandoli per casella, sui tabellini veri otto squadre su dieci
+        prendevano il bonus sbagliato (PUNTI_APERTI, punto 21). Qui il
+        terzino 13 gioca nella casella «E» e il suo 7 entra nella media.
+        """
+        voti = voti_pieni(6.0, {13: Voto(13, 1, voto=7.0)})
+
+        tabellino = calcola_squadra(
+            formazione_343(), voti, RUOLI, ParametriLega(), fasce_difesa=FASCE_DIFESA
+        )
+
+        # (6 portiere + 7 + 6 + 6) / 4 = 6,25 -> +1. Senza l'esterno sarebbe 6.
+        assert tabellino.modificatore_difesa == pytest.approx(1.0)
+
+    def test_quanti_difensori_contano_lo_dice_la_lega(self):
+        """Sulla piattaforma sono due opzioni: quanti difensori e se il
+        portiere entra nella media."""
+        voti = voti_pieni(6.0, {1: Voto(1, 1, voto=8.0)})
+        senza_portiere = ParametriLega(modificatore_con_portiere=False)
+
+        con = calcola_squadra(
+            formazione_343(), voti, RUOLI, ParametriLega(), fasce_difesa=FASCE_DIFESA
+        )
+        senza = calcola_squadra(
+            formazione_343(), voti, RUOLI, senza_portiere, fasce_difesa=FASCE_DIFESA
+        )
+
+        assert con.modificatore_difesa == pytest.approx(1.5)  # (8+6+6+6)/4 = 6,5
+        assert senza.modificatore_difesa == pytest.approx(0.5)  # i difensori: 6,0
 
     def test_senza_fasce_non_si_applica(self):
         tabellino = calcola_squadra(

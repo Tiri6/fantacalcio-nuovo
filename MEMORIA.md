@@ -30,6 +30,8 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 
 | Decisione | Quando | Nota |
 |---|---|---|
+| Modificatore difesa: mezzo punto ogni quarto di media, da 6 in su | 14 ott | Tabella della lega, verificata su nove tabellini veri su dieci. L'esterno conta come difensore anche se gioca a centrocampo |
+| I moduli Mantra sono **undici**, la difesa a cinque non esiste | 14 ott | `MODULI_MANTRA` ne aveva sedici |
 | Fasce di gol: **primo gol a 66**, poi uno ogni 6 | confermata dalla lega | L'art. 1 cita anche 60: e' la formulazione del regolamento a essere imprecisa, non il codice |
 | Il **draft si fa offline** e si carica via CSV | confermata | Il sito non conduce l'asta: serve l'import, che c'e' |
 | Stack **Streamlit + Supabase** | scelta iniziale | **Superata**: il sito e' React + FastAPI dal 13 ottobre. La logica era Python puro, e infatti non si e' toccata |
@@ -177,11 +179,13 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
   comprese le due cose che stanno **nel colore delle celle** — l'ammonizione
   e chi dalla panchina e' entrato nel punteggio. Serve a registrare la
   giornata vera e, soprattutto, a misurare il nostro calcolo contro il loro.
-- **Il calcolo e' tarato sulla giornata vera**: ogni titolare delle dieci
-  squadre prende da noi esattamente quello che ha preso sulla piattaforma.
-  Restano fuori il **modificatore di difesa** (nessuna regola «media della
-  difesa» spiega i dieci casi: ne sono state provate diciotto) e, in due
-  casi, **chi entra dalla panchina**. Punto 21 di PUNTI_APERTI.
+- **Il calcolo e' tarato sulla giornata vera**: sette squadre su dieci hanno
+  il totale **esatto**, le altre tre sbagliano di mezzo punto (si partiva da
+  nove sbagliate, fino a −8,5). I punteggi dei singoli titolari tornano tutti,
+  e il modificatore di difesa nove volte su dieci. Restano il **cambio modulo
+  nelle sostituzioni** — la piattaforma cambia schema per far entrare il primo
+  panchinaro, noi adattiamo pagando — e un caso di modificatore. Punto 21 di
+  PUNTI_APERTI.
 - **Le caselle si scelgono**: `disponi_in_caselle` mette gli undici dove
   costano meno malus. Serve quando l'ordine non e' una scelta — il tabellino
   elenca i titolari a modo suo — e senza, una punta finiva in una casella

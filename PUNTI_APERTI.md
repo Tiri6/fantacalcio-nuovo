@@ -179,37 +179,40 @@ oggi un lodo vive in una chat, e fra due stagioni nessuno ricorda perche'.
 ## 12. Soglie dei modificatori di reparto
 
 La creazione lega permette di accendere i modificatori di **difesa**,
-**centrocampo** e **attacco**, come fa Leghe Fantacalcio. Quello che il
-regolamento non dice — e che io non ho potuto verificare, perche' da questo
-ambiente il sito della lega non e' raggiungibile — sono **le soglie esatte**:
-a quale media voto scatta quale bonus.
+**centrocampo** e **attacco**, come fa Leghe Fantacalcio.
 
-**Oggi il codice** parte da queste tabelle (`FASCE_DIFESA`,
-`FASCE_CENTROCAMPO`, `FASCE_ATTACCO` in `fantacalcio/leghe.py`):
+**La difesa e' chiusa** (ottobre 2026). La lega ha dato la sua tabella e i
+tabellini di giornata l'hanno confermata su nove casi veri su dieci:
 
-| Media difesa | Bonus | | Media centrocampo | Bonus | | Media attacco | Bonus |
-|---|---|---|---|---|---|---|---|
-| 6,00 | +1 | | 6,50 | +1 | | 7,00 | +1 |
-| 6,25 | +2 | | 7,00 | +2 | | 7,50 | +2 |
-| 6,50 | +3 | | 7,50 | +3 | | 8,00 | +3 |
-| 6,75 | +4 | | | | | | |
-| 7,00 | +5 | | | | | | |
-| 7,25 | +6 | | | | | | |
+| Media (portiere + 3 migliori difensori) | Bonus |
+|---|---|
+| sotto 6,00 | 0 |
+| da 6,00 a 6,24 | +0,5 |
+| da 6,25 a 6,49 | +1 |
+| da 6,50 a 6,74 | +1,5 |
+| da 6,75 a 6,99 | +2 |
+| da 7,00 in su | +2,5 |
 
-**Aggiornamento di ottobre 2026:** il tabellino della prima giornata (punto
-21) da' dieci coppie (media, bonus) vere, e dice che **le soglie qui sopra
-sono sbagliate**: la piattaforma assegna mezzi punti — 0,5, 1, 1,5 — dove
-questa tabella sale di uno in uno. Con due o tre giornate si ricostruiscono.
+Due dettagli che cambiano il conto e che non si leggono dalla tabella:
 
-**Da decidere:** confermare o correggere queste soglie confrontandole con
-quelle in vigore sulla piattaforma. Sono `FasciaModificatore(soglia, bonus)`,
-quindi si cambiano modificando una riga: `bonus_modificatore()` ordina le fasce
-da sola, e l'ordine in cui le si scrive non conta.
+- **l'esterno conta come difensore.** In un 3-4-x i due «E» sono i quinti:
+  occupano una casella di centrocampo, e il sito li escludeva. Contandoli, i
+  nove casi tornano; senza, ne tornavano sei.
+- **la condizione «almeno 4 difensori» non si applica qui.** La regola della
+  piattaforma dice che con la difesa a tre il modificatore non scatta, ma
+  nella prima giornata otto squadre su dieci hanno giocato a tre dietro e il
+  bonus l'hanno preso — contando gli esterni, i difensori «veri» sono quattro
+  o cinque. Resta da capire se la condizione esiste e si legge cosi', o se
+  non c'e' proprio. Finche' non e' chiaro, il sito non la applica: dei dieci
+  casi, applicarla ne sbaglierebbe otto.
 
-Finche' i voti di giornata non entrano nel gestionale (oggi arrivano gia'
-aggregati da Leghe Fantacalcio), la scelta non cambia nessun risultato: e' una
-scheda di configurazione che il sito conserva, non un calcolo che esegue. Il
-giorno che il sito calcola, invece, conta — vedi il punto 21.
+**Resta da verificare** la stessa cosa per centrocampo e attacco
+(`FASCE_CENTROCAMPO`, `FASCE_ATTACCO`), che nessun tabellino ha ancora
+toccato perche' questa lega non li usa.
+
+Quanti difensori entrano nella media e se il portiere conta sono due opzioni
+di lega (`modificatore_difensori`, `modificatore_con_portiere`), come sulla
+piattaforma.
 
 ## 13. Lottery con un numero di squadre diverso da dieci
 
@@ -472,32 +475,34 @@ modificatore, i totali e il risultato — sta in
 `tests/dati/formazioni_leghe_g1.xlsx`, e `tests/test_formazioni_leghe.py` ci
 fa girare sopra il nostro motore.
 
-**Quello che torna, dopo la taratura del 14 ottobre:**
+**Dove siamo arrivati** (14 ottobre 2026): **sette squadre su dieci hanno il
+totale esatto**, le altre tre sbagliano di mezzo punto. Si era partiti da
+nove squadre su dieci sbagliate, fino a −8,5 punti.
 
-- **la tabella dei bonus**: su 189 giocatori con voto, voto piu' eventi rifa'
-  il fantavoto ufficiale per tutti, cartellini compresi (l'unica differenza
-  e' il malus di adattamento, che la piattaforma somma dentro il fantavoto e
-  noi teniamo separato);
-- **le caselle dei moduli e le adattabilita'**: su tutte e dieci le squadre,
-  ogni titolare prende da noi **esattamente** quello che ha preso sulla
-  piattaforma. Prima non era cosi', e il perche' sta qui sotto.
+| | |
+|---|---|
+| Totali identici | 7 su 10 |
+| Totali a mezzo punto | 3 su 10 |
+| Modificatore di difesa identico | 9 su 10 |
+| Punteggi dei singoli titolari | 10 su 10 |
+| Fantavoti rifatti dai bonus | 189 su 189 |
 
-**Due cose che mancano ancora**, entrambe piccole ma vere:
+**Cosa resta, e perche':**
 
-1. **Il modificatore di difesa.** Noi diamo 0, 1 o 2 dove la piattaforma da'
-   0, 0,5, 1 o 1,5. E non e' solo questione di soglie: **nessuna** regola
-   della forma «media di N difensori, col portiere o senza, voto o
-   fantavoto» spiega i dieci casi — due squadre con la stessa media hanno
-   preso bonus diversi, e una con media piu' alta ne ha preso meno. Sono
-   state provate diciotto varianti (`tests/test_formazioni_leghe.py` e il
-   punto 12). Serve la regola scritta della piattaforma, o qualche giornata
-   in piu' per ricostruirla.
-2. **Chi entra dalla panchina.** In due casi su dieci il sostituto scelto
-   dalla piattaforma non e' il nostro, per mezzo punto di differenza. Il file
-   dice chi e' entrato davvero — i nomi non in grigio — quindi ogni giornata
-   e' un caso di prova in piu'.
+1. **Quale panchinaro entra** (due squadre, mezzo punto l'una). La
+   piattaforma, quando nessuno in panchina copre quel ruolo, **cambia
+   modulo** per far entrare il primo disponibile; il sito tiene il modulo e
+   adatta pagando il malus. In un caso e' entrato un centrocampista centrale
+   al posto di un esterno basso, che nel 3-4-3 non e' una sostituzione
+   possibile: lo diventa solo cambiando schema. Finche' il cambio modulo non
+   c'e', ogni tanto entra qualcun altro.
+2. **Il modificatore di difesa** (una squadra, mezzo punto). Nove casi su
+   dieci tornano con la tabella della lega (punto 12). Nel decimo la
+   piattaforma sembra non aver contato nella media un terzino schierato da
+   esterno alto, che per noi resta un difensore. Un caso solo: serve
+   un'altra giornata per capire se e' una regola o un caso.
 
-### Cosa e' servito per arrivarci (14 ottobre 2026)
+### Cosa e' servito per arrivarci
 
 - **Le caselle si scelgono, non si subiscono.** Il tabellino elenca gli undici
   nell'ordine della piattaforma, che non e' l'ordine delle nostre caselle:
@@ -506,8 +511,8 @@ fa girare sopra il nostro motore.
   `formazioni.disponi_in_caselle` mette gli stessi undici nelle caselle che
   costano meno malus, che e' l'unica lettura sensata quando l'ordine non e'
   una scelta di nessuno. Da sola, questa ha sistemato cinque squadre su dieci.
-- **Il 3-4-2-1 trascritto per deduzione.** Lo giocavano quattro squadre su
-  dieci ed era il buco piu' grosso (−8,5 su una). Lo schema
+- **Il 3-4-2-1 trascritto per deduzione.** Lo giocavano quattro squadre ed era
+  il buco piu' grosso (−8,5 su una). Lo schema
   `Dc Dc Dc/B | E/W M/C C E/W | T/A T/A | A/Pc` e' l'unico, fra quelli
   compatibili con la forma degli altri moduli ufficiali, che spieghi **tutte
   e quattro** le formazioni senza un malus di troppo o di meno: con le due
@@ -515,12 +520,17 @@ fa girare sopra il nostro motore.
   invece ha giocato gratis; con la linea di centrocampo uguale a quella del
   3-4-3 (`E M/C C E`) un'ala pura non ci sarebbe entrata. Resta una
   deduzione, non una lettura: se arriva lo schema ufficiale, si confronta.
-- **I moduli sono undici.** La lega ha confermato l'elenco (ottobre 2026) e
-  che **la difesa a cinque non esiste**: `MODULI_MANTRA` aveva 4-4-1-1 e
-  quattro moduli a cinque difensori che la piattaforma non accetta, e il sito
-  avrebbe lasciato salvare formazioni impossibili.
+- **Il modificatore di difesa, tabella e perimetro** (punto 12): mezzo punto
+  ogni quarto di media, e **l'esterno conta come difensore** anche quando
+  gioca in una casella di centrocampo.
+- **I moduli sono undici.** La lega ha confermato l'elenco e che **la difesa a
+  cinque non esiste**: `MODULI_MANTRA` aveva 4-4-1-1 e quattro moduli a cinque
+  difensori che la piattaforma non accetta, e il sito avrebbe lasciato salvare
+  formazioni impossibili.
 
-**Da fare:** chiudere le due cose che mancano. I due test con `xfail`
-diventano verdi da soli quando ci siamo: finche' sono rossi, **le formazioni
-restano sulla piattaforma** e il sito importa il risultato invece di
-calcolarlo.
+**Da fare:** il cambio modulo nelle sostituzioni, le caselle dei cinque moduli
+che restano (3-5-2, 3-5-1-1, 4-3-3, 4-4-2, 4-3-2-1 — il 3-5-2 e' gia' costato
+mezzo punto su una squadra), e una seconda giornata per il caso del
+modificatore. I due test con `xfail` diventano verdi da soli quando ci siamo:
+finche' sono rossi, **le formazioni restano sulla piattaforma** e il sito
+importa il risultato invece di calcolarlo.

@@ -228,16 +228,17 @@ class FasciaModificatore:
         return successiva is None or media < successiva
 
 
-# Tabelle di default. NOTA: le soglie esatte della piattaforma vanno
-# confermate dalla lega — vedi PUNTI_APERTI.md. Sono parametri proprio perche'
-# cambiarle non deve richiedere di toccare il codice.
+# Tabelle di default. Quella della difesa e' la tabella **vera** della lega,
+# confermata a ottobre 2026 e verificata sui tabellini di giornata: mezzo
+# punto ogni quarto di media, da 6 in su. Le altre due vanno ancora
+# confrontate con la piattaforma (vedi PUNTI_APERTI.md). Sono parametri
+# proprio perche' cambiarle non deve richiedere di toccare il codice.
 FASCE_DIFESA = (
-    FasciaModificatore(6.0, 1.0),
-    FasciaModificatore(6.25, 2.0),
-    FasciaModificatore(6.5, 3.0),
-    FasciaModificatore(6.75, 4.0),
-    FasciaModificatore(7.0, 5.0),
-    FasciaModificatore(7.25, 6.0),
+    FasciaModificatore(6.0, 0.5),
+    FasciaModificatore(6.25, 1.0),
+    FasciaModificatore(6.5, 1.5),
+    FasciaModificatore(6.75, 2.0),
+    FasciaModificatore(7.0, 2.5),
 )
 
 FASCE_CENTROCAMPO = (

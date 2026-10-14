@@ -63,6 +63,11 @@ class Reparto(Enum):
 # mezzo. E' il motivo per cui i reparti sopra si sovrappongono.
 RUOLI_DI_CONFINE = ("E", "W", "T")
 
+# Chi entra nella media del modificatore di difesa. L'esterno c'e' dentro
+# anche quando gioca in una casella di centrocampo: in un 3-4-x i due «E»
+# sono i quinti, e per la piattaforma restano difensori.
+RUOLI_DIFENSIVI = ("Dd", "Ds", "Dc", "B", "E")
+
 TITOLARI = 11
 
 
@@ -641,7 +646,9 @@ def calcola_squadra(
         )
 
     tabellino.modificatore_difesa = (
-        _modificatore_difesa(tabellino, voti, fasce_difesa)
+        _modificatore_difesa(
+            tabellino, voti, fasce_difesa, ruoli_per_giocatore, parametri
+        )
         if parametri.modificatore_difesa and fasce_difesa
         else 0.0
     )
@@ -697,29 +704,43 @@ def _modificatore_difesa(
     tabellino: TabellinoSquadra,
     voti: dict[int, Voto],
     fasce: tuple[FasciaModificatore, ...],
+    ruoli_per_giocatore: dict[int, tuple[str, ...]],
+    parametri: ParametriLega,
 ) -> float:
-    """Media di portiere e tre migliori difensori, tradotta in bonus.
+    """Media di portiere e migliori difensori, tradotta in bonus.
 
-    Si usa il **voto puro**, senza bonus e malus: il modificatore premia la
-    prestazione della difesa, non i gol che i difensori hanno segnato.
+    Due cose non si indovinano e le hanno dette i tabellini veri (vedi
+    PUNTI_APERTI.md, punto 21):
+
+    - si usa il **voto puro**, senza bonus e malus: il modificatore premia la
+      prestazione della difesa, non i gol che i difensori hanno segnato;
+    - difensore e' chi **ha il ruolo** di difensore, non chi occupa una
+      casella della linea arretrata. Gli esterni contano: in un 3-4-x i due
+      `E` sono i quinti di centrocampo, stanno in una casella di centrocampo,
+      e la piattaforma li mette lo stesso nella media. Contando per casella,
+      otto squadre su dieci prendevano il bonus sbagliato.
     """
+    pescabili = [
+        voti[g].voto
+        for _, g, _ in tabellino.schierati
+        if g in voti
+        and voti[g].voto is not None
+        and set(ruoli_per_giocatore.get(g, ())) & set(RUOLI_DIFENSIVI)
+    ]
     portiere = [
         voti[g].voto
         for reparto, g, _ in tabellino.schierati
         if reparto is Reparto.PORTA and g in voti and voti[g].voto is not None
     ]
-    difensori = sorted(
-        (
-            voti[g].voto
-            for reparto, g, _ in tabellino.schierati
-            if reparto is Reparto.DIFESA and g in voti and voti[g].voto is not None
-        ),
-        reverse=True,
-    )
-    if not portiere or len(difensori) < 3:
+    quanti = max(1, parametri.modificatore_difensori)
+    difensori = sorted(pescabili, reverse=True)[:quanti]
+    if len(difensori) < quanti:
         return 0.0
-    media = (portiere[0] + sum(difensori[:3])) / 4
-    return bonus_modificatore(media, fasce)
+    if parametri.modificatore_con_portiere:
+        if not portiere:
+            return 0.0
+        difensori = [portiere[0], *difensori]
+    return bonus_modificatore(sum(difensori) / len(difensori), fasce)
 
 
 @dataclass(frozen=True)

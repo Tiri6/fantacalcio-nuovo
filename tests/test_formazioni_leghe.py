@@ -217,10 +217,10 @@ class TestIlNostroContoAccantoAlLoro:
 
     @pytest.mark.xfail(
         reason=(
-            "Tre tabelle non ancora calibrate sulla piattaforma: le caselle "
-            "dei moduli Mantra mancanti (vedi CASELLE_PER_MODULO), le fasce "
-            "del modificatore di difesa e l'ordine con cui entra la panchina. "
-            "Vedi PUNTI_APERTI.md."
+            "Restano tre squadre su dieci, per mezzo punto l'una: due per "
+            "quale panchinaro entra (la piattaforma cambia modulo, noi "
+            "adattiamo) e una per il modificatore. Vedi PUNTI_APERTI.md, "
+            "punto 21."
         ),
         strict=True,
     )
@@ -234,7 +234,11 @@ class TestIlNostroContoAccantoAlLoro:
         assert lontani == []
 
     @pytest.mark.xfail(
-        reason="Le fasce del modificatore di difesa non sono quelle della piattaforma",
+        reason=(
+            "Una squadra su dieci: la piattaforma sembra non aver contato "
+            "nella media un terzino che ha giocato da esterno alto. Le altre "
+            "nove tornano. Vedi PUNTI_APERTI.md, punto 21."
+        ),
         strict=True,
     )
     def test_il_modificatore_di_difesa_coincide(self, tabellino):
