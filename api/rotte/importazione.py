@@ -36,16 +36,19 @@ from fantacalcio.fonti_web import (
 )
 from fantacalcio.fonti_web import applica as applica_catalogo
 from fantacalcio.importazione import (
+    CAMPI_CALENDARIO,
     CAMPI_LISTONE,
     CAMPI_RISULTATI,
     NOTA_FORMATO,
     CampoFile,
     EsitoImportazione,
     Problema,
+    applica_calendario,
     applica_risultati,
     applica_rose,
     campi_rose,
     catalogo_giocatori,
+    importa_calendario,
     importa_risultati,
     importa_rose,
     modello_risultati,
@@ -115,6 +118,9 @@ class Formati(BaseModel):
     campi_listone: list[CampoLetto]
     campi_rose: list[CampoLetto]
     campi_risultati: list[CampoLetto]
+    # Il calendario non ha un modello da scaricare: il file lo esporta Leghe
+    # Fantacalcio, e riscriverlo a mano non ha senso.
+    campi_calendario: list[CampoLetto]
     modello_listone: str
     modello_rose: str
     modello_risultati: str
@@ -213,6 +219,30 @@ class RigaRisultato(BaseModel):
 
 class EsitoRisultati(Esito):
     righe: list[RigaRisultato]
+
+
+class RigaCalendario(BaseModel):
+    giornata: int
+    # Puo' mancare: senza, coppa e F1 Rush contano sulle giornate di lega.
+    giornata_serie_a: int | None
+    casa: str
+    trasferta: str
+    # Vuoti dove la partita non si e' giocata, e non zeri: uno 0-0 in
+    # classifica vale un punto a testa.
+    punti_casa: float | None
+    punti_trasferta: float | None
+
+
+class EsitoCalendario(Esito):
+    righe: list[RigaCalendario]
+    giornate: int
+    giocate: int
+    squadre: list[str]
+    # Quelle che l'import creerebbe: e' il dato da guardare prima di
+    # confermare, perche' un nome scritto diversamente fa nascere una squadra
+    # in piu' invece di riconoscere quella che c'e'.
+    squadre_nuove: list[str]
+    senza_giornata_serie_a: int
 
 
 class Riepilogo(BaseModel):
@@ -330,6 +360,7 @@ def formati(utente: UtenteDentro) -> Formati:
         campi_listone=[_campo(c) for c in CAMPI_LISTONE],
         campi_rose=[_campo(c) for c in campi_rose(con_catalogo=bool(catalogo))],
         campi_risultati=[_campo(c) for c in CAMPI_RISULTATI],
+        campi_calendario=[_campo(c) for c in CAMPI_CALENDARIO],
         modello_listone=MODELLO_CSV_LISTONE,
         modello_rose=modello_rose(),
         modello_risultati=modello_risultati(),
@@ -540,6 +571,98 @@ def scrivi_risultati(caricato: FileCaricato, utente: UtenteDentro) -> Riepilogo:
         # squadra del file che nella lega non esiste.
         raise HTTPException(status_code=NON_ELABORABILE, detail=str(errore)) from errore
     return Riepilogo(messaggio=f"Importate {riepilogo['partite']} partite.")
+
+
+# ---------------------------------------------------------------------------
+# Calendario ufficiale
+# ---------------------------------------------------------------------------
+
+
+def _esito_calendario(esito: EsitoImportazione, ctx: Contesto) -> EsitoCalendario:
+    """L'anteprima, piu' le squadre che l'import creerebbe.
+
+    Il confronto fra i nomi del file e quelli della lega si fa qui soltanto
+    per **mostrarlo**: a crearle davvero ci pensa `applica_calendario`, con
+    la stessa regola (maiuscole e spazi non contano).
+    """
+    nomi = sorted(
+        {nome for r in esito.righe for nome in (r["casa"], r["trasferta"])},
+        key=str.lower,
+    )
+    squadre = ctx.arch.squadre()
+    gia_in_lega = (
+        {str(r["nome"]).strip().lower() for _, r in squadre.iterrows()}
+        if not squadre.empty
+        else set()
+    )
+    return EsitoCalendario(
+        **_comuni(esito),
+        righe=[
+            RigaCalendario(
+                giornata=r["giornata"],
+                giornata_serie_a=r["giornata_serie_a"],
+                casa=r["casa"],
+                trasferta=r["trasferta"],
+                punti_casa=r["punti_casa"],
+                punti_trasferta=r["punti_trasferta"],
+            )
+            for r in esito.righe
+        ],
+        giornate=len({r["giornata"] for r in esito.righe}),
+        giocate=sum(1 for r in esito.righe if r["punti_casa"] is not None),
+        squadre=nomi,
+        squadre_nuove=[n for n in nomi if n.strip().lower() not in gia_in_lega],
+        senza_giornata_serie_a=sum(
+            1 for r in esito.righe if r["giornata_serie_a"] is None
+        ),
+    )
+
+
+@rotte.post("/importazione/calendario/anteprima", response_model=EsitoCalendario)
+def anteprima_calendario(caricato: FileCaricato, utente: UtenteDentro) -> EsitoCalendario:
+    """Cosa c'e' nel calendario esportato da Leghe Fantacalcio."""
+    ctx = _solo_chi_importa(utente)
+    return _esito_calendario(importa_calendario(_grezzo(caricato)), ctx)
+
+
+@rotte.post("/importazione/calendario", response_model=Riepilogo)
+def scrivi_calendario(caricato: FileCaricato, utente: UtenteDentro) -> Riepilogo:
+    """Scrive il campionato e crea le squadre che nella lega ancora non ci sono.
+
+    Le squadre nascono **senza presidente**: nel calendario i nomi ci sono
+    prima che le persone siano entrate, e chi entra col codice della lega
+    dira' quale di queste guida.
+    """
+    ctx = _solo_chi_importa(utente)
+    esito = importa_calendario(_grezzo(caricato))
+    try:
+        riepilogo = applica_calendario(
+            ctx.arch,
+            esito,
+            parametri=ctx.parametri,
+            lega_id=utente.lega_id,
+        )
+    except ValueError as errore:
+        raise HTTPException(status_code=NON_ELABORABILE, detail=str(errore)) from errore
+
+    pezzi = [
+        f"Caricate {riepilogo['partite']} partite in {riepilogo['giornate']} giornate."
+    ]
+    if riepilogo["squadre_create"]:
+        pezzi.append(
+            f"Squadre create: {', '.join(riepilogo['squadre_create'])} "
+            f"(ancora senza presidente)."
+        )
+    if riepilogo["discordanze"]:
+        # Non e' un dettaglio: se le fasce non corrispondono alla piattaforma,
+        # ogni risultato che il sito calcola da solo sara' diverso dal vero.
+        pezzi.append(
+            f"Attenzione: in {len(riepilogo['discordanze'])} partite i gol del "
+            f"file non corrispondono alle fasce della lega "
+            f"({riepilogo['discordanze'][0]}). Controlla soglia e passo in "
+            f"«Impostazioni lega»."
+        )
+    return Riepilogo(messaggio=" ".join(pezzi))
 
 
 # ---------------------------------------------------------------------------

@@ -41,10 +41,14 @@ function Classifica({ righe }: { righe: RigaClassifica[] }) {
                 <td className="numerica">{r.gol_fatti}</td>
                 <td className="numerica">{r.gol_subiti}</td>
                 <td className="numerica">
-                  {r.differenza_reti > 0 ? `+${r.differenza_reti}` : r.differenza_reti}
+                  {r.differenza_reti > 0
+                    ? `+${r.differenza_reti}`
+                    : r.differenza_reti}
                 </td>
                 <td className="numerica forte">{r.punti}</td>
-                <td className="numerica tenue">{r.punti_fantacalcio.toFixed(1)}</td>
+                <td className="numerica tenue">
+                  {r.punti_fantacalcio.toFixed(1)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -65,7 +69,9 @@ function Calendario({
   partite: Partita[];
   disputate: number;
 }) {
-  const giornate = [...new Set(partite.map((p) => p.giornata))].sort((a, b) => a - b);
+  const giornate = [...new Set(partite.map((p) => p.giornata))].sort(
+    (a, b) => a - b,
+  );
   const [scelta, setScelta] = useState(Math.max(disputate, giornate[0] ?? 1));
 
   if (giornate.length === 0) {
@@ -106,7 +112,8 @@ function Calendario({
                 <span className="risultato da-giocare">—</span>
               ) : (
                 <span className="risultato">
-                  {p.gol_casa} <span className="tenue">-</span> {p.gol_trasferta}
+                  {p.gol_casa} <span className="tenue">-</span>{" "}
+                  {p.gol_trasferta}
                 </span>
               )}
               <span className="squadra">{p.trasferta}</span>
@@ -126,7 +133,10 @@ function Andamento({
   andamento,
   classifica,
 }: {
-  andamento: { squadra: string; punti: { giornata: number; punti: number }[] }[];
+  andamento: {
+    squadra: string;
+    punti: { giornata: number; punti: number }[];
+  }[];
   classifica: RigaClassifica[];
 }) {
   // Si parte dalle prime quattro: tutte e dieci insieme sono un gomitolo, e
@@ -136,7 +146,9 @@ function Andamento({
   );
 
   if (andamento.length === 0) {
-    return <div className="vuoto">I grafici compaiono dopo la prima giornata.</div>;
+    return (
+      <div className="vuoto">I grafici compaiono dopo la prima giornata.</div>
+    );
   }
 
   const pieno = scelte.length >= MASSIME_SERIE;
@@ -180,7 +192,9 @@ function Andamento({
               <span
                 className="segno"
                 style={{
-                  background: scelta ? COLORI[indice % COLORI.length] : "transparent",
+                  background: scelta
+                    ? COLORI[indice % COLORI.length]
+                    : "transparent",
                 }}
               />
               {a.squadra}
@@ -217,8 +231,8 @@ export function Campionato() {
       <div className="intestazione-pagina">
         <h1>🏆 Campionato</h1>
         <p>
-          Risultati importati da Leghe Fantacalcio: qui servono per la classifica
-          e per l'ordine del draft.
+          Risultati importati da Leghe Fantacalcio: qui servono per la
+          classifica e per l'ordine del draft.
         </p>
       </div>
 
@@ -246,12 +260,17 @@ export function Campionato() {
             />
           )}
           {scheda === "Andamento" && (
-            <Andamento andamento={dato.andamento} classifica={dato.classifica} />
+            <Andamento
+              andamento={dato.andamento}
+              classifica={dato.classifica}
+            />
           )}
 
           <p className="didascalia">
-            {dato.giornate_disputate} giornate disputate su {dato.giornate_totali}{" "}
-            previste dalla lega.
+            {dato.giornate_disputate === 1
+              ? "1 giornata disputata"
+              : `${dato.giornate_disputate} giornate disputate`}{" "}
+            su {dato.giornate_totali} previste dalla lega.
             {/* I due numeri possono non coincidere: con 10 squadre andata e
                 ritorno fanno 18 giornate, ma la lega ne ha impostate 27 (è un
                 punto aperto del regolamento). Dirlo è meglio che lasciar

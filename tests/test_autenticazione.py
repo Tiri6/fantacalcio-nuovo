@@ -10,6 +10,7 @@ from fantacalcio.autenticazione import (
     PasswordNonValida,
     PermessoNegato,
     Ruolo,
+    SquadraNonRivendicabile,
     StatoRichiesta,
     Utente,
     UtenteNonValido,
@@ -32,8 +33,11 @@ from fantacalcio.autenticazione import (
     recupera_con_codice,
     registra,
     reimposta_password,
+    rivendica_squadra,
+    squadre_senza_presidente,
     verifica_password,
 )
+from fantacalcio.modelli import Squadra
 
 
 class TestPassword:
@@ -663,3 +667,106 @@ class TestRichiestaDiAiuto:
     def test_il_nome_si_normalizza_come_al_login(self):
         richiesta = apri_richiesta_password(self.tutti(), "  MARCO  ")
         assert richiesta is not None and richiesta.nome_utente == "marco"
+
+
+class TestSquadreCheAspettanoUnPresidente:
+    """Il calendario arriva prima delle persone.
+
+    Le dieci squadre si caricano dal calendario ufficiale, senza presidente:
+    chi entra col codice d'invito deve dire **quale di quelle** guida, non
+    fondarne un'undicesima.
+    """
+
+    def squadre(self) -> list[Squadra]:
+        return [
+            Squadra(id=1, nome="Tiri Team", presidente="", lega_id=7),
+            Squadra(id=2, nome="AS Bronzi", presidente="", lega_id=7),
+            Squadra(id=3, nome="Altra Lega FC", presidente="", lega_id=9),
+        ]
+
+    def utente(self, nome="luca", lega_id=7, squadra_id=None) -> Credenziali:
+        credenziali = registra(
+            {}, 1, nome, nome.title(), "password1", email=f"{nome}@esempio.it"
+        )
+        dentro = entra_in_lega(credenziali, lega_id)
+        return assegna_squadra(dentro, squadra_id) if squadra_id else dentro
+
+    def test_senza_nessun_utente_sono_tutte_libere(self):
+        libere = squadre_senza_presidente(self.squadre(), [], lega_id=7)
+
+        assert [s.nome for s in libere] == ["AS Bronzi", "Tiri Team"]
+
+    def test_quelle_di_un_altra_lega_non_si_vedono(self):
+        libere = squadre_senza_presidente(self.squadre(), [], lega_id=7)
+
+        assert "Altra Lega FC" not in [s.nome for s in libere]
+
+    def test_una_squadra_gia_guidata_sparisce_dall_elenco(self):
+        chi_ce_l_ha = self.utente("marco", squadra_id=1)
+
+        libere = squadre_senza_presidente(self.squadre(), [chi_ce_l_ha], lega_id=7)
+
+        assert [s.nome for s in libere] == ["AS Bronzi"]
+
+    def test_conta_il_collegamento_non_il_nome_scritto_sulla_squadra(self):
+        """Il campo `presidente` e' un nome da mostrare: due persone possono
+        chiamarsi uguale e un nome si cambia senza che cambi chi la guida."""
+        squadre = [Squadra(id=1, nome="Tiri Team", presidente="Marco", lega_id=7)]
+
+        libere = squadre_senza_presidente(squadre, [], lega_id=7)
+
+        assert [s.id for s in libere] == [1]
+
+    def test_le_squadre_senza_lega_sono_quelle_di_prima(self):
+        """Nate quando di leghe ce n'era una sola: escluderle vorrebbe dire
+        non poterle piu' rivendicare."""
+        squadre = [Squadra(id=1, nome="Storica", presidente="", lega_id=None)]
+
+        assert len(squadre_senza_presidente(squadre, [], lega_id=7)) == 1
+
+
+class TestRivendicareUnaSquadra:
+    def squadra(self, id_=1, lega_id=7) -> Squadra:
+        return Squadra(id=id_, nome="Tiri Team", presidente="", lega_id=lega_id)
+
+    def utente(self, nome="luca", lega_id=7, squadra_id=None) -> Credenziali:
+        credenziali = registra(
+            {}, 1, nome, nome.title(), "password1", email=f"{nome}@esempio.it"
+        )
+        dentro = entra_in_lega(credenziali, lega_id) if lega_id else credenziali
+        return assegna_squadra(dentro, squadra_id) if squadra_id else dentro
+
+    def test_la_squadra_si_collega_all_utente(self):
+        preso = rivendica_squadra(self.utente(), self.squadra(), [])
+
+        assert preso.utente.squadra_id == 1
+        assert preso.utente.puo_gestire(1)
+
+    def test_chi_non_e_in_una_lega_non_rivendica_niente(self):
+        with pytest.raises(SquadraNonRivendicabile, match="entra in una lega"):
+            rivendica_squadra(self.utente(lega_id=None), self.squadra(), [])
+
+    def test_chi_ha_gia_una_squadra_non_ne_prende_una_seconda(self):
+        chi = self.utente(squadra_id=2)
+
+        with pytest.raises(SquadraNonRivendicabile, match="gia' una squadra"):
+            rivendica_squadra(chi, self.squadra(), [])
+
+    def test_una_squadra_di_un_altra_lega_non_si_prende(self):
+        with pytest.raises(SquadraNonRivendicabile, match="della tua lega"):
+            rivendica_squadra(self.utente(), self.squadra(lega_id=9), [])
+
+    def test_una_squadra_che_ha_gia_un_presidente_non_si_porta_via(self):
+        """E' il controllo che conta: due persone possono premere lo stesso
+        bottone, e la seconda si prenderebbe la squadra della prima."""
+        gia_presa = self.utente("marco", squadra_id=1)
+
+        with pytest.raises(SquadraNonRivendicabile, match="gia' un presidente"):
+            rivendica_squadra(self.utente(), self.squadra(), [gia_presa])
+
+    def test_l_originale_non_cambia(self):
+        chi = self.utente()
+
+        rivendica_squadra(chi, self.squadra(), [])
+
+        assert chi.utente.squadra_id is None

@@ -15,6 +15,7 @@ import difflib
 import io
 import re
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date
 from typing import TYPE_CHECKING
@@ -1188,3 +1189,330 @@ def catalogo_giocatori(arch) -> dict[str, dict]:
             "quotazione": r.get("quotazione"),
         }
     return catalogo
+
+
+# ---------------------------------------------------------------------------
+# Il calendario ufficiale della lega
+# ---------------------------------------------------------------------------
+#
+# Leghe Fantacalcio esporta il calendario come un xlsx fatto per essere letto
+# da una persona, non da un programma: **due giornate affiancate** su ogni
+# blocco di righe, l'intestazione «3ª Giornata lega» accanto a «8ª Giornata
+# serie a», e il risultato scritto «2-2» o «-» se non si e' ancora giocato.
+#
+# Si legge lo stesso, e vale la pena: e' l'unico posto da cui arriva la
+# **corrispondenza fra giornata di lega e giornata di Serie A**, che serve
+# alla F1 Rush (le ultime sei di Serie A) e alla coppa. Senza, quel conto si
+# fa a occhio sulle giornate di lega, che e' un'altra cosa.
+
+GIORNATA_LEGA = re.compile(r"(\d+)\D*giornata\s+lega", re.IGNORECASE)
+GIORNATA_SERIE_A = re.compile(r"(\d+)\D*giornata\s+serie\s*a", re.IGNORECASE)
+
+# Quante colonne occupa una giornata: casa, punti casa, punti trasferta,
+# trasferta, risultato.
+LARGHEZZA_BLOCCO = 5
+
+CAMPI_CALENDARIO = (
+    CampoFile(
+        "Nª Giornata lega",
+        True,
+        "3ª Giornata lega",
+        "Intestazione del blocco: da li' si capisce di che giornata si parla.",
+    ),
+    CampoFile(
+        "Mª Giornata serie a",
+        False,
+        "8ª Giornata serie a",
+        "Accanto alla precedente. Senza, coppa e F1 Rush contano sulle "
+        "giornate di lega invece che su quelle vere.",
+    ),
+    CampoFile("casa", True, "Tiri Team", "Prima colonna del blocco."),
+    CampoFile("punti casa", False, "73,5", "Vuoti finche' non si gioca."),
+    CampoFile("punti trasferta", False, "72", ""),
+    CampoFile("trasferta", True, "MaGuardaCheRoba", "Quarta colonna del blocco."),
+    CampoFile("risultato", False, "2-2", "«-» quando la partita non si e' giocata."),
+)
+
+
+def _blocchi_di_giornata(riga: Sequence) -> list[tuple[int, int, int | None]]:
+    """Le giornate che cominciano su questa riga: (colonna, lega, serie A).
+
+    Le intestazioni si cercano **ovunque** nella riga e si appaiano in
+    ordine: due giornate per blocco oggi, ma un export con tre colonne non
+    dovrebbe rompere la lettura.
+    """
+    leghe: list[tuple[int, int]] = []
+    serie_a: list[int] = []
+    for indice, cella in enumerate(riga):
+        testo = str(cella or "")
+        if trovata := GIORNATA_LEGA.search(testo):
+            leghe.append((indice, int(trovata.group(1))))
+        elif trovata := GIORNATA_SERIE_A.search(testo):
+            serie_a.append(int(trovata.group(1)))
+    return [
+        (colonna, giornata, serie_a[posizione] if posizione < len(serie_a) else None)
+        for posizione, (colonna, giornata) in enumerate(leghe)
+    ]
+
+
+def _gol_dal_risultato(testo: str) -> tuple[int | None, int | None]:
+    """«2-2» diventa (2, 2); «-» e il vuoto diventano (None, None).
+
+    Il trattino e' il modo in cui il file dice «non si e' ancora giocata», e
+    va distinto da uno 0-0: una partita non giocata con dentro uno zero
+    finirebbe in classifica.
+    """
+    pezzi = str(testo or "").replace("–", "-").split("-")
+    if len(pezzi) != 2:
+        return None, None
+    try:
+        return int(pezzi[0].strip()), int(pezzi[1].strip())
+    except ValueError:
+        return None, None
+
+
+def _punti(valore) -> float | None:
+    """I fantapunti di una squadra, o `None` se la cella non li ha."""
+    try:
+        return leggi_numero(str(valore or ""))
+    except ValueError:
+        return None
+
+
+def importa_calendario(contenuto: bytes) -> EsitoImportazione:
+    """Legge il calendario esportato da Leghe Fantacalcio.
+
+    Torna una riga per partita, con i fantapunti e i gol dove la partita si e'
+    giocata e `None` dove no. I nomi delle squadre restano quelli del file:
+    ad abbinarli alla lega — e a creare quelle che mancano — ci pensa
+    `applica_calendario`.
+    """
+    import io as _io
+
+    from openpyxl import load_workbook
+
+    esito = EsitoImportazione()
+    try:
+        cartella = load_workbook(_io.BytesIO(contenuto), data_only=True, read_only=True)
+    except Exception as errore:  # noqa: BLE001 - openpyxl alza tipi eterogenei
+        esito.problemi.append(
+            Problema(0, "file", "", f"Non e' un file Excel leggibile: {errore}")
+        )
+        return esito
+
+    foglio = cartella[cartella.sheetnames[0]]
+    attivi: list[tuple[int, int, int | None]] = []
+    visti: set[tuple[int, str]] = set()
+
+    for numero, riga in enumerate(foglio.iter_rows(values_only=True), start=1):
+        if intestazioni := _blocchi_di_giornata(riga):
+            attivi = intestazioni
+            continue
+        for colonna, giornata, serie_a in attivi:
+            pezzo = list(riga[colonna : colonna + LARGHEZZA_BLOCCO])
+            if len(pezzo) < 4:
+                continue
+            casa = str(pezzo[0] or "").strip()
+            trasferta = str(pezzo[3] or "").strip()
+            if not casa or not trasferta:
+                continue
+            if casa.lower() == trasferta.lower():
+                esito.problemi.append(
+                    Problema(
+                        numero,
+                        "casa",
+                        casa,
+                        f"Giornata {giornata}: una squadra non gioca contro se stessa.",
+                    )
+                )
+                continue
+            doppie = [
+                nome for nome in (casa, trasferta) if (giornata, nome.lower()) in visti
+            ]
+            if doppie:
+                esito.problemi.append(
+                    Problema(
+                        numero,
+                        "casa",
+                        ", ".join(doppie),
+                        f"Giornata {giornata}: gioca due volte nello stesso turno.",
+                    )
+                )
+                continue
+            visti.update({(giornata, casa.lower()), (giornata, trasferta.lower())})
+
+            gol_casa, gol_trasferta = _gol_dal_risultato(
+                pezzo[4] if len(pezzo) > 4 else ""
+            )
+            giocata = gol_casa is not None
+            esito.righe.append(
+                {
+                    "giornata": giornata,
+                    "giornata_serie_a": serie_a,
+                    "casa": casa,
+                    "trasferta": trasferta,
+                    # Senza risultato i fantapunti del file sono zeri di
+                    # riempimento: tenerli vorrebbe dire una partita 0-0
+                    # giocata, che in classifica conta.
+                    "punti_casa": _punti(pezzo[1]) if giocata else None,
+                    "punti_trasferta": _punti(pezzo[2]) if giocata else None,
+                    "gol_casa": gol_casa,
+                    "gol_trasferta": gol_trasferta,
+                }
+            )
+
+    # Nel file le giornate stanno affiancate a due a due, quindi lette riga
+    # per riga arrivano alternate: la prima, la seconda, la prima... Chi
+    # guarda l'anteprima si aspetta un calendario, cioe' le giornate in
+    # ordine. L'ordinamento e' stabile, quindi dentro la giornata l'ordine
+    # resta quello del file.
+    esito.righe.sort(key=lambda r: r["giornata"])
+
+    if not esito.righe:
+        esito.problemi.append(
+            Problema(
+                0,
+                "file",
+                "",
+                "Nessuna partita leggibile: serve il calendario esportato da "
+                "Leghe Fantacalcio, con le intestazioni «Nª Giornata lega».",
+            )
+        )
+    return esito
+
+
+def applica_calendario(
+    arch,
+    esito: EsitoImportazione,
+    *,
+    parametri: ParametriLega | None = None,
+    crea_squadre: bool = True,
+    lega_id: int | None = None,
+) -> dict:
+    """Scrive il calendario del campionato, creando le squadre che mancano.
+
+    Il file e' il campionato **intero**, quindi le partite di campionato che
+    c'erano prima vengono rifatte da zero: tenerle vorrebbe dire due
+    calendari sovrapposti, con le giornate doppie. Quel che si conserva, dove
+    l'accoppiamento non e' cambiato, e' `inizio_previsto` — l'orario su cui si
+    chiudono le formazioni — e la data: sono informazioni che il file non
+    porta e che qualcuno ha messo a mano. Le righe delle altre competizioni
+    restano dov'erano.
+
+    I gol li ricava dalle fasce della lega e non li copia dal file: le fasce
+    sono una regola, e il giorno che la lega le cambia per votazione il
+    calendario deve dire quel che dice il regolamento. Se il file non e'
+    d'accordo lo si segnala, perche' allora e' `soglia_primo_gol` (o
+    `passo_gol`) a non corrispondere alla piattaforma su cui si gioca.
+    """
+    from .data import _ripulisci, prossimo_id
+    from .regole import fasce_gol
+
+    if not esito.importabile:
+        raise ValueError(
+            f"Importazione non eseguibile: {len(esito.errori)} errori da correggere"
+        )
+
+    parametri = parametri or ParametriLega()
+    squadre = arch.squadre()
+    id_per_nome: dict[str, int] = {}
+    if not squadre.empty:
+        id_per_nome = {
+            str(r["nome"]).strip().lower(): int(r["id"]) for _, r in squadre.iterrows()
+        }
+
+    nomi = sorted(
+        {nome for riga in esito.righe for nome in (riga["casa"], riga["trasferta"])},
+        key=str.lower,
+    )
+    mancanti = [nome for nome in nomi if nome.strip().lower() not in id_per_nome]
+    if mancanti and not crea_squadre:
+        raise ValueError(f"Squadre non presenti in lega: {', '.join(mancanti)}")
+
+    nuove = []
+    prossima = prossimo_id(arch, "squadre")
+    for nome in mancanti:
+        id_per_nome[nome.strip().lower()] = prossima
+        # Senza presidente: la squadra esiste perche' gioca nel calendario, e
+        # chi la guida lo dira' entrando col codice della lega.
+        nuove.append({"id": prossima, "nome": nome, "presidente": "", "lega_id": lega_id})
+        prossima += 1
+    if nuove:
+        arch.scrivi("squadre", nuove, chiave="id")
+
+    # Quel che c'era: gli orari da conservare e le partite delle altre
+    # competizioni, che questo file non riguarda.
+    orari: dict[tuple[int, int, int], dict] = {}
+    altre_competizioni: list[dict] = []
+    esistenti = arch.calendario()
+    if not esistenti.empty:
+        for _, r in esistenti.iterrows():
+            riga = _ripulisci(dict(r))
+            if str(riga.get("competizione") or "CAMPIONATO") != "CAMPIONATO":
+                altre_competizioni.append(riga)
+                continue
+            chiave = (
+                int(riga["giornata"]),
+                int(riga["casa_id"]),
+                int(riga["trasferta_id"]),
+            )
+            orari[chiave] = riga
+
+    righe = []
+    discordanze = []
+    identificativo = 1
+    for riga in esito.righe:
+        casa_id = id_per_nome[riga["casa"].strip().lower()]
+        trasferta_id = id_per_nome[riga["trasferta"].strip().lower()]
+        prima = orari.get((riga["giornata"], casa_id, trasferta_id), {})
+
+        punti_casa, punti_trasferta = riga["punti_casa"], riga["punti_trasferta"]
+        giocata = punti_casa is not None and punti_trasferta is not None
+        gol_casa = fasce_gol(punti_casa, parametri) if giocata else None
+        gol_trasferta = fasce_gol(punti_trasferta, parametri) if giocata else None
+        dal_file = (riga["gol_casa"], riga["gol_trasferta"])
+        if giocata and dal_file != (None, None) and dal_file != (gol_casa, gol_trasferta):
+            discordanze.append(
+                f"{riga['giornata']}ª giornata, {riga['casa']}-{riga['trasferta']}: "
+                f"il file dice {dal_file[0]}-{dal_file[1]}, le fasce della lega "
+                f"{gol_casa}-{gol_trasferta}"
+            )
+
+        righe.append(
+            {
+                "id": identificativo,
+                "giornata": riga["giornata"],
+                "competizione": "CAMPIONATO",
+                "giornata_serie_a": riga["giornata_serie_a"],
+                "data_prevista": prima.get("data_prevista"),
+                "inizio_previsto": prima.get("inizio_previsto"),
+                "turno": prima.get("turno") or "",
+                "casa_id": casa_id,
+                "trasferta_id": trasferta_id,
+                "punti_casa": punti_casa,
+                "punti_trasferta": punti_trasferta,
+                "gol_casa": gol_casa,
+                "gol_trasferta": gol_trasferta,
+            }
+        )
+        identificativo += 1
+
+    for riga in altre_competizioni:
+        righe.append({**riga, "id": identificativo})
+        identificativo += 1
+
+    arch.svuota("calendario")
+    arch.scrivi("calendario", righe, chiave="id")
+
+    giocate = sum(1 for r in esito.righe if r["punti_casa"] is not None)
+    return {
+        "partite": len(esito.righe),
+        "giornate": len({r["giornata"] for r in esito.righe}),
+        "giocate": giocate,
+        "squadre": len(nomi),
+        "squadre_create": [n["nome"] for n in nuove],
+        "con_giornata_serie_a": sum(
+            1 for r in esito.righe if r["giornata_serie_a"] is not None
+        ),
+        "discordanze": discordanze,
+    }

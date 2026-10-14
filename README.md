@@ -62,7 +62,7 @@ che ricarica a ogni salvataggio e parla con l'API sulla 8000.
 | **Mercato** | Componi uno scambio, verifica contro i lodi e invialo alla controparte. Calcolo del Dead Money prima di svincolare. |
 | **Identita' squadre** | Presidente, motto, stadio, citta', curva, colori sociali, maglia e logo. La maglia si disegna dai colori: nessuno resta senza. |
 | **La lega** | Codice d'invito, chi c'e', inviti per email e tutte le regole di gioco. Chi ha creato la lega puo' **cambiarle anche dopo**, senza rifarla da capo: prima di salvare legge l'elenco di cosa cambia. |
-| **Importa dati** | Il CSV del draft e i risultati di giornata, con anteprima ed errori riga per riga prima di scrivere. |
+| **Importa dati** | Il listone, il CSV del draft, i risultati di giornata e il calendario ufficiale esportato da Leghe, con anteprima ed errori riga per riga prima di scrivere. |
 | **Draft** | Draft Lottery riproducibile, ordine di chiamata round per round, probabilita' delle pick, draft list delle scadenze. |
 | **Campionato** | Classifica e risultati importati da Leghe: servono a determinare l'ordine del draft. |
 | **Scambi** | Proposte ricevute e inviate, ratifica del presidente, storico di chi ha fatto cosa. |
@@ -206,6 +206,19 @@ scopri prima di importare, non dopo.
 Stessa cosa per i **risultati di giornata**: carichi giornata, squadre e punti,
 e i gol vengono calcolati dalle fasce della lega.
 
+### Il calendario ufficiale
+
+L'xlsx che esporta Leghe Fantacalcio si carica com'e', senza ritoccarlo: la
+scheda **Calendario** di «Importa dati» legge le giornate affiancate a due a
+due, i risultati gia' giocati e — il dato che non si trova altrove — la
+**corrispondenza fra giornata di lega e giornata di Serie A**, che e' quella
+su cui contano la Coppa e la F1 Rush.
+
+Le squadre che nella lega ancora non ci sono **vengono create**, senza
+presidente: nel calendario i nomi ci sono prima che le persone si siano
+registrate. Chi poi entra col codice d'invito non fonda un'undicesima squadra,
+sceglie la sua da quelle che aspettano un presidente.
+
 ---
 
 ## Entrare: i cancelli
@@ -239,8 +252,15 @@ giustifica. L'invito registra *chi e' atteso*, cosi' quando quella persona si
 registra con quell'indirizzo trova la lega gia' pronta e le basta un bottone.
 Il codice va comunque girato a mano.
 
-**3. Fonda la squadra.** Nome, citta', stadio, nome della curva, motto e colori
-sociali, con la maglia disegnata in anteprima mentre scegli. Si puo' rimandare
+**3. Di' qual e' la tua squadra.** Se la lega ha gia' caricato il calendario,
+le squadre esistono con il loro nome e nessuna ha un presidente: il sito
+chiede **quale di quelle guidi**, e la collega a te. Fondarne una resta
+possibile ("nessuna di queste e' la mia") ma non e' la prima cosa che si vede —
+una squadra fondata a parte sarebbe l'undicesima, e nel campionato non gioca.
+
+Dove invece non c'e' niente da scegliere, la squadra si **fonda**: nome,
+citta', stadio, nome della curva, motto e colori sociali, con la maglia
+disegnata in anteprima mentre scegli. In entrambi i casi si puo' rimandare
 ("Lo faccio dopo"): chi amministra e basta non deve restare chiuso fuori dal
 proprio gestionale.
 

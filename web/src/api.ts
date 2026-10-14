@@ -486,6 +486,13 @@ export type InvitoTrovato = {
   codice: string;
 };
 
+/** Una squadra della lega che nessuno guida ancora. */
+export type SquadraLibera = {
+  id: number;
+  nome: string;
+  giocatori: number;
+};
+
 /** Cosa manca a questa persona prima di poter usare il sito. */
 export type StatoOnboarding = {
   serve: "lega" | "squadra" | "niente";
@@ -493,6 +500,8 @@ export type StatoOnboarding = {
   nome_lega: string;
   codice_invito: string;
   esistono_leghe: boolean;
+  /** Quando ce ne sono, la domanda e' «quale di queste guidi», non «come la chiami». */
+  squadre_libere: SquadraLibera[];
   invito: InvitoTrovato | null;
   modalita: VoceModulo[];
   formati: VoceModulo[];
@@ -604,6 +613,7 @@ export type FormatiImport = {
   campi_listone: CampoFile[];
   campi_rose: CampoFile[];
   campi_risultati: CampoFile[];
+  campi_calendario: CampoFile[];
   modello_listone: string;
   modello_rose: string;
   modello_risultati: string;
@@ -752,6 +762,25 @@ export type RigaRisultatoImport = {
 
 export type EsitoRisultatiImport = EsitoFile & {
   righe: RigaRisultatoImport[];
+};
+
+export type RigaCalendarioImport = {
+  giornata: number;
+  giornata_serie_a: number | null;
+  casa: string;
+  trasferta: string;
+  /** Vuoti dove non si e' giocato: uno 0-0 in classifica vale un punto. */
+  punti_casa: number | null;
+  punti_trasferta: number | null;
+};
+
+export type EsitoCalendarioImport = EsitoFile & {
+  righe: RigaCalendarioImport[];
+  giornate: number;
+  giocate: number;
+  squadre: string[];
+  squadre_nuove: string[];
+  senza_giornata_serie_a: number;
 };
 
 export type RiepilogoImport = { messaggio: string };
@@ -1255,6 +1284,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(corpo),
     }),
+  rivendicaSquadra: (squadra_id: number) =>
+    chiama<{ id: number; nome: string }>("/onboarding/squadra/rivendica", {
+      method: "POST",
+      body: JSON.stringify({ squadra_id }),
+    }),
   attivaPortiereEmergenza: (
     squadra: number,
     giocatore_id: number,
@@ -1380,6 +1414,16 @@ export const api = {
     }),
   importaRisultati: (contenuto_base64: string, nome: string) =>
     chiama<RiepilogoImport>("/importazione/risultati", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, nome }),
+    }),
+  anteprimaCalendario: (contenuto_base64: string, nome: string) =>
+    chiama<EsitoCalendarioImport>("/importazione/calendario/anteprima", {
+      method: "POST",
+      body: JSON.stringify({ contenuto_base64, nome }),
+    }),
+  importaCalendario: (contenuto_base64: string, nome: string) =>
+    chiama<RiepilogoImport>("/importazione/calendario", {
       method: "POST",
       body: JSON.stringify({ contenuto_base64, nome }),
     }),

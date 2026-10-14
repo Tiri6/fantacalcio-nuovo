@@ -14,13 +14,21 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from fantacalcio.autenticazione import Ruolo, assegna_squadra, entra_in_lega
+from fantacalcio.autenticazione import (
+    Ruolo,
+    SquadraNonRivendicabile,
+    assegna_squadra,
+    entra_in_lega,
+    rivendica_squadra,
+    squadre_senza_presidente,
+)
 from fantacalcio.data import (
     archivio,
     carica_credenziali,
     carica_inviti,
     carica_leghe,
     carica_rose,
+    carica_squadre,
     prossimo_id,
     salva_credenziali,
     salva_invito,
@@ -60,6 +68,16 @@ class InvitoTrovato(BaseModel):
     codice: str
 
 
+class SquadraLibera(BaseModel):
+    """Una squadra della lega che nessuno guida ancora."""
+
+    id: int
+    nome: str
+    # Quanti giocatori ha gia' in rosa: dice se la squadra e' solo un nome del
+    # calendario o se c'e' dentro il draft di qualcuno.
+    giocatori: int
+
+
 class StatoOnboarding(BaseModel):
     """Cosa manca a questa persona prima di poter usare il sito.
 
@@ -73,6 +91,10 @@ class StatoOnboarding(BaseModel):
     nome_lega: str
     codice_invito: str
     esistono_leghe: bool
+    # Le squadre che aspettano un presidente. Quando ce ne sono, la domanda
+    # giusta non e' «come chiami la tua squadra» ma «quale di queste guidi»:
+    # i nomi arrivano dal calendario, caricato prima che le persone entrino.
+    squadre_libere: list[SquadraLibera]
     invito: InvitoTrovato | None
     modalita: list[Voce]
     formati: list[Voce]
@@ -95,6 +117,29 @@ def _invito_che_aspetta(utente) -> InvitoTrovato | None:
     return None
 
 
+def _libere(arch, lega_id: int | None) -> list[SquadraLibera]:
+    """Le squadre senza presidente, con quanto hanno in rosa.
+
+    Chi le guida lo dice `Utente.squadra_id`: il campo `presidente` della
+    squadra e' un nome scritto, da mostrare, e come controllo non vale —
+    due persone possono chiamarsi uguale.
+    """
+    if lega_id is None:
+        return []
+    rose = carica_rose(arch)
+    libere = squadre_senza_presidente(
+        carica_squadre(arch).values(), carica_credenziali(arch).values(), lega_id
+    )
+    return [
+        SquadraLibera(
+            id=s.id,
+            nome=s.nome,
+            giocatori=rose[s.id].dimensione if s.id in rose else 0,
+        )
+        for s in libere
+    ]
+
+
 @rotte.get("/onboarding", response_model=StatoOnboarding)
 def stato(utente: UtenteDentro) -> StatoOnboarding:
     arch = archivio()
@@ -114,6 +159,7 @@ def stato(utente: UtenteDentro) -> StatoOnboarding:
         nome_lega=sua.nome if sua else "",
         codice_invito=sua.codice_invito if sua else "",
         esistono_leghe=bool(leghe),
+        squadre_libere=_libere(arch, utente.lega_id) if serve == "squadra" else [],
         invito=_invito_che_aspetta(utente) if sua is None else None,
         modalita=[Voce(nome=m.name, etichetta=m.etichetta) for m in Modalita],
         formati=[Voce(nome=f.name, etichetta=f.etichetta) for f in FormatoCampionato],
@@ -331,3 +377,66 @@ def fonda(richiesta: NuovaSquadra, utente: UtenteDentro) -> SquadraFondata:
         ) from errore
 
     return SquadraFondata(id=nuovo_id, nome=pulito)
+
+
+class SquadraDaRivendicare(BaseModel):
+    squadra_id: int
+
+
+@rotte.post("/onboarding/squadra/rivendica", response_model=SquadraFondata)
+def rivendica(richiesta: SquadraDaRivendicare, utente: UtenteDentro) -> SquadraFondata:
+    """«Sono io il presidente di questa».
+
+    La strada normale per chi entra in una lega che ha gia' caricato il
+    calendario: le squadre esistono con il loro nome, e fondarne un'altra
+    vorrebbe dire un'undicesima squadra che nel campionato non gioca.
+
+    A dire se si puo' e' il dominio (`rivendica_squadra`): chi non e' in una
+    lega, chi ha gia' una squadra e chi punta a quella di un altro sono tre
+    modi di prendersi la squadra di qualcun altro, e due persone possono
+    premere lo stesso bottone nello stesso momento.
+    """
+    arch = archivio()
+    credenziali = carica_credenziali(arch)
+    mie = credenziali.get(utente.nome_utente)
+    if mie is None:  # pragma: no cover - la sessione e' appena caduta
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Rientra nel sito."
+        )
+
+    squadra = carica_squadre(arch).get(richiesta.squadra_id)
+    if squadra is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Quella squadra non esiste."
+        )
+
+    altre = [
+        c for c in credenziali.values() if c.utente.nome_utente != utente.nome_utente
+    ]
+    try:
+        presa = rivendica_squadra(mie, squadra, altre)
+    except SquadraNonRivendicabile as errore:
+        raise HTTPException(status_code=NON_ELABORABILE, detail=str(errore)) from errore
+
+    try:
+        salva_credenziali(arch, presa)
+        # Il nome del presidente e' quello che la squadra mostra in giro per
+        # il sito: finche' resta vuoto, la sua pagina sembra di nessuno.
+        from dataclasses import replace
+
+        salva_squadra(
+            arch,
+            replace(
+                squadra,
+                presidente=utente.nome_completo,
+                identita=replace(squadra.identita, presidente=utente.nome_completo),
+                lega_id=squadra.lega_id or utente.lega_id,
+            ),
+        )
+    except Exception as errore:  # noqa: BLE001 - i backend alzano tipi diversi
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Non riesco a salvare la squadra: {errore}",
+        ) from errore
+
+    return SquadraFondata(id=squadra.id, nome=squadra.nome)
