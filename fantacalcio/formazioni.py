@@ -286,7 +286,53 @@ def caselle_e_titolari(
 # divieto non e' «infinito»: e' tanto caro da non sceglierlo mai se esiste
 # un'alternativa, ma lascia una risposta anche quando alternative non ce ne
 # sono — meglio una disposizione imperfetta che nessuna.
-_COSTO = {Esito.LIBERA: 0, Esito.MALUS: 1, Esito.VIETATA: 1000}
+_COSTO_VIETATO = 1000
+_COSTO = {Esito.LIBERA: 0, Esito.MALUS: 1, Esito.VIETATA: _COSTO_VIETATO}
+
+
+def _disposizione_migliore(
+    modulo: str,
+    giocatori: Sequence[int],
+    ruoli_per_giocatore: dict[int, tuple[str, ...]],
+) -> tuple[int, tuple[int, ...]]:
+    """La disposizione che costa meno, col suo costo in malus.
+
+    Il costo serve anche a decidere i cambi: una squadra in cui il subentrato
+    non sta in piedi ha dentro almeno un `_COSTO_VIETATO`, e si vede dal
+    numero senza doverla guardare casella per casella.
+    """
+    caselle = leggi_modulo(modulo).caselle
+    scelti = list(giocatori)
+    if len(scelti) != len(caselle):
+        return 0, tuple(scelti)
+
+    costi = [
+        [
+            _COSTO[esito_casella(casella, ruoli_per_giocatore.get(g, ()), modulo)]
+            for g in scelti
+        ]
+        for casella in caselle
+    ]
+
+    # Programmazione dinamica sui sottoinsiemi: undici caselle per 2^11 stati
+    # sono poche migliaia di passi, e la risposta e' la migliore in assoluto,
+    # non la prima che capita.
+    migliore: dict[int, tuple[int, tuple[int, ...]]] = {0: (0, ())}
+    for riga in costi:
+        prossimo: dict[int, tuple[int, tuple[int, ...]]] = {}
+        for usati, (costo, disposizione) in migliore.items():
+            for indice_giocatore, costo_casella in enumerate(riga):
+                bit = 1 << indice_giocatore
+                if usati & bit:
+                    continue
+                nuovo_costo = costo + costo_casella
+                chiave = usati | bit
+                if chiave not in prossimo or nuovo_costo < prossimo[chiave][0]:
+                    prossimo[chiave] = (nuovo_costo, (*disposizione, indice_giocatore))
+        migliore = prossimo
+
+    costo, disposizione = migliore[(1 << len(scelti)) - 1]
+    return costo, tuple(scelti[i] for i in disposizione)
 
 
 def disponi_in_caselle(
@@ -304,43 +350,7 @@ def disponi_in_caselle(
     Chi invece la formazione la compone sul sito sceglie la casella da se', e
     quella scelta non si tocca: li' l'ordine e' informazione, qui no.
     """
-    caselle = leggi_modulo(modulo).caselle
-    scelti = list(giocatori)
-    if len(scelti) != len(caselle):
-        return tuple(scelti)
-
-    costi = [
-        [
-            _COSTO[esito_casella(casella, ruoli_per_giocatore.get(g, ()), modulo)]
-            for g in scelti
-        ]
-        for casella in caselle
-    ]
-
-    # Programmazione dinamica sui sottoinsiemi: undici caselle per 2^11 stati
-    # sono poche migliaia di passi, e la risposta e' la migliore in assoluto,
-    # non la prima che capita.
-    migliore: dict[int, tuple[int, tuple[int, ...]]] = {0: (0, ())}
-    for indice_casella, riga in enumerate(costi):
-        prossimo: dict[int, tuple[int, tuple[int, ...]]] = {}
-        for usati, (costo, disposizione) in migliore.items():
-            for indice_giocatore, costo_casella in enumerate(riga):
-                bit = 1 << indice_giocatore
-                if usati & bit:
-                    continue
-                nuovo_costo = costo + costo_casella
-                chiave = usati | bit
-                if chiave not in prossimo or nuovo_costo < prossimo[chiave][0]:
-                    prossimo[chiave] = (
-                        nuovo_costo,
-                        (*disposizione, indice_giocatore),
-                    )
-        migliore = prossimo
-        del indice_casella
-
-    tutti = (1 << len(scelti)) - 1
-    _, disposizione = migliore[tutti]
-    return tuple(scelti[i] for i in disposizione)
+    return _disposizione_migliore(modulo, giocatori, ruoli_per_giocatore)[1]
 
 
 def adattamenti(
@@ -544,6 +554,9 @@ class TabellinoSquadra:
     giornata: int
     schierati: list[tuple[Reparto, int, float]] = field(default_factory=list)
     sostituzioni: list[Sostituzione] = field(default_factory=list)
+    # Lo schema con cui si e' giocato davvero: puo' non essere quello scelto,
+    # se per far entrare qualcuno la squadra ha dovuto cambiarlo.
+    modulo: str = ""
     senza_voto: list[int] = field(default_factory=list)
     # Chi ha giocato in un posto che non e' suo, titolare o subentrato: il
     # punteggio lo dice gia', ma per spiegarlo serve saperlo a parte.
@@ -562,6 +575,56 @@ class TabellinoSquadra:
         return round(self.totale - self.modificatore_difesa, 2)
 
 
+def _formazione_effettiva(
+    formazione: Formazione,
+    voti: dict[int, Voto],
+    ruoli_per_giocatore: dict[int, tuple[str, ...]],
+    disponibili: list[int],
+    modalita: ModalitaSostituzioni,
+    sostituzioni_massime: int,
+    moduli_ammessi: tuple[str, ...],
+) -> tuple[str, list[int], list[tuple[int, int]]]:
+    """Chi scende davvero in campo: schema, undici e cambi fatti.
+
+    Il criterio non e' «chi copre la casella lasciata libera» ma **se la
+    squadra sta ancora in piedi** con quel panchinaro dentro: la piattaforma
+    dopo un cambio ridispone tutti, quindi un centrocampista centrale puo'
+    entrare al posto di un esterno basso e gli altri si spostano di una
+    casella. Chiedere che il subentrato occupi proprio quel posto faceva
+    entrare qualcun altro, piu' in basso in panchina.
+    """
+    schema = formazione.modulo
+    effettivi = list(formazione.titolari)
+    entrate: list[tuple[int, int]] = []
+    usati: set[int] = set()
+
+    for posizione, giocatore in enumerate(formazione.titolari):
+        voto = voti.get(giocatore)
+        if voto is not None and voto.ha_giocato:
+            continue
+        if len(entrate) >= sostituzioni_massime:
+            continue
+        candidati = [g for g in disponibili if g not in usati]
+        scelta = _chi_entra(
+            effettivi,
+            posizione,
+            candidati,
+            ruoli_per_giocatore,
+            modalita,
+            schema,
+            moduli_ammessi,
+            uscito=giocatore,
+        )
+        if scelta is None:
+            continue
+        entrato, schema = scelta
+        effettivi[posizione] = entrato
+        usati.add(entrato)
+        entrate.append((giocatore, entrato))
+
+    return schema, effettivi, entrate
+
+
 def calcola_squadra(
     formazione: Formazione,
     voti: dict[int, Voto],
@@ -571,6 +634,7 @@ def calcola_squadra(
     fasce_difesa: tuple[FasciaModificatore, ...] = (),
     sostituzioni_massime: int = SOSTITUZIONI_MASSIME,
     modalita: ModalitaSostituzioni = ModalitaSostituzioni.BASIC,
+    moduli_ammessi: Sequence[str] = (),
 ) -> TabellinoSquadra:
     """Il punteggio di una squadra: sostituzioni, adattamenti, modificatore, gol.
 
@@ -582,15 +646,38 @@ def calcola_squadra(
 
     Il portiere si trova per primo perche' e' il primo posto del modulo: e'
     anche la regola Mantra, che lo sostituisce prima di chiunque altro.
+
+    Con `moduli_ammessi` si accende il **cambio modulo**: quando nessuno in
+    panchina sta in piedi nello schema scelto, si prova a passare a un altro
+    schema della lega pur di far entrare qualcuno. E' l'ultima risorsa, dopo
+    aver guardato tutta la panchina nel modulo di partenza.
     """
     bonus = bonus or Bonus()
     tabellino = TabellinoSquadra(formazione.squadra_id, formazione.giornata)
     malus = abs(parametri.malus_adattamento)
-    schema = formazione.modulo
     emergenza = formazione.portiere_emergenza
 
     disponibili = [g for g in formazione.panchina if g in voti and voti[g].ha_giocato]
-    usati: set[int] = set()
+    schema, effettivi, entrate = _formazione_effettiva(
+        formazione,
+        voti,
+        ruoli_per_giocatore,
+        disponibili,
+        modalita,
+        sostituzioni_massime,
+        tuple(moduli_ammessi or ()),
+    )
+    tabellino.modulo = schema
+    tabellino.senza_voto = [
+        g for g in formazione.titolari if not (g in voti and voti[g].ha_giocato)
+    ]
+
+    # Dopo un cambio la squadra si ridispone: e' quello che fa la piattaforma,
+    # ed e' il motivo per cui un centrocampista puo' entrare al posto di un
+    # esterno basso — gli altri si spostano di una casella. Senza sostituzioni
+    # resta l'ordine scelto da chi ha schierato, che li' e' una scelta sua.
+    if entrate or schema != formazione.modulo:
+        effettivi = list(disponi_in_caselle(schema, effettivi, ruoli_per_giocatore))
 
     def registra(casella: Casella, giocatore: int) -> bool:
         """Mette in campo chi puo' starci, e segna se ha dovuto adattarsi.
@@ -622,28 +709,27 @@ def calcola_squadra(
         tabellino.schierati.append((casella.reparto, giocatore, punti))
         return esito is Esito.MALUS
 
-    for casella, giocatore in caselle_e_titolari(formazione):
+    caselle = leggi_modulo(schema).caselle
+    entrati = dict(entrate)
+    per_giocatore = {entrato: uscito for uscito, entrato in entrate}
+    for casella, giocatore in zip(caselle, effettivi, strict=False):
         voto = voti.get(giocatore)
-        if voto is not None and voto.ha_giocato:
-            registra(casella, giocatore)
-            continue
-
-        tabellino.senza_voto.append(giocatore)
-        sostituto = (
-            _chi_entra(disponibili, usati, casella, ruoli_per_giocatore, modalita, schema)
-            if len(tabellino.sostituzioni) < sostituzioni_massime
-            else None
-        )
-
-        if sostituto is None:
+        if voto is None or not voto.ha_giocato:
+            # Nessuno ha potuto coprirlo: resta in campo e vale zero.
             tabellino.schierati.append((casella.reparto, giocatore, 0.0))
             continue
 
-        usati.add(sostituto)
-        adattato = registra(casella, sostituto)
-        tabellino.sostituzioni.append(
-            Sostituzione(giocatore, sostituto, casella.reparto, adattato=adattato)
-        )
+        adattato = registra(casella, giocatore)
+        if giocatore in per_giocatore:
+            tabellino.sostituzioni.append(
+                Sostituzione(
+                    per_giocatore[giocatore],
+                    giocatore,
+                    casella.reparto,
+                    adattato=adattato,
+                )
+            )
+    del entrati
 
     tabellino.modificatore_difesa = (
         _modificatore_difesa(
@@ -660,44 +746,82 @@ def calcola_squadra(
 
 
 def _chi_entra(
-    disponibili: list[int],
-    usati: set[int],
-    casella: Casella,
+    effettivi: list[int],
+    posizione: int,
+    candidati: list[int],
     ruoli_per_giocatore: dict[int, tuple[str, ...]],
     modalita: ModalitaSostituzioni,
-    modulo: str = "",
-) -> int | None:
-    """Chi entra in quella casella, secondo la modalita' della lega.
+    modulo: str,
+    moduli_ammessi: tuple[str, ...] = (),
+    uscito: int | None = None,
+) -> tuple[int, str] | None:
+    """Chi entra e con che schema. `None` se non entra nessuno.
 
-    Chi puo' entrarci lo dice la **tabella delle sostituzioni** del Mantra,
-    letta sulla casella da coprire e non sul reparto: in una casella «Dc/B»
-    un braccetto entra gratis, in una «Dc» pura lo stesso braccetto paga, e in
-    porta va solo un portiere. Le modalita' scelgono *fra* i possibili:
+    Si guarda **la squadra intera**, non la casella rimasta vuota: entra chi
+    lascia in piedi una formazione schierabile, e a disporla ci pensa poi
+    `disponi_in_caselle`. E' il motivo per cui un centrocampista puo' entrare
+    al posto di un esterno basso — gli altri si spostano — e la regola che la
+    piattaforma applica davvero.
 
-    - **Easy**: solo chi entra senza malus.
-    - **Basic**: prima chi entra senza malus, anche se sta piu' in fondo;
-      solo se non c'e' nessuno, il primo che puo' entrare pagando.
-    - **Master**: il primo della panchina fra quelli che possono entrare,
+    Prima di tutto viene la **sostituzione diretta**: se in panchina c'e'
+    qualcuno con lo **stesso ruolo esatto** di chi esce — «M/C» per un «M/C»,
+    non un «C/T» — entra lui, anche se sta piu' in basso. E' la prima regola
+    della formula Basic, e si vede nei tabellini: a un M/C senza voto la
+    piattaforma ha preferito il sesto di panchina, che era M/C, al quarto,
+    che era C/T.
+
+    Poi le modalita' scelgono *fra* i possibili:
+
+    - **Easy**: solo chi non costa nessun malus a nessuno.
+    - **Basic**: prima chi costa meno, a parita' l'ordine di panchina.
+    - **Master**: il primo della panchina fra quelli che stanno in piedi,
       pagando se serve.
 
-    A parita' di condizioni vince sempre l'ordine della panchina: e' la
-    volonta' del fantallenatore, non un dettaglio.
+    Il **cambio modulo** e' l'ultima risorsa: prima si guarda tutta la
+    panchina nello schema scelto dal fantallenatore, e solo se non entra
+    nessuno si provano gli altri schemi della lega, nell'ordine in cui la
+    lega li elenca.
     """
-    esiti = [
-        (g, esito_casella(casella, ruoli_per_giocatore.get(g, ()), modulo))
-        for g in disponibili
-        if g not in usati
-    ]
-    possibili = [(g, e) for g, e in esiti if e.possibile]
-    senza_malus = [g for g, e in possibili if e is Esito.LIBERA]
 
-    if modalita is ModalitaSostituzioni.EASY:
-        return senza_malus[0] if senza_malus else None
-    if modalita is ModalitaSostituzioni.MASTER:
-        return possibili[0][0] if possibili else None
-    if senza_malus:
-        return senza_malus[0]
-    return possibili[0][0] if possibili else None
+    def prova_con(candidato: int, schema: str) -> tuple[int, bool] | None:
+        """Quanto costa farlo entrare, e se **lui** gioca nel suo ruolo.
+
+        Le due cose sono diverse: la squadra puo' costare un malus perche' si
+        adatta un altro, e a Easy interessa solo che non si adatti chi entra.
+        """
+        prova = list(effettivi)
+        prova[posizione] = candidato
+        costo, disposti = _disposizione_migliore(schema, prova, ruoli_per_giocatore)
+        if costo >= _COSTO_VIETATO:
+            return None
+        caselle = leggi_modulo(schema).caselle
+        sua = next(c for c, g in zip(caselle, disposti, strict=True) if g == candidato)
+        esito = esito_casella(sua, ruoli_per_giocatore.get(candidato, ()), schema)
+        return costo, esito is Esito.LIBERA
+
+    altri = tuple(m for m in moduli_ammessi if m != modulo)
+    for schema in (modulo, *altri):
+        prove = [(g, prova_con(g, schema)) for g in candidati]
+        possibili = [
+            (g, costo, suo) for g, prova in prove if prova for costo, suo in [prova]
+        ]
+        if modalita is ModalitaSostituzioni.EASY:
+            possibili = [(g, c, suo) for g, c, suo in possibili if suo]
+        if not possibili:
+            continue
+        if modalita is ModalitaSostituzioni.MASTER:
+            return possibili[0][0], schema
+        suoi_ruoli = frozenset(ruoli_per_giocatore.get(uscito, ()) if uscito else ())
+        uguale = [
+            g
+            for g, _, _ in possibili
+            if suoi_ruoli and frozenset(ruoli_per_giocatore.get(g, ())) == suoi_ruoli
+        ]
+        if uguale:
+            return uguale[0], schema
+        minimo = min(c for _, c, _ in possibili)
+        return next(g for g, c, _ in possibili if c == minimo), schema
+    return None
 
 
 def _modificatore_difesa(
@@ -765,6 +889,7 @@ def calcola_partita(
     fasce_difesa: tuple[FasciaModificatore, ...] = (),
     sostituzioni_massime: int = SOSTITUZIONI_MASSIME,
     modalita: ModalitaSostituzioni = ModalitaSostituzioni.BASIC,
+    moduli_ammessi: Sequence[str] = (),
 ) -> EsitoPartita:
     """Uno scontro diretto: due tabellini e il punteggio in gol."""
     comuni = {
@@ -775,6 +900,7 @@ def calcola_partita(
         "fasce_difesa": fasce_difesa,
         "sostituzioni_massime": sostituzioni_massime,
         "modalita": modalita,
+        "moduli_ammessi": moduli_ammessi,
     }
     return EsitoPartita(
         calcola_squadra(formazione_casa, **comuni),

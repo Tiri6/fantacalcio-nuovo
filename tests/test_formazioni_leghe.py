@@ -217,10 +217,8 @@ class TestIlNostroContoAccantoAlLoro:
 
     @pytest.mark.xfail(
         reason=(
-            "Restano tre squadre su dieci, per mezzo punto l'una: due per "
-            "quale panchinaro entra (la piattaforma cambia modulo, noi "
-            "adattiamo) e una per il modificatore. Vedi PUNTI_APERTI.md, "
-            "punto 21."
+            "Resta una squadra su dieci, per mezzo punto: e' il caso del "
+            "modificatore qui sotto. Vedi PUNTI_APERTI.md, punto 21."
         ),
         strict=True,
     )

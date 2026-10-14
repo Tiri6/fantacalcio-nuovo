@@ -179,13 +179,12 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
   comprese le due cose che stanno **nel colore delle celle** — l'ammonizione
   e chi dalla panchina e' entrato nel punteggio. Serve a registrare la
   giornata vera e, soprattutto, a misurare il nostro calcolo contro il loro.
-- **Il calcolo e' tarato sulla giornata vera**: sette squadre su dieci hanno
-  il totale **esatto**, le altre tre sbagliano di mezzo punto (si partiva da
-  nove sbagliate, fino a −8,5). I punteggi dei singoli titolari tornano tutti,
-  e il modificatore di difesa nove volte su dieci. Restano il **cambio modulo
-  nelle sostituzioni** — la piattaforma cambia schema per far entrare il primo
-  panchinaro, noi adattiamo pagando — e un caso di modificatore. Punto 21 di
-  PUNTI_APERTI.
+- **Il calcolo e' tarato sulla giornata vera**: **nove squadre su dieci hanno
+  il totale esatto**, la decima sbaglia di mezzo punto (si partiva da nove
+  sbagliate, fino a −8,5). Tornano i punteggi dei singoli titolari, i
+  fantavoti, chi entra dalla panchina e il modificatore nove volte su dieci.
+  Il sito sa anche **cambiare modulo** per far entrare un panchinaro, come la
+  piattaforma. Punto 21 di PUNTI_APERTI.
 - **Le caselle si scelgono**: `disponi_in_caselle` mette gli undici dove
   costano meno malus. Serve quando l'ordine non e' una scelta — il tabellino
   elenca i titolari a modo suo — e senza, una punta finiva in una casella
@@ -319,14 +318,13 @@ frase in italiano). La prima risposta vera la vedra' Marco: se sbaglia un
 numero, il difetto e' nel dossier di `assistente.scheda_regolamento()`, non
 nel modello.
 
-### Le cinque tabelle di moduli che restano
+### Le quattro tabelle di moduli che restano
 
 **Innesco:** Marco rimanda l'immagine leggibile, o detta gli slot. Dal 14
 ottobre c'e' anche una seconda strada: i **tabellini di giornata** di Leghe
 (`tests/dati/formazioni_leghe_g1.xlsx`) dicono, giornata dopo giornata, chi
-la piattaforma accetta in quale casella. Cosi' e' stato ricostruito il
-3-4-2-1, che da solo valeva meta' dell'errore. Mancano **3-5-2, 3-5-1-1,
-4-3-3, 4-4-2 e 4-3-2-1**; i moduli ammessi sono undici e la difesa a cinque
+la piattaforma accetta in quale casella. Cosi' sono stati ricostruiti il
+3-4-2-1 e il 3-5-2. Mancano **3-5-1-1, 4-3-3, 4-4-2 e 4-3-2-1**; i moduli ammessi sono undici e la difesa a cinque
 non esiste (confermato dalla lega).
 
 `CASELLE_PER_MODULO` in `mantra.py` copre cinque moduli su undici. Mancano

@@ -13,6 +13,7 @@ test, ed e' giusto cosi', perche' e' il pezzo che decide chi vince.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from .formazioni import (
@@ -250,6 +251,7 @@ def calcola_giornata(
     fasce_difesa: tuple[FasciaModificatore, ...] = (),
     sostituzioni_massime: int = SOSTITUZIONI_MASSIME,
     modalita: ModalitaSostituzioni = ModalitaSostituzioni.BASIC,
+    moduli_ammessi: Sequence[str] = (),
 ) -> EsitoGiornata:
     """Calcola tutte le partite di una giornata, saltando quelle che non si puo'.
 
@@ -300,6 +302,7 @@ def calcola_giornata(
                     fasce_difesa,
                     sostituzioni_massime,
                     modalita,
+                    moduli_ammessi,
                 ),
             )
         )

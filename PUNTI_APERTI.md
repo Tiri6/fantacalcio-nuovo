@@ -339,8 +339,9 @@ controllo che i conti tornino col nome del modulo e' gia' scritto.
 mentre `MODULI_MANTRA` ne elencava sedici. **Chiuso il 14 ottobre 2026**: la
 lega ha confermato che i moduli sono undici e che la difesa a cinque non
 esiste, quindi 4-4-1-1 e i quattro moduli a cinque difensori sono stati
-tolti. Delle caselle ne restano da leggere cinque: 3-5-2, 3-5-1-1, 4-3-3,
-4-4-2 e 4-3-2-1 — il 3-4-2-1 e' stato ricostruito dai tabellini (punto 21).
+tolti. Delle caselle ne restano da leggere quattro: 3-5-1-1, 4-3-3,
+4-4-2 e 4-3-2-1 — il 3-4-2-1 e il 3-5-2 sono stati ricostruiti dai tabellini
+(punto 21), e ne restano quattro.
 
 ### Quanto costa l'approssimazione
 
@@ -475,62 +476,56 @@ modificatore, i totali e il risultato — sta in
 `tests/dati/formazioni_leghe_g1.xlsx`, e `tests/test_formazioni_leghe.py` ci
 fa girare sopra il nostro motore.
 
-**Dove siamo arrivati** (14 ottobre 2026): **sette squadre su dieci hanno il
-totale esatto**, le altre tre sbagliano di mezzo punto. Si era partiti da
-nove squadre su dieci sbagliate, fino a −8,5 punti.
+**Dove siamo arrivati** (14 ottobre 2026): **nove squadre su dieci hanno il
+totale esatto**. La decima sbaglia di mezzo punto. Si era partiti da nove
+squadre sbagliate su dieci, fino a −8,5 punti.
 
 | | |
 |---|---|
-| Totali identici | 7 su 10 |
-| Totali a mezzo punto | 3 su 10 |
+| Totali identici | 9 su 10 |
 | Modificatore di difesa identico | 9 su 10 |
 | Punteggi dei singoli titolari | 10 su 10 |
 | Fantavoti rifatti dai bonus | 189 su 189 |
+| Chi entra dalla panchina | 10 su 10 |
 
-**Cosa resta, e perche':**
-
-1. **Quale panchinaro entra** (due squadre, mezzo punto l'una). La
-   piattaforma, quando nessuno in panchina copre quel ruolo, **cambia
-   modulo** per far entrare il primo disponibile; il sito tiene il modulo e
-   adatta pagando il malus. In un caso e' entrato un centrocampista centrale
-   al posto di un esterno basso, che nel 3-4-3 non e' una sostituzione
-   possibile: lo diventa solo cambiando schema. Finche' il cambio modulo non
-   c'e', ogni tanto entra qualcun altro.
-2. **Il modificatore di difesa** (una squadra, mezzo punto). Nove casi su
-   dieci tornano con la tabella della lega (punto 12). Nel decimo la
-   piattaforma sembra non aver contato nella media un terzino schierato da
-   esterno alto, che per noi resta un difensore. Un caso solo: serve
-   un'altra giornata per capire se e' una regola o un caso.
+**Cosa resta:** una squadra, mezzo punto, sul **modificatore di difesa**. La
+piattaforma sembra non aver contato nella media un terzino (Ds/E) schierato
+nella linea arretrata, che per noi e' un difensore a tutti gli effetti —
+aveva anche segnato. Un caso solo su dieci: serve un'altra giornata per
+capire se e' una regola o un'eccezione.
 
 ### Cosa e' servito per arrivarci
 
 - **Le caselle si scelgono, non si subiscono.** Il tabellino elenca gli undici
   nell'ordine della piattaforma, che non e' l'ordine delle nostre caselle:
   accoppiandoli uno per uno, una punta finiva in una casella «W/A» — vietata —
-  e prendeva **zero** invece del suo punteggio pieno. Ora
+  e prendeva **zero** invece del suo punteggio pieno.
   `formazioni.disponi_in_caselle` mette gli stessi undici nelle caselle che
-  costano meno malus, che e' l'unica lettura sensata quando l'ordine non e'
-  una scelta di nessuno. Da sola, questa ha sistemato cinque squadre su dieci.
-- **Il 3-4-2-1 trascritto per deduzione.** Lo giocavano quattro squadre ed era
-  il buco piu' grosso (−8,5 su una). Lo schema
-  `Dc Dc Dc/B | E/W M/C C E/W | T/A T/A | A/Pc` e' l'unico, fra quelli
-  compatibili con la forma degli altri moduli ufficiali, che spieghi **tutte
-  e quattro** le formazioni senza un malus di troppo o di meno: con le due
-  caselle di trequarti chiuse a «T» un attaccante puro avrebbe preso zero, e
-  invece ha giocato gratis; con la linea di centrocampo uguale a quella del
-  3-4-3 (`E M/C C E`) un'ala pura non ci sarebbe entrata. Resta una
-  deduzione, non una lettura: se arriva lo schema ufficiale, si confronta.
-- **Il modificatore di difesa, tabella e perimetro** (punto 12): mezzo punto
-  ogni quarto di media, e **l'esterno conta come difensore** anche quando
-  gioca in una casella di centrocampo.
-- **I moduli sono undici.** La lega ha confermato l'elenco e che **la difesa a
-  cinque non esiste**: `MODULI_MANTRA` aveva 4-4-1-1 e quattro moduli a cinque
-  difensori che la piattaforma non accetta, e il sito avrebbe lasciato salvare
-  formazioni impossibili.
+  costano meno malus. Da sola, questa ha sistemato cinque squadre su dieci.
+- **Le sostituzioni guardano la squadra, non la casella.** La piattaforma,
+  dopo un cambio, **ridispone tutti**: e' cosi' che un centrocampista
+  centrale e' entrato al posto di un esterno basso, con gli altri spostati di
+  una casella. Chiedere che il subentrato coprisse proprio quel posto faceva
+  entrare qualcun altro, piu' in basso in panchina.
+- **La sostituzione diretta viene prima dell'ordine di panchina.** A un «M/C»
+  senza voto la piattaforma ha preferito il **sesto** di panchina, che era
+  «M/C», al quarto, che era «C/T»: con lo stesso ruolo esatto si entra anche
+  stando piu' in fondo.
+- **Il cambio modulo.** Quando nello schema scelto non sta in piedi nessuno,
+  si prova un altro schema della lega pur di far entrare qualcuno. E' l'ultima
+  risorsa, dopo aver guardato tutta la panchina nel modulo di partenza, e la
+  lega lo accende passando i suoi `moduli_ammessi`.
+- **Due moduli trascritti per deduzione**, il 3-4-2-1 (quattro squadre) e il
+  3-5-2 (una). Sono gli unici schemi, fra quelli compatibili con la forma dei
+  moduli ufficiali, che spieghino quelle formazioni senza un malus di troppo o
+  di meno: `Dc Dc Dc/B | E/W M/C C E/W | T/A T/A | A/Pc` e
+  `Dc Dc Dc/B | E M M/C M/C W | A/Pc A/Pc`. Restano deduzioni: se arriva lo
+  schema ufficiale, si confrontano.
+- **Il modificatore di difesa** (punto 12): mezzo punto ogni quarto di media,
+  e **l'esterno conta come difensore** anche quando gioca in una casella di
+  centrocampo.
+- **I moduli sono undici**, e la difesa a cinque non esiste.
 
-**Da fare:** il cambio modulo nelle sostituzioni, le caselle dei cinque moduli
-che restano (3-5-2, 3-5-1-1, 4-3-3, 4-4-2, 4-3-2-1 — il 3-5-2 e' gia' costato
-mezzo punto su una squadra), e una seconda giornata per il caso del
-modificatore. I due test con `xfail` diventano verdi da soli quando ci siamo:
-finche' sono rossi, **le formazioni restano sulla piattaforma** e il sito
-importa il risultato invece di calcolarlo.
+**Da fare:** le caselle dei quattro moduli che restano (3-5-1-1, 4-3-3,
+4-4-2, 4-3-2-1) e una seconda giornata per il caso del modificatore. I due
+test con `xfail` diventano verdi da soli quando ci siamo.

@@ -289,11 +289,30 @@ class TestCalcoloSquadra:
         assert tabellino.sostituzioni[0].adattato
 
     def test_chi_entra_deve_aver_giocato(self):
-        # Buco in difesa: il 41 sarebbe l'unico che puo' coprirlo, ma e' senza
-        # voto anche lui. Nessun altro in panchina puo' fare il difensore, e
-        # il posto resta a zero.
+        """Il difensore di panchina e' senza voto anche lui: entra qualcun
+        altro e la squadra si risistema.
+
+        Non e' il posto che si cerca di coprire, e' la squadra che deve
+        stare in piedi: entra il centrocampista, un altro arretra pagando il
+        malus. E' quello che fa la piattaforma, e vale piu' di uno zero in
+        difesa — a conti fatti, quattro punti in piu'.
+        """
         voti = voti_pieni(6.0, {10: Voto(10, 1, voto=None), 41: Voto(41, 1, voto=None)})
+
         tabellino = calcola_squadra(formazione_343(), voti, RUOLI, ParametriLega())
+
+        assert [s.entrato for s in tabellino.sostituzioni] == [22]
+        # Nessuno resta in campo senza voto, e due si sono adattati.
+        assert 10 not in [g for _, g, _ in tabellino.schierati]
+        assert len(tabellino.adattati) == 2
+
+    def test_se_proprio_non_entra_nessuno_il_posto_vale_zero(self):
+        """Con la panchina tutta senza voto non c'e' niente da fare."""
+        fermi = {g: Voto(g, 1, voto=None) for g in (10, 2, 22, 41, 25)}
+        voti = voti_pieni(6.0, fermi)
+
+        tabellino = calcola_squadra(formazione_343(), voti, RUOLI, ParametriLega())
+
         assert tabellino.sostituzioni == []
         assert (Reparto.DIFESA, 10, 0.0) in tabellino.schierati
 
@@ -733,3 +752,86 @@ class TestDisporreNelleCaselle:
         ruoli = self.ruoli("Por", "Dc", "Dc")
 
         assert disponi_in_caselle("3-4-3", range(3), ruoli) == (0, 1, 2)
+
+
+class TestCambioModulo:
+    """Quando nello schema scelto non entra nessuno, se ne prova un altro.
+
+    E' l'ultima regola della formula Basic: prima si guarda tutta la panchina
+    nel modulo di partenza, e solo se la squadra non sta in piedi con nessuno
+    si cambia schema. Senza, quel posto resta a zero — che e' il modo piu'
+    caro di rispettare un modulo.
+    """
+
+    RUOLI = {
+        1: ("Por",),
+        10: ("Dc",),
+        11: ("Dc",),
+        12: ("Dc",),
+        20: ("E",),
+        21: ("M",),
+        22: ("C",),
+        23: ("E",),
+        30: ("A",),
+        31: ("A",),
+        32: ("Pc",),
+        # In panchina un'ala pura: nel 3-4-3 non c'e' casella che la accetti
+        # — le due «E» sono esterni bassi e l'attacco e' pieno — ma nel
+        # 3-4-2-1 le caselle larghe sono «E/W», e lei ci sta.
+        40: ("W",),
+    }
+
+    def formazione(self) -> Formazione:
+        return Formazione(
+            squadra_id=1,
+            giornata=1,
+            modulo="3-4-3",
+            titolari=(1, 10, 11, 12, 20, 21, 22, 23, 30, 31, 32),
+            panchina=(40,),
+        )
+
+    def voti(self) -> dict[int, Voto]:
+        voti = {g: Voto(g, 1, voto=6.0) for g in self.RUOLI}
+        voti[23] = Voto(23, 1, voto=None)
+        return voti
+
+    def test_cambiando_schema_il_panchinaro_entra(self):
+        tabellino = calcola_squadra(
+            self.formazione(),
+            self.voti(),
+            self.RUOLI,
+            ParametriLega(),
+            moduli_ammessi=("3-4-3", "3-4-2-1"),
+        )
+
+        assert tabellino.modulo == "3-4-2-1"
+        assert [s.entrato for s in tabellino.sostituzioni] == [40]
+        assert tabellino.adattati == []
+
+    def test_senza_altri_moduli_il_posto_resta_a_zero(self):
+        """E' anche il comportamento di una lega che il cambio modulo non ce
+        l'ha acceso."""
+        tabellino = calcola_squadra(
+            self.formazione(), self.voti(), self.RUOLI, ParametriLega()
+        )
+
+        assert tabellino.modulo == "3-4-3"
+        assert tabellino.sostituzioni == []
+        assert (Reparto.CENTROCAMPO, 23, 0.0) in tabellino.schierati
+
+    def test_lo_schema_scelto_ha_la_precedenza(self):
+        """Se nel modulo di partenza qualcuno entra, non si cambia niente:
+        il modulo e' una scelta di chi schiera, non un dettaglio."""
+        voti = self.voti()
+        ruoli = {**self.RUOLI, 40: ("E",)}
+
+        tabellino = calcola_squadra(
+            self.formazione(),
+            voti,
+            ruoli,
+            ParametriLega(),
+            moduli_ammessi=("3-4-3", "3-4-2-1"),
+        )
+
+        assert tabellino.modulo == "3-4-3"
+        assert [s.entrato for s in tabellino.sostituzioni] == [40]
