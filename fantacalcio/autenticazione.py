@@ -12,12 +12,14 @@ from __future__ import annotations
 import hmac
 import re
 import secrets
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import date
 from enum import Enum
 from hashlib import scrypt
 
 from .anagrafica import Sesso
+from .modelli import Squadra
 
 # Parametri scrypt: n=2^14 tiene il costo sotto i ~100ms per verifica, che per
 # un login manuale e' impercettibile e per chi tenta a forza bruta e' caro.
@@ -605,16 +607,86 @@ def reimposta_password(
     )
 
 
+# Le squadre che aspettano un presidente
+# ---------------------------------------------------------------------------
+#
+# Il calendario della lega si carica prima che le persone siano entrate: le
+# dieci squadre esistono, con il loro nome, e nessuno le guida. Chi arriva col
+# codice d'invito non deve fondarne un'undicesima — deve dire **quale di
+# quelle** e' la sua.
+#
+# Chi guida una squadra lo dice `Utente.squadra_id`, non il campo `presidente`
+# della squadra: quello e' un nome scritto, utile da mostrare, che nessun
+# controllo puo' usare — due persone possono chiamarsi uguale e un nome si
+# cambia senza che il collegamento cambi.
+
+
+class SquadraNonRivendicabile(Exception):
+    """Quella squadra non si puo' prendere, e il messaggio dice perche'."""
+
+
+def squadre_senza_presidente(
+    squadre: Iterable[Squadra],
+    credenziali: Iterable[Credenziali],
+    lega_id: int,
+) -> list[Squadra]:
+    """Le squadre della lega che nessun utente guida, in ordine di nome."""
+    prese = {c.utente.squadra_id for c in credenziali if c.utente.squadra_id is not None}
+    return sorted(
+        (
+            s
+            for s in squadre
+            # `None` sono le squadre nate prima delle leghe multiple: stanno
+            # nell'unica lega che c'era.
+            if s.lega_id in (None, lega_id) and s.id not in prese
+        ),
+        key=lambda s: s.nome.lower(),
+    )
+
+
+def rivendica_squadra(
+    credenziali: Credenziali,
+    squadra: Squadra,
+    altre: Iterable[Credenziali],
+) -> Credenziali:
+    """«Sono io il presidente di questa»: collega la squadra all'utente.
+
+    Alza invece di scegliere al posto di chi chiama: una squadra di un'altra
+    lega, una che ha gia' un presidente o un utente che ha gia' la sua
+    squadra sono tre modi di prendersi la squadra di qualcun altro, e non e'
+    l'interfaccia a doverli impedire.
+    """
+    utente = credenziali.utente
+    if utente.lega_id is None:
+        raise SquadraNonRivendicabile(
+            "Prima entra in una lega, poi dici quale squadra guidi."
+        )
+    if utente.squadra_id is not None:
+        raise SquadraNonRivendicabile(
+            "Hai gia' una squadra: una persona ne guida una sola."
+        )
+    if squadra.lega_id not in (None, utente.lega_id):
+        raise SquadraNonRivendicabile(
+            f"«{squadra.nome}» non e' una squadra della tua lega."
+        )
+    if any(c.utente.squadra_id == squadra.id for c in altre):
+        raise SquadraNonRivendicabile(
+            f"«{squadra.nome}» ha gia' un presidente. Se e' un errore, lo "
+            f"sistema il presidente di lega."
+        )
+    return assegna_squadra(credenziali, squadra.id)
+
+
 # LIMITI, detti chiaramente
 # ---------------------------------------------------------------------------
 # Questo login e' proporzionato a una lega di dieci amici, non a un servizio
 # pubblico. In particolare:
-#   - la sessione vive nel session_state di Streamlit: chi ha accesso al server
-#     ha accesso alle sessioni;
+#   - la sessione vive in un cookie firmato col segreto del server: chi ha
+#     quel segreto puo' fabbricarne una;
 #   - non c'e' recupero password via email: si rientra con il codice di
 #     recupero, oppure chiedendo al presidente, che vede la richiesta nel sito;
-#   - su Streamlit Community Cloud l'indirizzo dell'app e' pubblico, quindi la
-#     pagina di login e' raggiungibile da chiunque abbia il link.
+#   - l'indirizzo del sito e' pubblico, quindi la pagina di login e'
+#     raggiungibile da chiunque abbia il link.
 # Le password restano comunque protette da scrypt con sale: anche chi ottenesse
 # il database non le ricava.
 #

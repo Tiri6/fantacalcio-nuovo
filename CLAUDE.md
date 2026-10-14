@@ -112,6 +112,8 @@ all'avvio: non ricrearlo a mano.
 | Nuova tabella o colonna | `db/schema.sql` **e** `SCHEMA_SQLITE`, poi `data.py` |
 | Toccare colori o maglia | `identita.py` + `test_identita.py` |
 | Cambiare il formato del CSV | `importazione.py` (i sinonimi stanno in `COLONNE_ROSE`) |
+| Toccare il calendario ufficiale di Leghe | `importa_calendario`/`applica_calendario` in `importazione.py` + `test_importazione.py` |
+| Toccare chi puo' rivendicare una squadra | `autenticazione.rivendica_squadra` + `api/rotte/onboarding.py` |
 | Aggiungere un'opzione di lega | `OpzioniLega` in `leghe.py` **e** un gruppo in `GRUPPI_OPZIONI` (o un motivo in `FUORI_MODULO`): il modulo del sito si disegna da li' |
 | Toccare colori, schede o testate | i token in cima a `web/src/stile.css` |
 | Toccare la bacheca o i permessi di scrittura | `bacheca.py` + `test_bacheca.py` |

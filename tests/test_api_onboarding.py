@@ -77,6 +77,18 @@ def client(monkeypatch, db_demo):
 
 
 @pytest.fixture
+def squadre_in_attesa(monkeypatch, db_demo):
+    """La demo con due squadre rimaste senza presidente.
+
+    E' la situazione di una lega vera appena aperta: le squadre arrivano dal
+    calendario ufficiale, caricato prima che le persone si registrino.
+    """
+    with sqlite3.connect(db_demo) as conn:
+        conn.execute("delete from utenti where squadra_id in (9, 10)")
+    return _client(monkeypatch, db_demo)
+
+
+@pytest.fixture
 def nuovo(monkeypatch, tmp_path):
     """Un database **senza leghe e senza utenti**: il mondo appena nato."""
     percorso = tmp_path / "nuovo.db"
@@ -301,3 +313,129 @@ class TestLaModalitaEIModuli:
         senza_modalita = {k: v for k, v in LEGA.items() if k != "modalita"}
         nuovo.post("/api/onboarding/lega", json=senza_modalita)
         assert "Mantra" in str(nuovo.get("/api/lega").json())
+
+
+class TestDireDiQualeSquadraSeiPresidente:
+    """La strada normale quando il calendario e' stato caricato prima.
+
+    Le dieci squadre esistono gia' — i nomi stanno nel calendario ufficiale,
+    che si carica prima che le persone siano entrate — e chi arriva col codice
+    deve dire quale guida, non fondarne un'undicesima che nel campionato non
+    gioca.
+    """
+
+    def entra_col_codice(self, client):
+        client.post(
+            "/api/accesso", json={"nome_utente": "marco", "password": "fantanuovo26"}
+        )
+        codice = client.get("/api/lega").json()["codice_invito"]
+        client.post("/api/esci")
+        client.post("/api/registrazione", json=ISCRIZIONE)
+        client.post("/api/onboarding/unisciti", json={"codice": codice})
+        return client
+
+    def test_a_chi_entra_il_sito_propone_le_squadre_senza_presidente(
+        self, squadre_in_attesa
+    ):
+        cliente = self.entra_col_codice(squadre_in_attesa)
+
+        stato = cliente.get("/api/onboarding").json()
+
+        assert stato["serve"] == "squadra"
+        assert stato["squadre_libere"]
+        nomi = [s["nome"] for s in stato["squadre_libere"]]
+        assert "Tiri Team" not in nomi  # e' di Marco
+        assert all(s["giocatori"] > 0 for s in stato["squadre_libere"])
+
+    def test_chi_non_e_ancora_in_una_lega_non_vede_squadre(self, client):
+        """Prima la lega: le squadre di un'altra non lo riguardano."""
+        client.post("/api/registrazione", json=ISCRIZIONE)
+
+        stato = client.get("/api/onboarding").json()
+
+        assert stato["serve"] == "lega"
+        assert stato["squadre_libere"] == []
+
+    def test_rivendicarla_la_collega_a_chi_l_ha_chiesta(self, squadre_in_attesa):
+        cliente = self.entra_col_codice(squadre_in_attesa)
+        libera = cliente.get("/api/onboarding").json()["squadre_libere"][0]
+
+        risposta = cliente.post(
+            "/api/onboarding/squadra/rivendica", json={"squadra_id": libera["id"]}
+        )
+
+        assert risposta.status_code == 200
+        assert risposta.json()["nome"] == libera["nome"]
+        assert cliente.get("/api/io").json()["squadra_id"] == libera["id"]
+        assert cliente.get("/api/onboarding").json()["serve"] == "niente"
+
+    def test_la_squadra_mostra_il_nome_del_suo_presidente(self, squadre_in_attesa):
+        """Finche' resta vuoto, la pagina della squadra sembra di nessuno."""
+        cliente = self.entra_col_codice(squadre_in_attesa)
+        libera = cliente.get("/api/onboarding").json()["squadre_libere"][0]
+
+        cliente.post(
+            "/api/onboarding/squadra/rivendica", json={"squadra_id": libera["id"]}
+        )
+
+        squadra = cliente.get(f"/api/squadre/{libera['id']}").json()
+        assert squadra["presidente"] == "Chiara Rossi"
+        assert squadra["e_mia"] is True
+
+    def test_una_squadra_che_ha_gia_un_presidente_non_si_porta_via(
+        self, squadre_in_attesa
+    ):
+        """Il bottone lo premono in due: a fermare il secondo e' il server."""
+        cliente = self.entra_col_codice(squadre_in_attesa)
+        sua_di_marco = 1
+
+        risposta = cliente.post(
+            "/api/onboarding/squadra/rivendica", json={"squadra_id": sua_di_marco}
+        )
+
+        assert risposta.status_code == 422
+        assert "gia' un presidente" in risposta.json()["detail"]
+        assert cliente.get("/api/io").json()["squadra_id"] is None
+
+    def test_chi_ha_gia_la_sua_non_ne_prende_una_seconda(self, client):
+        client.post(
+            "/api/accesso", json={"nome_utente": "marco", "password": "fantanuovo26"}
+        )
+        libere = client.get("/api/squadre").json()
+
+        risposta = client.post(
+            "/api/onboarding/squadra/rivendica",
+            json={"squadra_id": libere[-1]["id"]},
+        )
+
+        assert risposta.status_code == 422
+        assert "gia' una squadra" in risposta.json()["detail"]
+
+    def test_una_squadra_che_non_esiste(self, squadre_in_attesa):
+        cliente = self.entra_col_codice(squadre_in_attesa)
+
+        risposta = cliente.post(
+            "/api/onboarding/squadra/rivendica", json={"squadra_id": 9999}
+        )
+
+        assert risposta.status_code == 404
+
+    def test_senza_sessione_non_si_rivendica_niente(self, client):
+        client.post("/api/esci")
+
+        risposta = client.post(
+            "/api/onboarding/squadra/rivendica", json={"squadra_id": 1}
+        )
+
+        assert risposta.status_code == 401
+
+    def test_in_una_lega_nuova_non_c_e_niente_da_rivendicare(self, nuovo):
+        """Chi fonda la lega non trova squadre: le crea, o le carica col
+        calendario. L'elenco vuoto e' la differenza fra «scegli la tua» e
+        «fondala»."""
+        nuovo.post("/api/onboarding/lega", json=LEGA)
+
+        stato = nuovo.get("/api/onboarding").json()
+
+        assert stato["serve"] == "squadra"
+        assert stato["squadre_libere"] == []

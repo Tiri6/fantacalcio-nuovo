@@ -2,6 +2,7 @@
 
 from datetime import date
 
+import pandas
 import pytest
 
 from fantacalcio.data import carica_rose
@@ -13,9 +14,11 @@ from fantacalcio.importazione import (
     OBBLIGATORIE_RISULTATI,
     OBBLIGATORIE_ROSE,
     anteprima_conformita,
+    applica_calendario,
     applica_risultati,
     applica_rose,
     campi_rose,
+    importa_calendario,
     importa_risultati,
     importa_rose,
     leggi_data,
@@ -686,3 +689,354 @@ class TestIRisultatiNonCancellanoIlCalendario:
         dopo = partite[partite["id"] == int(riga["id"])].iloc[0]
         assert dopo["punti_casa"] == 70
         assert dopo["gol_casa"] >= dopo["gol_trasferta"]
+
+
+class TestCalendarioUfficiale:
+    """Il calendario esportato da Leghe Fantacalcio.
+
+    E' un xlsx fatto per essere letto da una persona: due giornate affiancate
+    per blocco di righe, il nome della giornata dentro una cella di testo
+    («1ª Giornata lega» accanto a «6ª Giornata serie a») e il risultato
+    scritto «2-2», oppure «-» se non si e' ancora giocato.
+
+    Si legge comunque perche' e' l'unico posto da cui arriva la
+    corrispondenza fra giornata di lega e giornata di Serie A, che e' quella
+    su cui contano la coppa e la F1 Rush.
+    """
+
+    def costruisci(self, righe: list[tuple]) -> bytes:
+        import io
+
+        from openpyxl import Workbook
+
+        cartella = Workbook()
+        foglio = cartella.active
+        foglio.title = "Calendario"
+        foglio.append(("Calendario NUoVO League 2026/2027",))
+        foglio.append(("https://leghe.fantacalcio.it/nuovo-fanta-manageriale",))
+        foglio.append(())
+        for riga in righe:
+            foglio.append(riga)
+        memoria = io.BytesIO()
+        cartella.save(memoria)
+        return memoria.getvalue()
+
+    def due_giornate(self) -> bytes:
+        """Le prime due giornate come le scrive davvero la piattaforma."""
+        return self.costruisci(
+            [
+                (
+                    "1ª Giornata lega",
+                    None,
+                    "6ª Giornata serie a",
+                    None,
+                    None,
+                    None,
+                    "2ª Giornata lega",
+                    None,
+                    "7ª Giornata serie a",
+                ),
+                (
+                    "MaGuardaCheRoba",
+                    73.5,
+                    72,
+                    "Tiri Team",
+                    "2-2",
+                    None,
+                    "ASD Boca Seniors",
+                    0,
+                    0,
+                    "MaGuardaCheRoba",
+                    "-",
+                ),
+                (
+                    "A.S. Fregio",
+                    78,
+                    67.5,
+                    "ASD Boca Seniors",
+                    "3-1",
+                    None,
+                    "SkoReggina",
+                    0,
+                    0,
+                    "Tiri Team",
+                    "-",
+                ),
+            ]
+        )
+
+    def test_legge_le_due_giornate_affiancate(self):
+        esito = importa_calendario(self.due_giornate())
+
+        assert esito.errori == []
+        assert len(esito.righe) == 4
+        # In ordine di giornata: nel file stanno affiancate, quindi lette riga
+        # per riga arriverebbero alternate.
+        assert [r["giornata"] for r in esito.righe] == [1, 1, 2, 2]
+
+    def test_la_giornata_di_serie_a_arriva_dall_intestazione(self):
+        """E' il dato che non si puo' ricavare: la 1ª di lega e' la 6ª di
+        Serie A, e senza questo la F1 Rush conta le tappe sulle giornate
+        sbagliate."""
+        esito = importa_calendario(self.due_giornate())
+
+        mappa = {r["giornata"]: r["giornata_serie_a"] for r in esito.righe}
+
+        assert mappa == {1: 6, 2: 7}
+
+    def test_la_partita_giocata_porta_punti_e_gol(self):
+        esito = importa_calendario(self.due_giornate())
+
+        partita = next(r for r in esito.righe if r["casa"] == "MaGuardaCheRoba")
+
+        assert partita["trasferta"] == "Tiri Team"
+        assert partita["punti_casa"] == 73.5
+        assert partita["punti_trasferta"] == 72
+        assert (partita["gol_casa"], partita["gol_trasferta"]) == (2, 2)
+
+    def test_il_trattino_vuol_dire_non_giocata_e_i_punti_restano_vuoti(self):
+        """Gli zeri del file sono riempimento. Tenerli vorrebbe dire una
+        partita 0-0 **giocata**, che in classifica vale un punto a testa."""
+        esito = importa_calendario(self.due_giornate())
+
+        partita = next(r for r in esito.righe if r["giornata"] == 2)
+
+        assert partita["punti_casa"] is None
+        assert partita["punti_trasferta"] is None
+        assert partita["gol_casa"] is None
+        assert partita["gol_trasferta"] is None
+
+    def test_una_squadra_contro_se_stessa_e_un_errore(self):
+        contenuto = self.costruisci(
+            [
+                ("1ª Giornata lega", None, "6ª Giornata serie a"),
+                ("Tiri Team", 70, 70, "Tiri Team", "1-1"),
+            ]
+        )
+
+        esito = importa_calendario(contenuto)
+
+        assert esito.righe == []
+        assert any("contro se stessa" in p.messaggio for p in esito.errori)
+
+    def test_una_squadra_due_volte_nella_stessa_giornata_e_un_errore(self):
+        """Una partita in piu' falserebbe la classifica di quella giornata, e
+        nel calendario e' il sintomo di un file incollato male."""
+        contenuto = self.costruisci(
+            [
+                ("1ª Giornata lega", None, "6ª Giornata serie a"),
+                ("Tiri Team", 70, 70, "AS Bronzi", "1-1"),
+                ("Tiri Team", 70, 70, "SkoReggina", "1-1"),
+            ]
+        )
+
+        esito = importa_calendario(contenuto)
+
+        assert len(esito.righe) == 1
+        assert any("due volte" in p.messaggio for p in esito.errori)
+
+    def test_la_stessa_squadra_in_due_giornate_diverse_va_benissimo(self):
+        esito = importa_calendario(self.due_giornate())
+
+        quante = [
+            r for r in esito.righe if "MaGuardaCheRoba" in (r["casa"], r["trasferta"])
+        ]
+
+        assert len(quante) == 2
+
+    def test_un_xlsx_che_non_e_il_calendario_lo_dice(self):
+        contenuto = self.costruisci([("Qualcosa", "Altro"), ("Tiri Team", 70)])
+
+        esito = importa_calendario(contenuto)
+
+        assert esito.righe == []
+        assert not esito.importabile
+        assert any("Nessuna partita leggibile" in p.messaggio for p in esito.errori)
+
+    def test_un_file_che_non_e_excel_non_fa_esplodere_niente(self):
+        esito = importa_calendario(b"giornata;casa;trasferta\n1;Tiri Team;AS Bronzi\n")
+
+        assert esito.righe == []
+        assert not esito.importabile
+        assert any("Excel" in p.messaggio for p in esito.errori)
+
+    def test_senza_la_giornata_di_serie_a_si_legge_lo_stesso(self):
+        """Il dato manca, le partite no: rifiutare tutto per un'intestazione
+        in meno vorrebbe dire non caricare il calendario."""
+        contenuto = self.costruisci(
+            [
+                ("1ª Giornata lega",),
+                ("Tiri Team", 70, 60, "AS Bronzi", "1-0"),
+            ]
+        )
+
+        esito = importa_calendario(contenuto)
+
+        assert len(esito.righe) == 1
+        assert esito.righe[0]["giornata_serie_a"] is None
+        assert esito.importabile
+
+
+class TestApplicaCalendario:
+    """Precaricare il campionato vero, con le squadre che ancora non esistono.
+
+    E' il primo passo di una lega nuova: le dieci squadre si conoscono prima
+    dei presidenti — stanno scritte nel calendario — e vengono create senza
+    presidente, che lo dira' chi entra col codice della lega.
+    """
+
+    def costruisci(self, righe: list[tuple]) -> bytes:
+        return TestCalendarioUfficiale().costruisci(righe)
+
+    def file_con(self, *partite: tuple, giornata: int = 1, serie_a: int = 6) -> bytes:
+        """Un calendario di una giornata: (casa, punti, punti, trasferta, esito)."""
+        return self.costruisci(
+            [
+                (f"{giornata}ª Giornata lega", None, f"{serie_a}ª Giornata serie a"),
+                *partite,
+            ]
+        )
+
+    def test_le_squadre_che_mancano_vengono_create(self, archivio_demo):
+        contenuto = self.file_con(
+            ("Tiri Team", 70, 60, "SkoReggina", "1-0"),
+            ("MaGuardaCheRoba", 80, 50, "Padel United", "3-0"),
+        )
+
+        riepilogo = applica_calendario(
+            archivio_demo, importa_calendario(contenuto), lega_id=1
+        )
+
+        assert sorted(riepilogo["squadre_create"]) == ["MaGuardaCheRoba", "SkoReggina"]
+        squadre = archivio_demo.squadre()
+        nomi = {str(r["nome"]) for _, r in squadre.iterrows()}
+        assert {"SkoReggina", "MaGuardaCheRoba"} <= nomi
+        nuova = squadre[squadre["nome"] == "SkoReggina"].iloc[0]
+        assert int(nuova["lega_id"]) == 1
+        assert not str(nuova["presidente"] or "")
+
+    def test_quelle_che_ci_sono_gia_non_si_duplicano(self, archivio_demo):
+        """Anche scritte con un'altra maiuscola: due «Tiri Team» vorrebbero
+        dire due rose e mezzo campionato contro il fantasma."""
+        quante_prima = len(archivio_demo.squadre())
+        contenuto = self.file_con(("tiri team", 70, 60, "PADEL UNITED", "1-0"))
+
+        riepilogo = applica_calendario(archivio_demo, importa_calendario(contenuto))
+
+        assert riepilogo["squadre_create"] == []
+        assert len(archivio_demo.squadre()) == quante_prima
+
+    def test_senza_crea_squadre_un_nome_sconosciuto_ferma_tutto(self, archivio_demo):
+        contenuto = self.file_con(("Tiri Team", 70, 60, "SkoReggina", "1-0"))
+
+        with pytest.raises(ValueError, match="SkoReggina"):
+            applica_calendario(
+                archivio_demo, importa_calendario(contenuto), crea_squadre=False
+            )
+
+    def test_il_campionato_precedente_viene_rifatto_da_zero(self, archivio_demo):
+        """Il file e' il campionato intero: tenere anche il vecchio vorrebbe
+        dire giornate doppie e una classifica che non torna."""
+        assert len(archivio_demo.calendario()) == 90
+        contenuto = self.file_con(("Tiri Team", 70, 60, "Padel United", "1-0"))
+
+        applica_calendario(archivio_demo, importa_calendario(contenuto))
+
+        assert len(archivio_demo.calendario()) == 1
+
+    def test_le_partite_delle_altre_competizioni_restano(self, archivio_demo):
+        """Il calendario del campionato non e' la coppa: rifare l'uno non
+        deve cancellare l'altra."""
+        righe = archivio_demo.calendario().to_dict("records")
+        coppa = {**righe[0], "id": 999, "competizione": "COPPA_ITALIA", "turno": "Finale"}
+        archivio_demo.scrivi("calendario", [coppa], chiave="id")
+        contenuto = self.file_con(("Tiri Team", 70, 60, "Padel United", "1-0"))
+
+        applica_calendario(archivio_demo, importa_calendario(contenuto))
+
+        dopo = archivio_demo.calendario()
+        rimaste = dopo[dopo["competizione"] == "COPPA_ITALIA"]
+        assert len(rimaste) == 1
+        assert str(rimaste.iloc[0]["turno"]) == "Finale"
+
+    def test_l_orario_di_una_partita_che_non_cambia_si_conserva(self, archivio_demo):
+        """`inizio_previsto` e' l'ora in cui si chiudono le formazioni, e il
+        file non lo porta: ricaricare il calendario non deve riaprirle."""
+        partite = archivio_demo.calendario().to_dict("records")
+        prima = partite[0]
+        archivio_demo.scrivi(
+            "calendario",
+            [{**prima, "inizio_previsto": "2026-10-04T15:00:00"}],
+            chiave="id",
+        )
+        squadre = {
+            int(r["id"]): str(r["nome"]) for _, r in archivio_demo.squadre().iterrows()
+        }
+        contenuto = self.file_con(
+            (
+                squadre[int(prima["casa_id"])],
+                70,
+                60,
+                squadre[int(prima["trasferta_id"])],
+                "1-0",
+            ),
+            giornata=int(prima["giornata"]),
+        )
+
+        applica_calendario(archivio_demo, importa_calendario(contenuto))
+
+        dopo = archivio_demo.calendario().iloc[0]
+        assert str(dopo["inizio_previsto"]) == "2026-10-04T15:00:00"
+
+    def test_la_giornata_di_serie_a_finisce_nel_database(self, archivio_demo):
+        contenuto = self.file_con(
+            ("Tiri Team", 70, 60, "Padel United", "1-0"), giornata=3, serie_a=8
+        )
+
+        riepilogo = applica_calendario(archivio_demo, importa_calendario(contenuto))
+
+        riga = archivio_demo.calendario().iloc[0]
+        assert int(riga["giornata"]) == 3
+        assert int(riga["giornata_serie_a"]) == 8
+        assert riepilogo["con_giornata_serie_a"] == 1
+
+    def test_una_partita_non_giocata_resta_senza_punti(self, archivio_demo):
+        contenuto = self.file_con(("Tiri Team", 0, 0, "Padel United", "-"))
+
+        riepilogo = applica_calendario(archivio_demo, importa_calendario(contenuto))
+
+        riga = archivio_demo.calendario().iloc[0]
+        assert pandas.isna(riga["punti_casa"])
+        assert pandas.isna(riga["gol_casa"])
+        assert riepilogo["giocate"] == 0
+
+    def test_i_gol_li_decidono_le_fasce_della_lega(self, archivio_demo):
+        """73,5 punti con il primo gol a 66 e il passo a 6 fanno due gol: e'
+        il conto del regolamento, non quello copiato dal file."""
+        contenuto = self.file_con(("Tiri Team", 73.5, 72, "Padel United", "2-2"))
+
+        riepilogo = applica_calendario(archivio_demo, importa_calendario(contenuto))
+
+        riga = archivio_demo.calendario().iloc[0]
+        assert (int(riga["gol_casa"]), int(riga["gol_trasferta"])) == (2, 2)
+        assert riepilogo["discordanze"] == []
+
+    def test_un_file_che_non_torna_con_le_fasce_lo_dice(self, archivio_demo):
+        """Se la piattaforma conta i gol in un altro modo, il parametro
+        sbagliato e' `soglia_primo_gol` — e va saputo subito, perche' da li'
+        in poi ogni risultato calcolato in casa sarebbe diverso dal vero."""
+        contenuto = self.file_con(("Tiri Team", 73.5, 72, "Padel United", "5-0"))
+
+        riepilogo = applica_calendario(archivio_demo, importa_calendario(contenuto))
+
+        assert riepilogo["discordanze"]
+        assert "5-0" in riepilogo["discordanze"][0]
+        assert "2-2" in riepilogo["discordanze"][0]
+        # Quello che si scrive e' comunque il conto del regolamento.
+        assert int(archivio_demo.calendario().iloc[0]["gol_casa"]) == 2
+
+    def test_un_esito_con_errori_non_si_scrive(self, archivio_demo):
+        contenuto = self.file_con(("Tiri Team", 70, 70, "Tiri Team", "1-1"))
+
+        with pytest.raises(ValueError, match="errori"):
+            applica_calendario(archivio_demo, importa_calendario(contenuto))

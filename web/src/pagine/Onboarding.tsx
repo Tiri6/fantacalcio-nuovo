@@ -298,6 +298,109 @@ function CreaLega({
   );
 }
 
+/**
+ * «Di quale squadra sei presidente?»
+ *
+ * Quando la lega ha gia' caricato il calendario, le dieci squadre esistono
+ * col loro nome e nessuna ha un presidente: chiedere «come si chiama la tua»
+ * sarebbe la domanda sbagliata, e chi risponde si ritrova un'undicesima
+ * squadra che nel campionato non gioca. Fondarne una resta possibile — lo
+ * dice il bottone in fondo — ma non e' piu' la prima cosa che si vede.
+ */
+function SceltaSquadra({
+  stato,
+  onFatto,
+  onFondaComunque,
+  onSalta,
+}: {
+  stato: StatoOnboarding;
+  onFatto: () => void;
+  onFondaComunque: () => void;
+  onSalta: () => void;
+}) {
+  const [scelta, setScelta] = useState<number | null>(null);
+  const [errore, setErrore] = useState<string | null>(null);
+  const [inCorso, setInCorso] = useState(false);
+
+  async function conferma() {
+    if (scelta === null) return;
+    setErrore(null);
+    setInCorso(true);
+    try {
+      await api.rivendicaSquadra(scelta);
+      onFatto();
+    } catch (guasto) {
+      setErrore(
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a collegarti la squadra.",
+      );
+    } finally {
+      setInCorso(false);
+    }
+  }
+
+  const scelta_nome = stato.squadre_libere.find((s) => s.id === scelta)?.nome;
+
+  return (
+    <>
+      <div className="sala-liberi squadre-da-prendere">
+        {stato.squadre_libere.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={scelta === s.id ? "sala-libero scelto" : "sala-libero"}
+            onClick={() => setScelta(s.id)}
+          >
+            <span className="forte">{s.nome}</span>
+            <span className="tenue">
+              {s.giocatori === 0
+                ? "rosa ancora da fare"
+                : `${s.giocatori} giocatori in rosa`}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {errore && (
+        <div className="errore" role="alert">
+          {errore}
+        </div>
+      )}
+
+      <button
+        className="principale"
+        type="button"
+        onClick={conferma}
+        disabled={scelta === null || inCorso}
+      >
+        {inCorso
+          ? "Collego…"
+          : scelta_nome
+            ? `Sono il presidente di ${scelta_nome}`
+            : "Scegli la tua squadra"}
+      </button>
+
+      <p className="porta-aiuto">
+        Il nome non ti convince? Lo cambi dalla pagina «Identità», con colori e
+        maglia. Quello che conta adesso è prendere la squadra giusta: le partite
+        del calendario sono già sue.
+      </p>
+
+      <p className="porta-passaggio">
+        <button type="button" onClick={onFondaComunque}>
+          Nessuna di queste è la mia: ne fondo una nuova
+        </button>
+      </p>
+      <p className="porta-passaggio">
+        <button type="button" onClick={onSalta}>
+          Lo faccio dopo, portami al sito
+        </button>
+      </p>
+    </>
+  );
+}
+
 function FondaSquadra({
   stato,
   onFatto,
@@ -475,6 +578,8 @@ export function Onboarding({ onSalta }: { onSalta: () => void }) {
   const [creata, setCreata] = useState<{ nome: string; codice: string } | null>(
     null,
   );
+  // Chi ha detto «nessuna di queste è la mia»: da lì in poi vede il modulo.
+  const [fondaComunque, setFondaComunque] = useState(false);
 
   // Il codice può arrivare dal link d'invito: `/entra/ABCD-2345`. Si legge
   // dall'indirizzo e basta — nessuna rotta nuova da mantenere, e il link
@@ -520,6 +625,8 @@ export function Onboarding({ onSalta }: { onSalta: () => void }) {
   if (!stato) return <div className="fantasma alto" />;
 
   const serveLega = stato.serve === "lega";
+  const scegliFraLeSue =
+    !serveLega && !fondaComunque && stato.squadre_libere.length > 0;
 
   return (
     <div className="porta">
@@ -534,12 +641,18 @@ export function Onboarding({ onSalta }: { onSalta: () => void }) {
         <h1>
           Ciao {stato.nome},
           <br />
-          {serveLega ? "manca la lega" : "manca la squadra"}
+          {serveLega
+            ? "manca la lega"
+            : scegliFraLeSue
+              ? "di quale squadra sei presidente?"
+              : "manca la squadra"}
         </h1>
         <p className="porta-richiamo">
           {serveLega
             ? "Entra in una lega che esiste già col codice che ti hanno passato, oppure creane una tua e invita gli amici."
-            : `Sei dentro ${stato.nome_lega}. Adesso fonda la tua squadra: nome, casa e colori.`}
+            : scegliFraLeSue
+              ? `Sei dentro ${stato.nome_lega}. Le squadre sono già nel calendario: scegli la tua.`
+              : `Sei dentro ${stato.nome_lega}. Adesso fonda la tua squadra: nome, casa e colori.`}
         </p>
 
         {!serveLega && !creata && stato.codice_invito && (
@@ -628,6 +741,21 @@ export function Onboarding({ onSalta }: { onSalta: () => void }) {
                   />
                 </>
               )}
+            </>
+          ) : scegliFraLeSue ? (
+            <>
+              <h2>Scegli la tua squadra</h2>
+              <p className="porta-spiega">
+                {stato.squadre_libere.length === 1
+                  ? "Una sola aspetta ancora un presidente."
+                  : `${stato.squadre_libere.length} squadre di ${stato.nome_lega} aspettano un presidente.`}
+              </p>
+              <SceltaSquadra
+                stato={stato}
+                onFatto={ricarica}
+                onFondaComunque={() => setFondaComunque(true)}
+                onSalta={onSalta}
+              />
             </>
           ) : (
             <>

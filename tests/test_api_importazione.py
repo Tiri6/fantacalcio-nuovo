@@ -173,6 +173,8 @@ class TestSoloIlPresidente:
         "/api/importazione/listone",
         "/api/importazione/risultati/anteprima",
         "/api/importazione/risultati",
+        "/api/importazione/calendario/anteprima",
+        "/api/importazione/calendario",
     )
 
     @pytest.mark.parametrize("rotta", ROTTE)
@@ -571,3 +573,131 @@ class TestSvuotareIlListone:
         )
 
         assert risposta.status_code == 403
+
+
+def calendario_xlsx(blocchi: list[tuple]) -> bytes:
+    """Il calendario come lo esporta Leghe Fantacalcio.
+
+    Due giornate affiancate, l'intestazione dentro una cella di testo e il
+    risultato scritto «2-2» oppure «-» se non si e' giocato. `blocchi` sono
+    le righe del foglio, cosi' come stanno nel file.
+    """
+    from openpyxl import Workbook
+
+    cartella = Workbook()
+    foglio = cartella.active
+    foglio.title = "Calendario"
+    foglio.append(["Calendario NUoVO League 2026/2027"])
+    foglio.append(["https://leghe.fantacalcio.it/nuovo-fanta-manageriale"])
+    foglio.append([])
+    for riga in blocchi:
+        foglio.append(list(riga))
+    memoria = io.BytesIO()
+    cartella.save(memoria)
+    return memoria.getvalue()
+
+
+@pytest.fixture
+def calendario_nuovo() -> bytes:
+    """Una giornata fra due squadre che nella lega di demo non esistono."""
+    return calendario_xlsx(
+        [
+            ("1ª Giornata lega", None, "6ª Giornata serie a"),
+            ("MaGuardaCheRoba", 73.5, 72, "SkoReggina", "2-2"),
+            ("A.S. Fregio", 0, 0, "Tiri Team", "-"),
+        ]
+    )
+
+
+class TestIlCalendarioUfficiale:
+    """Precaricare il campionato vero prima che i presidenti siano entrati."""
+
+    def test_l_anteprima_dice_quali_squadre_nascerebbero(self, client, calendario_nuovo):
+        """E' il dato da controllare prima di confermare: un nome scritto
+        diversamente fa nascere una squadra in piu' invece di riconoscere
+        quella che c'e' gia'."""
+        entra(client)
+
+        dati = client.post(
+            "/api/importazione/calendario/anteprima", json=caricato(calendario_nuovo)
+        ).json()
+
+        assert dati["importabile"] is True
+        assert dati["lette"] == 2
+        assert dati["giornate"] == 1
+        assert dati["giocate"] == 1
+        assert dati["squadre_nuove"] == ["A.S. Fregio", "MaGuardaCheRoba", "SkoReggina"]
+        assert "Tiri Team" in dati["squadre"]
+        assert dati["senza_giornata_serie_a"] == 0
+
+    def test_l_anteprima_non_crea_niente(self, client, calendario_nuovo):
+        entra(client)
+        prima = len(client.get("/api/squadre").json())
+
+        client.post(
+            "/api/importazione/calendario/anteprima", json=caricato(calendario_nuovo)
+        )
+
+        assert len(client.get("/api/squadre").json()) == prima
+
+    def test_la_partita_non_giocata_arriva_senza_punti(self, client, calendario_nuovo):
+        entra(client)
+
+        righe = client.post(
+            "/api/importazione/calendario/anteprima", json=caricato(calendario_nuovo)
+        ).json()["righe"]
+
+        ferma = next(r for r in righe if r["casa"] == "A.S. Fregio")
+        assert ferma["punti_casa"] is None
+        assert ferma["giornata_serie_a"] == 6
+
+    def test_la_conferma_scrive_il_campionato_e_crea_le_squadre(
+        self, client, calendario_nuovo
+    ):
+        entra(client)
+
+        esito = client.post(
+            "/api/importazione/calendario", json=caricato(calendario_nuovo)
+        )
+
+        assert esito.status_code == 200, esito.json()
+        messaggio = esito.json()["messaggio"]
+        assert "2 partite" in messaggio
+        assert "SkoReggina" in messaggio
+        assert "senza presidente" in messaggio
+        nomi = {s["nome"] for s in client.get("/api/squadre").json()}
+        assert {"MaGuardaCheRoba", "SkoReggina", "A.S. Fregio"} <= nomi
+        partite = client.get("/api/campionato").json()["partite"]
+        assert len(partite) == 2
+
+    def test_le_squadre_create_sono_nella_lega_di_chi_importa(
+        self, client, calendario_nuovo
+    ):
+        """Senza `lega_id` la squadra esisterebbe fuori da ogni lega: non la
+        vedrebbe nessuno, calendario compreso."""
+        from fantacalcio.data import archivio
+
+        entra(client)
+        client.post("/api/importazione/calendario", json=caricato(calendario_nuovo))
+
+        squadre = archivio().squadre()
+        nuova = squadre[squadre["nome"] == "SkoReggina"].iloc[0]
+        assert int(nuova["lega_id"]) == 1
+
+    def test_un_file_che_non_e_il_calendario_non_scrive_niente(self, client):
+        entra(client)
+        prima = len(client.get("/api/campionato").json()["partite"])
+
+        risposta = client.post("/api/importazione/calendario", json=caricato(QUALUNQUE))
+
+        assert risposta.status_code == 422
+        assert len(client.get("/api/campionato").json()["partite"]) == prima
+
+    def test_i_campi_del_calendario_stanno_nella_tabella_dei_formati(self, client):
+        entra(client)
+
+        dati = client.get("/api/importazione").json()
+
+        nomi = [c["nome"] for c in dati["campi_calendario"]]
+        assert any("Giornata lega" in n for n in nomi)
+        assert any("serie a" in n.lower() for n in nomi)

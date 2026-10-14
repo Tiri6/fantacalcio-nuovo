@@ -3,6 +3,7 @@ import {
   ErroreApi,
   api,
   type CampoFile,
+  type EsitoCalendarioImport,
   type EsitoFile,
   type EsitoListoneImport,
   type EsitoRisultatiImport,
@@ -31,9 +32,14 @@ import { leggiBase64, scarica } from "../file";
  * qui: le prende dallo stesso modulo che poi legge il file.
  */
 
-type Scheda = "Listone" | "Rose dal draft" | "Risultati";
+type Scheda = "Listone" | "Rose dal draft" | "Risultati" | "Calendario";
 
-const SCHEDE: Scheda[] = ["Listone", "Rose dal draft", "Risultati"];
+const SCHEDE: Scheda[] = [
+  "Listone",
+  "Rose dal draft",
+  "Risultati",
+  "Calendario",
+];
 
 // ---------------------------------------------------------------------------
 // Pezzi comuni alle tre schede
@@ -742,6 +748,116 @@ function SchedaRisultati({ formati }: { formati: FormatiImport }) {
 }
 
 // ---------------------------------------------------------------------------
+// Calendario ufficiale
+// ---------------------------------------------------------------------------
+
+function AnteprimaCalendario({ esito }: { esito: EsitoCalendarioImport }) {
+  if (esito.righe.length === 0) return null;
+  return (
+    <>
+      <div className="conti-import">
+        <span className="pastiglia verde">{esito.giornate} giornate</span>
+        <span className="pastiglia verde">{esito.squadre.length} squadre</span>
+        <span className={esito.giocate ? "pastiglia verde" : "pastiglia"}>
+          {esito.giocate} già giocate
+        </span>
+        <span
+          className={
+            esito.senza_giornata_serie_a ? "pastiglia ambra" : "pastiglia verde"
+          }
+        >
+          {esito.senza_giornata_serie_a === 0
+            ? "giornate di Serie A complete"
+            : `${esito.senza_giornata_serie_a} senza giornata di Serie A`}
+        </span>
+      </div>
+
+      {/* È il dato da controllare prima di confermare: un nome scritto in
+          un altro modo fa nascere una squadra in più invece di riconoscere
+          quella che c'è già. */}
+      {esito.squadre_nuove.length > 0 && (
+        <div className="riquadro avviso">
+          <p>
+            <span className="forte">
+              Nascono {esito.squadre_nuove.length} squadre
+            </span>{" "}
+            — ancora senza presidente: {esito.squadre_nuove.join(", ")}.
+          </p>
+          <p className="didascalia">
+            Chi entra nella lega col codice d'invito dirà quale di queste guida.
+            Se un nome qui sopra è una squadra che esiste già, scritta in modo
+            diverso, correggilo nel file prima di confermare.
+          </p>
+        </div>
+      )}
+
+      <div className="tabella-contenitore">
+        <table className="tabella">
+          <thead>
+            <tr>
+              <th className="numerica">Giornata</th>
+              <th className="numerica">Serie A</th>
+              <th>Casa</th>
+              <th>Trasferta</th>
+              <th className="numerica">Punti</th>
+            </tr>
+          </thead>
+          <tbody>
+            {esito.righe.map((r, indice) => (
+              <tr key={`${r.giornata}-${r.casa}-${indice}`}>
+                <td className="numerica">{r.giornata}</td>
+                <td className="numerica tenue">{r.giornata_serie_a ?? "—"}</td>
+                <td className="forte">{r.casa}</td>
+                <td>{r.trasferta}</td>
+                <td className="numerica">
+                  {r.punti_casa === null || r.punti_trasferta === null
+                    ? "—"
+                    : `${r.punti_casa} - ${r.punti_trasferta}`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function SchedaCalendario({ formati }: { formati: FormatiImport }) {
+  return (
+    <div className="riquadro">
+      <h2>Calendario della lega</h2>
+      <p className="prosa">
+        Il file che esporta Leghe Fantacalcio, così com'è. Da lì arriva anche la
+        corrispondenza fra le giornate di lega e quelle di Serie A, che è quella
+        su cui contano la Coppa e la F1 Rush. Le squadre che nella lega ancora
+        non ci sono vengono create, senza presidente: i nomi stanno nel
+        calendario prima che le persone siano entrate.
+      </p>
+      <p className="didascalia">
+        Sostituisce il campionato caricato finora — il file è il campionato
+        intero — e tiene gli orari d'inizio già impostati sulle partite che non
+        cambiano. I gol li ricalcola con le fasce della lega: primo gol a{" "}
+        {formati.soglia_primo_gol}, poi uno ogni {formati.passo_gol}.
+      </p>
+
+      <TabellaFormato
+        campi={formati.campi_calendario}
+        nota="Non c'è un modello da scaricare: il file è quello della piattaforma."
+      />
+
+      <Caricatore<EsitoCalendarioImport>
+        accetta=".xlsx"
+        anteprima={api.anteprimaCalendario}
+        scrivi={api.importaCalendario}
+        etichettaScrivi="Carica il calendario"
+        rendi={(esito) => <AnteprimaCalendario esito={esito} />}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 export function Importa() {
   const { dato, errore, inCorso } = useCarica(() => api.formatiImport(), []);
@@ -790,6 +906,7 @@ export function Importa() {
       {scheda === "Listone" && <SchedaListone formati={dato} />}
       {scheda === "Rose dal draft" && <SchedaRose formati={dato} />}
       {scheda === "Risultati" && <SchedaRisultati formati={dato} />}
+      {scheda === "Calendario" && <SchedaCalendario formati={dato} />}
     </>
   );
 }

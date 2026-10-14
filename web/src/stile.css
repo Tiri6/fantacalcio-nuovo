@@ -3169,6 +3169,14 @@ a.bottone-principale:hover {
   margin: 12px 0;
 }
 
+/* Le squadre da rivendicare all'ingresso ci stanno tutte: sono dieci, mentre
+   gli svincolati della Draft Room sono mille. Lì la lista scorre dentro il
+   riquadro; qui tagliarla a metà riga sembrerebbe una pagina rotta. */
+.sala-liberi.squadre-da-prendere {
+  max-height: none;
+  overflow-y: visible;
+}
+
 .sala-libero {
   display: grid;
   grid-template-columns: 1fr auto auto;

@@ -22,7 +22,7 @@ chat perche' la chat rilegge questo file.
 Gestionale della lega: contratti, monte anni, Salary Cap/Floor, draft, scambi.
 Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 
-**Ultimo aggiornamento:** 13 ottobre 2026 — Streamlit dismesso: il sito e' React + FastAPI su Fly.io, con la Draft Room, il listone completo (stipendi, nascita, nazionalita'), il recupero password, le regole di lega modificabili, il ricalcolo Under 21, la Lottery dell'articolo 3 e le assegnazioni. Da oggi questo file e' la memoria condivisa anche con la chat di progetto.
+**Ultimo aggiornamento:** 14 ottobre 2026 — si carica il **calendario ufficiale** esportato da Leghe (xlsx, giornate affiancate, corrispondenza con le giornate di Serie A) e da li' nascono le squadre che mancano, senza presidente; chi entra col codice d'invito dice **di quale squadra e' presidente** invece di fondarne una. Prima: Streamlit dismesso, il sito e' React + FastAPI su Fly.io, con Draft Room, listone completo, recupero password, regole modificabili, ricalcolo Under 21, Lottery dell'art. 3 e assegnazioni.
 
 ---
 
@@ -163,6 +163,15 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 - **Assegnazioni**: registrare un contratto alla volta fuori dal draft. Una
   rosa che sfora avvisa e registra lo stesso — si sta prendendo nota di quel
   che e' successo davvero.
+- **Il calendario ufficiale si carica com'e'** (Importa dati → Calendario):
+  l'xlsx di Leghe ha due giornate affiancate per blocco e il risultato scritto
+  «2-2», oppure «-» se non si e' giocata. Da li' arriva la **corrispondenza
+  giornata di lega ↔ giornata di Serie A**, che e' quella su cui contano coppa
+  e F1 Rush. Le squadre che mancano le crea l'import, **senza presidente**; i
+  gol li ricalcola con le fasce della lega e dice se il file non e' d'accordo.
+- **Chi entra col codice sceglie la sua squadra** fra quelle che aspettano un
+  presidente, invece di fondarne un'undicesima. Fondarla resta possibile, ma
+  come seconda strada.
 
 ## Cosa manca (in ordine di utilita')
 
@@ -356,6 +365,12 @@ sara' di 18 o 27 giornate.
   pattern combacia con la riga di comando del comando stesso (prima succedeva
   con `streamlit run app.py`: cambia il nome, non la trappola). Si prende il
   PID con `pgrep` e si fa `kill` su quello.
+- **In una lega vera le squadre arrivano prima delle persone.** I nomi stanno
+  nel calendario, non li scrive chi si registra: l'onboarding che chiede «come
+  chiami la tua squadra» va bene solo su una lega appena fondata. Chi guida
+  una squadra lo dice `Utente.squadra_id`, **mai** il campo `presidente` della
+  squadra, che e' un nome scritto da mostrare (due persone possono chiamarsi
+  uguale, e un nome si cambia senza che cambi chi guida).
 - **Il server locale non si accorge del codice nuovo.** Dopo aver aggiunto una
   rotta bisogna riavviarlo: i test passano perche' importano l'app da zero, e
   il browser riceve un 405 su una rotta che «c'e'». Prima di cercare il bug,
