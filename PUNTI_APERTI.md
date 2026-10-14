@@ -196,6 +196,11 @@ a quale media voto scatta quale bonus.
 | 7,00 | +5 | | | | | | |
 | 7,25 | +6 | | | | | | |
 
+**Aggiornamento di ottobre 2026:** il tabellino della prima giornata (punto
+21) da' dieci coppie (media, bonus) vere, e dice che **le soglie qui sopra
+sono sbagliate**: la piattaforma assegna mezzi punti — 0,5, 1, 1,5 — dove
+questa tabella sale di uno in uno. Con due o tre giornate si ricostruiscono.
+
 **Da decidere:** confermare o correggere queste soglie confrontandole con
 quelle in vigore sulla piattaforma. Sono `FasciaModificatore(soglia, bonus)`,
 quindi si cambiano modificando una riga: `bonus_modificatore()` ordina le fasce
@@ -203,7 +208,8 @@ da sola, e l'ordine in cui le si scrive non conta.
 
 Finche' i voti di giornata non entrano nel gestionale (oggi arrivano gia'
 aggregati da Leghe Fantacalcio), la scelta non cambia nessun risultato: e' una
-scheda di configurazione che il sito conserva, non un calcolo che esegue.
+scheda di configurazione che il sito conserva, non un calcolo che esegue. Il
+giorno che il sito calcola, invece, conta — vedi il punto 21.
 
 ## 13. Lottery con un numero di squadre diverso da dieci
 
@@ -332,6 +338,14 @@ mentre `MODULI_MANTRA` ne elenca sedici — ci sono ancora 4-3-2-1, 5-3-2,
 qui; per ora restano, perche' cancellare un modulo che qualcuno ha scelto e'
 peggio che tenerne uno di troppo.
 
+### Quanto costa l'approssimazione
+
+Si vede in numeri nel punto 21: sui moduli che mancano, un attaccante
+schierato da trequartista prende **zero** invece del suo punteggio, perche'
+la casella dedotta e' di centrocampo. Nella prima giornata vera sono −9,5
+punti su una squadra sola. Finche' le caselle non ci sono, il calcolo del
+sito non puo' sostituire quello della piattaforma.
+
 ### Cosa resta approssimato
 
 Le tre modalita' Easy, Basic e Master sono fedeli su quel che conta — chi
@@ -448,3 +462,55 @@ successiva, in questo caso il 10 ottobre»: due frasi diverse di
 ventiquattr'ore. Il codice si lega al calcio d'inizio, che e' l'unico istante
 su cui sono d'accordo tutte e due — il 9 si corregge, la mattina del 10 si
 corregge, a partita cominciata no.
+
+## 21. Il nostro calcolo non coincide ancora con quello di Leghe
+
+**Misurato, non supposto.** Marco ha mandato il tabellino ufficiale della
+prima giornata — l'export «formazioni» di Leghe Fantacalcio, che contiene le
+dieci formazioni con modulo, titolari, panchina, voti, bonus, modificatore,
+totali e risultato. Il file sta in `tests/dati/formazioni_leghe_g1.xlsx` e
+`tests/test_formazioni_leghe.py` ci fa girare sopra il nostro motore.
+
+Quanto siamo lontani, per modulo schierato:
+
+| Modulo | Quante | Differenza sul totale |
+|---|---|---|
+| 3-4-2-1 | 4 | −8,5 · −6,5 · −5,0 · −1,0 |
+| 3-4-3 | 2 | −6,0 · −4,0 |
+| 4-2-3-1 | 2 | −5,5 · −2,0 |
+| 3-4-1-2 | 1 | −1,0 |
+| 3-5-2 | 1 | 0 |
+
+Non e' poco: una partita finita 2-2 sulla piattaforma, con i nostri numeri
+sarebbe 0-1. **Il sito direbbe un risultato diverso da quello della
+piattaforma su cui la lega gioca davvero**, che e' il modo peggiore di
+sbagliare.
+
+**Quello che invece torna.** Su 189 giocatori con voto, il nostro conto di
+bonus e malus rifa' il fantavoto ufficiale per **tutti**: la tabella dei
+bonus e' giusta, cartellini compresi. L'unica differenza e' il malus di
+adattamento, che la piattaforma somma dentro il fantavoto e noi teniamo
+separato — e su quell'unico caso il nostro motore e' d'accordo che il
+giocatore fosse adattato.
+
+**Le tre cause, in ordine di peso:**
+
+1. **Le caselle dei moduli Mantra mancanti** (punto 17). Dei moduli giocati in
+   questa giornata, `CASELLE_PER_MODULO` non ha 3-4-2-1, 3-4-3, 3-5-2 e
+   4-2-3-1: con l'approssimazione «tutti i ruoli del reparto», i due
+   trequartisti del 3-4-2-1 diventano caselle di centrocampo, e un attaccante
+   schierato li' prende zero invece del suo punteggio. Da solo, su una
+   squadra, vale −9,5.
+2. **Le fasce del modificatore di difesa** (punto 12). Dieci coppie
+   (media, bonus) dicono che la piattaforma usa **mezzi punti** — 0,5, 1, 1,5 —
+   dove la nostra tabella sale di uno in uno. Serve anche capire come calcola
+   la media: con i voti dopo le sostituzioni, e su quanti difensori.
+3. **L'ordine con cui entra la panchina.** In 4 casi su 10 i sostituti che
+   sceglie la piattaforma non sono i nostri. Il file dice chi e' entrato
+   davvero — i nomi non in grigio — quindi ogni giornata nuova e' un caso di
+   prova in piu'.
+
+**Da fare:** chiudere le tre tabelle con i tabellini di giornata, che adesso
+arrivano ogni settimana. I due test con `xfail` diventano verdi da soli
+quando ci siamo: finche' sono rossi, **le formazioni restano sulla
+piattaforma** e il sito importa il risultato invece di calcolarlo.

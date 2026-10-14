@@ -172,6 +172,12 @@ Il gioco (voti, formazioni, risultati) resta su Leghe Fantacalcio.
 - **Chi entra col codice sceglie la sua squadra** fra quelle che aspettano un
   presidente, invece di fondarne un'undicesima. Fondarla resta possibile, ma
   come seconda strada.
+- **Si legge il tabellino di giornata di Leghe** (`leggi_formazioni_leghe`):
+  formazioni, chi e' entrato, voti, bonus, modificatore, totali e risultato,
+  comprese le due cose che stanno **nel colore delle celle** — l'ammonizione
+  e chi dalla panchina e' entrato nel punteggio. Serve a registrare la
+  giornata vera e, soprattutto, a misurare il nostro calcolo contro il loro:
+  oggi non coincide, e il perche' sta nel punto 21 di PUNTI_APERTI.
 
 ## Cosa manca (in ordine di utilita')
 
@@ -303,7 +309,12 @@ nel modello.
 
 ### Le sei tabelle di moduli non trascritte
 
-**Innesco:** Marco rimanda l'immagine leggibile, o detta gli slot.
+**Innesco:** Marco rimanda l'immagine leggibile, o detta gli slot. Dal 14
+ottobre c'e' anche una seconda strada: i **tabellini di giornata** di Leghe
+(`tests/dati/formazioni_leghe_g1.xlsx`) dicono, giornata dopo giornata, chi
+la piattaforma accetta in quale casella. `tests/test_formazioni_leghe.py`
+misura quanto siamo lontani — oggi fino a −8,5 punti su una squadra — e i due
+`xfail` diventano verdi quando le tabelle sono giuste.
 
 `CASELLE_PER_MODULO` in `mantra.py` copre cinque moduli su undici. Mancano
 **3-4-2-1, 3-5-2, 3-5-1-1, 4-3-3, 4-4-2, 4-4-1-1**: nell'immagine ricevuta
