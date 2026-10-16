@@ -392,6 +392,19 @@ sara' di 18 o 27 giornate.
   pattern combacia con la riga di comando del comando stesso (prima succedeva
   con `streamlit run app.py`: cambia il nome, non la trappola). Si prende il
   PID con `pgrep` e si fa `kill` su quello.
+- **Un valore predefinito che cambia sta gia' scritto nelle leghe salvate.**
+  `OpzioniLega` salva nel database **tutte** le opzioni, anche quelle che
+  l'utente non ha mai toccato: il giorno che si restringe un elenco o si
+  corregge un default, le leghe esistenti portano ancora il vecchio. Il 14
+  ottobre `MODULI_MANTRA` e' passato da sedici a undici moduli e la lega vera
+  di Marco, creata prima, e' diventata illeggibile — `carica_leghe` salta le
+  righe che non si leggono, quindi il sito gli diceva «non sei in nessuna
+  lega». I test non lo vedevano perche' le loro leghe nascono col default
+  nuovo. Regola: ogni volta che si tocca un default o un elenco ammesso, si
+  scrive anche **come si legge quello vecchio** (`_deserializza`) e un test
+  con la riga com'era. **Tenere aperto**: le `fasce_difesa` di quella lega
+  hanno ancora i valori vecchi (1-6 punti), perche' il default nuovo vale solo
+  per le leghe nuove.
 - **In una lega vera le squadre arrivano prima delle persone.** I nomi stanno
   nel calendario, non li scrive chi si registra: l'onboarding che chiede «come
   chiami la tua squadra» va bene solo su una lega appena fondata. Chi guida

@@ -439,3 +439,66 @@ class TestDireDiQualeSquadraSeiPresidente:
 
         assert stato["serve"] == "squadra"
         assert stato["squadre_libere"] == []
+
+
+class TestUnaLegaSalvataConIModuliVecchi:
+    """Il guasto di chi aveva gia' creato la lega prima del cambio dei moduli.
+
+    La riga nel database porta ancora i sedici moduli. Letta male, la lega
+    spariva senza un errore (`carica_leghe` salta le righe illeggibili) e il
+    sito rimandava il presidente all'onboarding: «non sei in nessuna lega».
+    """
+
+    SEDICI = [
+        "3-4-3", "3-4-1-2", "3-4-2-1", "3-5-2", "3-5-1-1", "4-3-3", "4-4-2",
+        "4-3-1-2", "4-1-4-1", "4-2-3-1", "4-4-1-1", "4-3-2-1",
+        "5-3-2", "5-4-1", "5-2-2-1", "5-3-1-1",
+    ]  # fmt: skip
+
+    @pytest.fixture
+    def con_la_lega_vecchia(self, monkeypatch, db_demo):
+        import json
+
+        with sqlite3.connect(db_demo) as conn:
+            (grezzo,) = conn.execute("select opzioni from leghe where id = 1").fetchone()
+            opzioni = json.loads(grezzo)
+            opzioni["moduli_ammessi"] = self.SEDICI
+            conn.execute(
+                "update leghe set opzioni = ? where id = 1", (json.dumps(opzioni),)
+            )
+        return _client(monkeypatch, db_demo)
+
+    def test_il_presidente_e_ancora_dentro_la_sua_lega(self, con_la_lega_vecchia):
+        client = con_la_lega_vecchia
+        client.post(
+            "/api/accesso", json={"nome_utente": "marco", "password": "fantanuovo26"}
+        )
+
+        stato = client.get("/api/onboarding").json()
+
+        assert stato["serve"] == "niente"
+        assert stato["nome_lega"]
+
+    def test_la_pagina_della_lega_si_apre(self, con_la_lega_vecchia):
+        client = con_la_lega_vecchia
+        client.post(
+            "/api/accesso", json={"nome_utente": "marco", "password": "fantanuovo26"}
+        )
+
+        risposta = client.get("/api/lega")
+
+        assert risposta.status_code == 200
+        assert risposta.json()["codice_invito"]
+
+    def test_chi_entra_col_codice_trova_la_lega(self, con_la_lega_vecchia):
+        client = con_la_lega_vecchia
+        client.post(
+            "/api/accesso", json={"nome_utente": "marco", "password": "fantanuovo26"}
+        )
+        codice = client.get("/api/lega").json()["codice_invito"]
+        client.post("/api/esci")
+        client.post("/api/registrazione", json=ISCRIZIONE)
+
+        risposta = client.post("/api/onboarding/unisciti", json={"codice": codice})
+
+        assert risposta.status_code == 200
