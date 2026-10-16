@@ -547,7 +547,20 @@ def _deserializza(grezzo: dict) -> dict:
                 valori.pop(chiave)
 
     if "moduli_ammessi" in valori:
-        valori["moduli_ammessi"] = tuple(valori["moduli_ammessi"])
+        # I moduli che la piattaforma ha tolto (la difesa a cinque, il
+        # 4-4-1-1) vanno via dalle leghe gia' salvate. Lasciarli farebbe
+        # alzare `LegaNonValida` alla lettura, e `carica_leghe` salta in
+        # silenzio le righe illeggibili: la lega sparirebbe dal sito e il
+        # presidente si sentirebbe dire che non e' in nessuna lega.
+        try:
+            modalita = valori.get("modalita", Modalita.MANTRA)
+            esistenti = set(moduli_disponibili(modalita))
+            tenuti = tuple(m for m in valori["moduli_ammessi"] if m in esistenti)
+        except TypeError:
+            tenuti = ()
+        valori["moduli_ammessi"] = tenuti
+        if not tenuti:
+            valori.pop("moduli_ammessi")
 
     if "ordine_draft" in valori:
         try:

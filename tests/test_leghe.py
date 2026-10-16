@@ -189,6 +189,73 @@ class TestSerializzazione:
         assert OpzioniLega.da_json('{"modalita": "SUBBUTEO"}').modalita is Modalita.MANTRA
 
 
+class TestLeghePrimaDelCambioDiModuli:
+    """Una lega salvata con l'elenco vecchio deve restare una lega.
+
+    I moduli Mantra erano sedici ed erano il valore predefinito: ogni lega
+    creata prima del 14 ottobre 2026 li ha scritti tutti nel database. Quando
+    la piattaforma ne ha lasciati undici, quelle leghe hanno cominciato ad
+    alzare `LegaNonValida` alla lettura — e `carica_leghe` salta in silenzio
+    le righe illeggibili, quindi il sito diceva al presidente che non era in
+    nessuna lega. Il guasto non si vedeva da nessun test, perche' le leghe dei
+    test nascono gia' con l'elenco nuovo.
+    """
+
+    SEDICI = [
+        "3-4-3", "3-4-1-2", "3-4-2-1", "3-5-2", "3-5-1-1", "4-3-3", "4-4-2",
+        "4-3-1-2", "4-1-4-1", "4-2-3-1", "4-4-1-1", "4-3-2-1",
+        "5-3-2", "5-4-1", "5-2-2-1", "5-3-1-1",
+    ]  # fmt: skip
+
+    def salvata(self, **altro) -> str:
+        return json.dumps({"modalita": "MANTRA", "moduli_ammessi": self.SEDICI, **altro})
+
+    def test_la_lega_si_legge_ancora(self):
+        opzioni = OpzioniLega.da_json(self.salvata())
+
+        assert opzioni.modalita is Modalita.MANTRA
+        assert opzioni.partecipanti == OpzioniLega().partecipanti
+
+    def test_i_moduli_che_non_esistono_piu_vanno_via(self):
+        opzioni = OpzioniLega.da_json(self.salvata())
+
+        assert set(opzioni.moduli_ammessi) == set(MODULI_MANTRA)
+        assert not {"4-4-1-1", "5-3-2", "5-4-1", "5-2-2-1", "5-3-1-1"} & set(
+            opzioni.moduli_ammessi
+        )
+
+    def test_una_scelta_della_lega_si_rispetta(self):
+        """Se la lega aveva ristretto l'elenco, restano i suoi moduli, non
+        tutti quelli che esistono."""
+        opzioni = OpzioniLega.da_json(
+            json.dumps({"modalita": "MANTRA", "moduli_ammessi": ["4-4-2", "5-3-2"]})
+        )
+
+        assert opzioni.moduli_ammessi == ("4-4-2",)
+
+    def test_se_non_resta_nessun_modulo_si_torna_al_predefinito(self):
+        """Una lega che ammetteva solo difese a cinque non puo' restare senza
+        moduli: meglio l'elenco intero che una lega che non si apre."""
+        opzioni = OpzioniLega.da_json(
+            json.dumps({"modalita": "MANTRA", "moduli_ammessi": ["5-3-2", "5-4-1"]})
+        )
+
+        assert opzioni.moduli_ammessi == MODULI_MANTRA
+
+    def test_un_elenco_scritto_male_non_fa_sparire_la_lega(self):
+        opzioni = OpzioniLega.da_json('{"moduli_ammessi": 42}')
+
+        assert opzioni.moduli_ammessi == MODULI_MANTRA
+
+    def test_in_classic_si_guarda_l_elenco_classic(self):
+        """La difesa a cinque esiste ancora nel Classic: li' non si toglie."""
+        opzioni = OpzioniLega.da_json(
+            json.dumps({"modalita": "CLASSIC", "moduli_ammessi": ["5-3-2", "4-4-2"]})
+        )
+
+        assert opzioni.moduli_ammessi == ("5-3-2", "4-4-2")
+
+
 class TestLega:
     def test_creazione_genera_il_codice(self):
         lega = crea_lega(1, "Lega degli Amici", admin_id=7)
