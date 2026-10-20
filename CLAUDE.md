@@ -113,6 +113,7 @@ all'avvio: non ricrearlo a mano.
 | Toccare colori o maglia | `identita.py` + `test_identita.py` |
 | Cambiare il formato del CSV | `importazione.py` (i sinonimi stanno in `COLONNE_ROSE`) |
 | Toccare il calendario ufficiale di Leghe | `importa_calendario`/`applica_calendario` in `importazione.py` + `test_importazione.py` |
+| Toccare il campo data di nascita (maschera, incolla, validazione) | `web/src/data.ts` (logica, senza browser) + `web/src/campoData.tsx`; il formato al server resta `gg/mm/aaaa` |
 | Toccare chi puo' rivendicare una squadra | `autenticazione.rivendica_squadra` + `api/rotte/onboarding.py` |
 | Toccare il tabellino di giornata di Leghe | `leggi_formazioni_leghe`/`applica_formazioni_leghe` in `giornata.py` + `test_formazioni_leghe.py` |
 | Toccare chi entra dalla panchina o il cambio modulo | `_chi_entra` in `formazioni.py` + `test_formazioni.py` |
