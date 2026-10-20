@@ -236,6 +236,24 @@ input::placeholder {
   margin-top: 16px;
 }
 
+/* Il messaggio che sta sotto un campo, accanto a quello che dice. Piu' leggero
+   di `.errore`, che e' un riquadro per tutto il modulo. */
+.campo-messaggio {
+  margin: 6px 0 0;
+  color: var(--rosso-tenue);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--rosso);
+}
+
+input[aria-invalid="true"]:focus {
+  border-color: var(--rosso);
+  box-shadow: 0 0 0 3px rgb(229 72 77 / 0.16);
+}
+
 button {
   font: inherit;
   font-weight: 600;

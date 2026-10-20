@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ErroreApi, api, type ModuloRegistrazione } from "../api";
+import { CampoData } from "../campoData";
+import { esaminaData } from "../data";
 import { useSessione } from "../sessione";
 
 /**
@@ -150,8 +152,16 @@ function Iscriviti({ onEntrato }: { onEntrato: () => void }) {
     campi.password,
     campi.conferma,
   ];
+  // La data deve essere scritta per intero e vera: il campo lo dice accanto a
+  // se' stesso, qui si evita solo di mandare al server una data che sappiamo
+  // gia' sbagliata.
+  const data = esaminaData(campi.data_nascita);
   const pronto =
-    obbligatori.every((v) => v.trim()) && problemi.length === 0 && !!modulo;
+    obbligatori.every((v) => v.trim()) &&
+    data.completa &&
+    !data.errore &&
+    problemi.length === 0 &&
+    !!modulo;
 
   async function invia(evento: FormEvent) {
     evento.preventDefault();
@@ -217,18 +227,11 @@ function Iscriviti({ onEntrato }: { onEntrato: () => void }) {
       </div>
 
       <div className="coppia">
-        <div className="campo">
-          <label htmlFor="r-nascita">Data di nascita</label>
-          <input
-            id="r-nascita"
-            value={campi.data_nascita}
-            onChange={(e) => cambia("data_nascita", e.target.value)}
-            placeholder="gg/mm/aaaa"
-            inputMode="numeric"
-            autoComplete="bday"
-            required
-          />
-        </div>
+        <CampoData
+          id="r-nascita"
+          valore={campi.data_nascita}
+          onCambia={(v) => cambia("data_nascita", v)}
+        />
         <div className="campo">
           <label htmlFor="r-sesso">Sesso</label>
           <select
