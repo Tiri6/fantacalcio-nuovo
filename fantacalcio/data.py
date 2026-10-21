@@ -1268,51 +1268,89 @@ def salva_formazione(arch: Archivio, formazione: Formazione) -> None:
     )
 
 
+def _numero(valore, difetto=0):
+    if valore is None or (isinstance(valore, float) and pd.isna(valore)):
+        return difetto
+    try:
+        return int(float(valore))
+    except (TypeError, ValueError):
+        return difetto
+
+
+def _voto_da_riga(riga) -> Voto | None:
+    """Una riga della tabella `voti`; None se giornata o giocatore sono rotti."""
+    try:
+        quale = int(riga["giornata"])
+        giocatore = int(riga["giocatore_id"])
+    except (TypeError, ValueError):
+        return None
+    grezzo = riga.get("voto")
+    voto = None
+    if grezzo is not None and not (isinstance(grezzo, float) and pd.isna(grezzo)):
+        try:
+            voto = float(grezzo)
+        except (TypeError, ValueError):
+            voto = None
+    return Voto(
+        giocatore_id=giocatore,
+        giornata=quale,
+        voto=voto,
+        gol=_numero(riga.get("gol")),
+        gol_su_rigore=_numero(riga.get("gol_su_rigore")),
+        rigori_sbagliati=_numero(riga.get("rigori_sbagliati")),
+        rigori_parati=_numero(riga.get("rigori_parati")),
+        autogol=_numero(riga.get("autogol")),
+        assist=_numero(riga.get("assist")),
+        ammonizioni=_numero(riga.get("ammonizioni")),
+        espulsioni=_numero(riga.get("espulsioni")),
+        gol_subiti=_numero(riga.get("gol_subiti")),
+        imbattuto=bool(_numero(riga.get("imbattuto"))),
+    )
+
+
 def carica_voti(arch: Archivio, giornata: int | None = None) -> dict[int, Voto]:
-    """I voti di una giornata, per giocatore. Senza giornata, tutti."""
+    """I voti di una giornata, per giocatore. Senza giornata, tutti.
+
+    Per giocatore: senza `giornata` resta l'ultima riga letta di ciascuno. Chi
+    ha bisogno di tutte le giornate usa `carica_voti_stagione`.
+    """
     righe = arch.tabella("voti")
     if righe.empty:
         return {}
-
-    def numero(valore, difetto=0):
-        if valore is None or (isinstance(valore, float) and pd.isna(valore)):
-            return difetto
-        try:
-            return int(float(valore))
-        except (TypeError, ValueError):
-            return difetto
-
     trovati: dict[int, Voto] = {}
+    for _, riga in righe.iterrows():
+        voto = _voto_da_riga(riga)
+        if voto is None or (giornata is not None and voto.giornata != giornata):
+            continue
+        trovati[voto.giocatore_id] = voto
+    return trovati
+
+
+def carica_voti_stagione(arch: Archivio) -> list[Voto]:
+    """Tutti i voti salvati, una riga per giocatore e giornata."""
+    righe = arch.tabella("voti")
+    if righe.empty:
+        return []
+    letti = (_voto_da_riga(riga) for _, riga in righe.iterrows())
+    return [v for v in letti if v is not None]
+
+
+def carica_titolari_per_giornata(
+    arch: Archivio, competizione: str = "CAMPIONATO"
+) -> dict[int, set[int]]:
+    """Per ogni giornata, chi era titolare in una formazione salvata."""
+    righe = arch.tabella("formazioni")
+    if righe.empty:
+        return {}
+    trovati: dict[int, set[int]] = {}
     for _, riga in righe.iterrows():
         try:
             quale = int(riga["giornata"])
-            giocatore = int(riga["giocatore_id"])
         except (TypeError, ValueError):
             continue
-        if giornata is not None and quale != giornata:
+        if str(riga.get("competizione") or "CAMPIONATO") != competizione:
             continue
-        grezzo = riga.get("voto")
-        voto = None
-        if grezzo is not None and not (isinstance(grezzo, float) and pd.isna(grezzo)):
-            try:
-                voto = float(grezzo)
-            except (TypeError, ValueError):
-                voto = None
-        trovati[giocatore] = Voto(
-            giocatore_id=giocatore,
-            giornata=quale,
-            voto=voto,
-            gol=numero(riga.get("gol")),
-            gol_su_rigore=numero(riga.get("gol_su_rigore")),
-            rigori_sbagliati=numero(riga.get("rigori_sbagliati")),
-            rigori_parati=numero(riga.get("rigori_parati")),
-            autogol=numero(riga.get("autogol")),
-            assist=numero(riga.get("assist")),
-            ammonizioni=numero(riga.get("ammonizioni")),
-            espulsioni=numero(riga.get("espulsioni")),
-            gol_subiti=numero(riga.get("gol_subiti")),
-            imbattuto=bool(numero(riga.get("imbattuto"))),
-        )
+        trovati.setdefault(quale, set()).update(_lista_id(riga.get("titolari")))
     return trovati
 
 

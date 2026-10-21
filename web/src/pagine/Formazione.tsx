@@ -1,12 +1,13 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ErroreApi,
   api,
   type CasellaFormazione,
+  type GiocatoreScelta,
   type PaginaFormazione,
   type SquadraInCampo,
 } from "../api";
-import { Campo } from "../campo";
+import { Badge, Campo, CampoComposizione, type PostoInCampo } from "../campo";
 import { useCarica } from "../carica";
 
 /**
@@ -54,6 +55,34 @@ function mancaDetto(secondi: number): string {
   return `${ore}h ${String(minuti).padStart(2, "0")}m`;
 }
 
+/** Il conto alla rovescia della barra: ore e minuti, poi solo minuti. */
+function mancaBreve(secondi: number): string {
+  if (secondi >= 3600) return mancaDetto(secondi);
+  const minuti = Math.ceil(secondi / 60);
+  return minuti <= 1 ? "meno di un minuto" : `${minuti} minuti`;
+}
+
+/** MV e FM come le ha calcolate il server; un trattino se mancano. */
+function Statistiche({ giocatore }: { giocatore: GiocatoreScelta }) {
+  const trattino = <span aria-label="nessun voto">–</span>;
+  const due = (n: number | null) => (n === null ? trattino : n.toFixed(2));
+  return (
+    <span className="statistiche">
+      <span title="Media voto">
+        MV <b>{due(giocatore.media_voto)}</b>
+      </span>
+      <span title="Fantamedia: voto con bonus e malus">
+        FM <b>{due(giocatore.fantamedia)}</b>
+      </span>
+      {/* Titolarità: lasciata vuota finché non si sceglie da che fonte
+          prenderla. Il server manda già `titolare_pct`, la pagina no. */}
+      <span title="Titolarità: non ancora disponibile">
+        Tit. <b aria-label="non ancora disponibile">&nbsp;</b>
+      </span>
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Il campo
 // ---------------------------------------------------------------------------
@@ -64,7 +93,7 @@ function SchierataDa({ squadra }: { squadra: SquadraInCampo }) {
       <h3>
         {squadra.squadra} <span className="suo-modulo">{squadra.modulo}</span>
       </h3>
-      <Campo reparti={squadra.reparti} />
+      <Campo reparti={squadra.reparti} variante="formazione" />
       {squadra.panchina.length > 0 && (
         <p className="didascalia">
           Panchina: {squadra.panchina.map((g) => g.nome).join(", ")}
@@ -75,8 +104,81 @@ function SchierataDa({ squadra }: { squadra: SquadraInCampo }) {
 }
 
 // ---------------------------------------------------------------------------
+// Il modulo, con il suo schema a puntini
+// ---------------------------------------------------------------------------
+
+/**
+ * I puntini di un modulo, dall'attacco in alto al portiere in basso.
+ *
+ * Si legge solo la scritta («4-3-1-2»: quattro, tre, uno, due): è disegno, non
+ * regola. Se un modulo è valido o no, e che caselle ha, lo decide il server.
+ */
+function SchemaModulo({ modulo }: { modulo: string }) {
+  const file = modulo
+    .split("-")
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .reverse();
+  return (
+    <span className="schema-modulo" aria-hidden="true">
+      {[...file, 1].map((quanti, i) => (
+        <span key={i} className={i === file.length ? "fila fila-porta" : "fila"}>
+          {Array.from({ length: quanti }, (_, j) => (
+            <i key={j} />
+          ))}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Comporre
 // ---------------------------------------------------------------------------
+
+type Filtro = "T" | "P" | "D" | "C" | "A";
+const FILTRI: Filtro[] = ["T", "P", "D", "C", "A"];
+const NOME_FILTRO: Record<Filtro, string> = {
+  T: "Tutti",
+  P: "Portieri",
+  D: "Difensori",
+  C: "Centrocampisti",
+  A: "Attaccanti",
+};
+
+function RigaGiocatore({
+  giocatore,
+  nota,
+  attivo,
+  disabilitato,
+  onClick,
+}: {
+  giocatore: GiocatoreScelta;
+  nota?: string;
+  attivo?: boolean;
+  disabilitato?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={attivo ? "giocatore-riga attivo" : "giocatore-riga"}
+      aria-pressed={attivo}
+      disabled={disabilitato}
+      onClick={onClick}
+    >
+      <Badge sigla={giocatore.sigla} />
+      <span className="chi">
+        <strong>{giocatore.nome}</strong>
+        <small>
+          {giocatore.ruoli.join("/")}
+          {nota ? ` · ${nota}` : ""}
+        </small>
+        <Statistiche giocatore={giocatore} />
+      </span>
+    </button>
+  );
+}
 
 function Componi({
   dato,
@@ -91,6 +193,20 @@ function Componi({
   const [panchina, setPanchina] = useState<number[]>(dato.panchina);
   const [errore, setErrore] = useState<string | null>(null);
   const [inCorso, setInCorso] = useState(false);
+  // Quale casella ha la scelta aperta, e il tasto da cui è partita (ci si
+  // torna chiudendo, per chi usa la tastiera).
+  const [aperta, setAperta] = useState<number | null>(null);
+  const partenza = useRef<HTMLButtonElement | null>(null);
+  const [filtro, setFiltro] = useState<Filtro>("T");
+  const [ricerca, setRicerca] = useState("");
+  // Il conto alla rovescia parte dai secondi che il server ha mandato.
+  const [avvio] = useState(() => Date.now());
+  const [adesso, setAdesso] = useState(avvio);
+  useEffect(() => {
+    if (dato.blocco.mancano_secondi === null) return;
+    const giro = window.setInterval(() => setAdesso(Date.now()), 15000);
+    return () => window.clearInterval(giro);
+  }, [dato.blocco.mancano_secondi]);
 
   const perId = useMemo(
     () => new Map(dato.rosa.map((g) => [g.id, g])),
@@ -100,7 +216,7 @@ function Componi({
   /**
    * Chi entra in una casella lascia all'altra il giocatore che usciva.
    *
-   * Le tendine mostrano **tutti** quelli che la casella ammette, anche se sono
+   * La scelta mostra **tutti** quelli che la casella ammette, anche se sono
    * già schierati altrove: togliere i già scelti sembra più pulito, ma rende
    * impossibile il gesto più comune, cioè spostare un difensore da una casella
    * all'altra — per farlo toccherebbe prima svuotare quella di destinazione.
@@ -140,6 +256,11 @@ function Componi({
         ? [...prima.filter((g) => g !== giocatore), giocatore]
         : prima.filter((g) => g !== giocatore),
     );
+  }
+
+  function chiudi() {
+    setAperta(null);
+    partenza.current?.focus();
   }
 
   // Quanti stanno fuori ruolo: non è un ricalcolo della regola, è la lettura
@@ -184,31 +305,64 @@ function Componi({
     }
   }
 
-  // Le caselle raggruppate per reparto, nell'ordine in cui arrivano.
-  const perReparto: { reparto: string; caselle: CasellaFormazione[] }[] = [];
+  // Le caselle raggruppate per reparto, nell'ordine in cui arrivano (porta per
+  // prima); sul campo si disegnano al contrario, l'attacco in alto.
+  const perReparto: PostoInCampo[][] = [];
+  let ultimoReparto = "";
   for (const casella of dato.caselle) {
-    const ultimo = perReparto[perReparto.length - 1];
-    if (ultimo && ultimo.reparto === casella.reparto)
-      ultimo.caselle.push(casella);
-    else perReparto.push({ reparto: casella.reparto, caselle: [casella] });
+    const id = titolari[casella.indice];
+    const posto: PostoInCampo = {
+      indice: casella.indice,
+      sigla: casella.sigla,
+      etichetta: casella.etichetta,
+      giocatore: perId.get(id) ?? null,
+      adattato: casella.adattati.includes(id),
+      doppio: titolari.filter((g) => g === id).length > 1,
+    };
+    if (casella.reparto === ultimoReparto)
+      perReparto[perReparto.length - 1].push(posto);
+    else perReparto.push([posto]);
+    ultimoReparto = casella.reparto;
   }
+  const righeCampo = [...perReparto].reverse();
+
+  const casellaAperta = aperta === null ? null : dato.caselle[aperta];
+
+  // La rosa disponibile, filtrata per reparto e per nome.
+  const cerca = ricerca.trim().toLowerCase();
+  const visibili = disponibili.filter(
+    (g) =>
+      (filtro === "T" || g.sigla === filtro) &&
+      (cerca === "" || g.nome.toLowerCase().includes(cerca)),
+  );
+
+  const restano =
+    dato.blocco.mancano_secondi === null
+      ? null
+      : Math.max(
+          0,
+          dato.blocco.mancano_secondi - Math.floor((adesso - avvio) / 1000),
+        );
 
   return (
-    <div className="riquadro">
-      <div className="riga-modulo">
-        <div className="campo">
-          <label htmlFor="modulo">Modulo</label>
-          <select
-            id="modulo"
-            value={dato.modulo}
-            onChange={(e) => onModulo(e.target.value)}
-          >
-            {dato.moduli.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+    <div className="componi">
+      <section aria-labelledby="titolo-modulo" className="riquadro">
+        <h2 id="titolo-modulo" className="titolo-sezione">
+          Modulo
+        </h2>
+        <div className="moduli" role="group" aria-label="Scegli il modulo">
+          {dato.moduli.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={m === dato.modulo ? "modulo-tasto attivo" : "modulo-tasto"}
+              aria-pressed={m === dato.modulo}
+              onClick={() => m !== dato.modulo && onModulo(m)}
+            >
+              <SchemaModulo modulo={m} />
+              <span>{m}</span>
+            </button>
+          ))}
         </div>
         <p className="didascalia">
           {dato.modulo_ufficiale
@@ -218,112 +372,125 @@ function Componi({
             ? `Chi non è del ruolo che la casella chiede gioca lo stesso, con ${dato.malus_adattamento} punto in meno (modalità ${dato.modalita_sostituzioni}).`
             : "In modalità Easy nessuno può giocare fuori posizione."}
         </p>
-      </div>
+      </section>
 
-      {perReparto.map((gruppo) => (
-        <div key={gruppo.reparto} className="reparto-scelta">
-          <h3>{gruppo.reparto}</h3>
-          <div className="caselle">
-            {gruppo.caselle.map((casella) => {
-              const scelto = titolari[casella.indice];
-              const { liberi, adattati } = casella;
-              const doppio = titolari.filter((g) => g === scelto).length > 1;
-              return (
-                <div key={casella.indice} className="campo">
-                  <label htmlFor={`casella-${casella.indice}`}>
-                    {casella.etichetta}
-                  </label>
-                  <select
-                    id={`casella-${casella.indice}`}
-                    value={scelto ?? ""}
-                    className={
-                      doppio
-                        ? "doppio"
-                        : casella.adattati.includes(scelto)
-                          ? "adattato"
-                          : undefined
-                    }
-                    onChange={(e) =>
-                      scegli(casella.indice, Number(e.target.value))
-                    }
-                  >
-                    {liberi.map((g) => (
-                      <option key={g} value={g}>
-                        {perId.get(g)?.nome} ({perId.get(g)?.ruoli.join("/")})
-                      </option>
-                    ))}
-                    {adattati.length > 0 && (
-                      <optgroup label={`Adattati (−${dato.malus_adattamento})`}>
-                        {adattati.map((g) => (
-                          <option key={g} value={g}>
-                            {perId.get(g)?.nome} (
-                            {perId.get(g)?.ruoli.join("/")})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+      <div className="componi-griglia">
+        <section aria-labelledby="titolo-campo">
+          <h2 id="titolo-campo" className="titolo-sezione">
+            In campo{" "}
+            <span className="didascalia">tocca una maglia per cambiare</span>
+          </h2>
+          <CampoComposizione
+            righe={righeCampo}
+            malus={dato.malus_adattamento}
+            onApri={(indice, tasto) => {
+              partenza.current = tasto;
+              setAperta(indice);
+            }}
+          />
+        </section>
 
-      {doppioni.length > 0 && (
-        <div className="errore" role="alert">
-          ⛔ {doppioni.map((g) => perId.get(g)?.nome).join(", ")}{" "}
-          {doppioni.length === 1 ? "è schierato" : "sono schierati"} in due
-          caselle: ognuno può stare in un posto solo.
-        </div>
-      )}
-
-      {fuoriPosizione.length > 0 && (
-        <div className="avviso">
-          🔁 Fuori posizione:{" "}
-          {fuoriPosizione
-            .map(
-              (c) =>
-                `${perId.get(titolari[c.indice])?.nome} nella casella «${c.etichetta}»`,
-            )
-            .join(", ")}
-          . {fraseAdattamenti(fuoriPosizione.length, dato.malus_adattamento)}
-        </div>
-      )}
-
-      <h3>
-        Panchina{" "}
-        <span className="didascalia">
-          l'ordine conta: entra il primo che può farlo ({panchina.length}/
-          {dato.panchinari})
-        </span>
-      </h3>
-      <div className="panchina-scelta">
-        {disponibili.map((g) => {
-          const dentro = panchina.includes(g.id);
-          const pieno = panchina.length >= dato.panchinari;
-          return (
-            <label
-              key={g.id}
-              className={dentro ? "interruttore preso" : "interruttore"}
-            >
-              <input
-                type="checkbox"
-                checked={dentro}
-                disabled={!dentro && pieno}
-                onChange={(e) => inPanchina(g.id, e.target.checked)}
-              />
-              <span>
-                {dentro && (
-                  <strong className="ordine">
-                    {panchina.indexOf(g.id) + 1}
-                  </strong>
-                )}
-                {g.nome} <small>{g.ruoli.join("/")}</small>
+        <div className="componi-lato">
+          <section aria-labelledby="titolo-panchina">
+            <h2 id="titolo-panchina" className="titolo-sezione">
+              Panchina{" "}
+              <span className="didascalia">
+                entra il primo che può farlo ({panchina.length}/
+                {dato.panchinari})
               </span>
-            </label>
-          );
-        })}
+            </h2>
+            <ol className="panchina-striscia">
+              {panchina.map((id, posto) => {
+                const g = perId.get(id);
+                if (!g) return null;
+                return (
+                  <li key={id}>
+                    <button
+                      type="button"
+                      className="panchinaro"
+                      aria-label={`${posto + 1}° in panchina: ${g.nome}, ${g.ruoli.join("/")}. Tocca per toglierlo`}
+                      onClick={() => inPanchina(id, false)}
+                    >
+                      <span className="ordine">{posto + 1}</span>
+                      <Badge sigla={g.sigla} />
+                      <strong>{g.nome}</strong>
+                      <small>{g.ruoli.join("/")}</small>
+                      <span className="togli" aria-hidden="true">
+                        ✕
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+              {panchina.length < dato.panchinari && (
+                <li className="panchinaro vuoto" aria-hidden="true">
+                  <span className="ordine">{panchina.length + 1}</span>
+                  <small>libero</small>
+                </li>
+              )}
+            </ol>
+          </section>
+
+          <section aria-labelledby="titolo-rosa">
+            <h2 id="titolo-rosa" className="titolo-sezione">
+              Rosa disponibile{" "}
+              <span className="didascalia">
+                {disponibili.length - panchina.length} fuori dalla panchina
+              </span>
+            </h2>
+            <div className="filtri-rosa">
+              <div className="gruppo-filtri" role="group" aria-label="Reparto">
+                {FILTRI.map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    className={filtro === f ? "filtro attiva" : "filtro"}
+                    aria-pressed={filtro === f}
+                    aria-label={NOME_FILTRO[f]}
+                    onClick={() => setFiltro(f)}
+                  >
+                    {f === "T" ? "Tutti" : f}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="search"
+                className="cerca"
+                placeholder="Cerca per nome"
+                aria-label="Cerca un giocatore per nome"
+                value={ricerca}
+                onChange={(e) => setRicerca(e.target.value)}
+              />
+            </div>
+            <ul className="rosa-elenco">
+              {visibili.map((g) => {
+                const posto = panchina.indexOf(g.id);
+                const dentro = posto >= 0;
+                const pieno = panchina.length >= dato.panchinari;
+                return (
+                  <li key={g.id}>
+                    <RigaGiocatore
+                      giocatore={g}
+                      attivo={dentro}
+                      nota={
+                        dentro
+                          ? `in panchina, ${posto + 1}°`
+                          : !pieno
+                            ? "tocca per la panchina"
+                            : "panchina piena"
+                      }
+                      disabilitato={!dentro && pieno}
+                      onClick={() => inPanchina(g.id, !dentro)}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+            {visibili.length === 0 && (
+              <p className="didascalia">Nessun giocatore corrisponde.</p>
+            )}
+          </section>
+        </div>
       </div>
 
       {errore && (
@@ -332,13 +499,208 @@ function Componi({
         </div>
       )}
 
-      <button
-        className="principale"
-        onClick={salva}
-        disabled={inCorso || doppioni.length > 0}
+      <div className="barra-salva" role="region" aria-label="Riepilogo">
+        <div className="riepilogo">
+          <strong>{dato.modulo}</strong>
+          <span
+            className={
+              doppioni.length > 0
+                ? "esito rosso"
+                : fuoriPosizione.length > 0
+                  ? "esito ambra"
+                  : "esito"
+            }
+            title={
+              fuoriPosizione.length > 0
+                ? fraseAdattamenti(
+                    fuoriPosizione.length,
+                    dato.malus_adattamento,
+                  )
+                : undefined
+            }
+          >
+            {doppioni.length > 0
+              ? `⛔ ${doppioni.length === 1 ? "1 doppione" : `${doppioni.length} doppioni`}`
+              : fuoriPosizione.length > 0
+                ? `🔁 ${fuoriPosizione.length} ${fuoriPosizione.length === 1 ? "adattamento" : "adattamenti"} (−${Math.abs(dato.malus_adattamento) * fuoriPosizione.length})`
+                : "Nessun adattamento"}
+          </span>
+          <span className="blocco-stato">
+            {restano === null
+              ? "🗓️ Aperta"
+              : `⏳ Chiude fra ${mancaBreve(restano)}`}
+          </span>
+        </div>
+        <button
+          type="button"
+          className="principale salva"
+          onClick={salva}
+          disabled={inCorso || doppioni.length > 0}
+        >
+          {inCorso ? "Salvo…" : "💾 Salva"}
+        </button>
+      </div>
+
+      {casellaAperta && (
+        <FoglioScelta
+          casella={casellaAperta}
+          scelto={titolari[casellaAperta.indice]}
+          titolari={titolari}
+          panchina={panchina}
+          dato={dato}
+          perId={perId}
+          onScegli={(id) => {
+            scegli(casellaAperta.indice, id);
+            chiudi();
+          }}
+          onChiudi={chiudi}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * La scelta di chi occupa una casella: un foglio che sale dal basso sul
+ * telefono, un pannello sul computer. Elenca prima chi ci sta di diritto,
+ * poi chi ci si adatta pagando il malus — l'ordine e le liste sono del server.
+ */
+function FoglioScelta({
+  casella,
+  scelto,
+  titolari,
+  panchina,
+  dato,
+  perId,
+  onScegli,
+  onChiudi,
+}: {
+  casella: CasellaFormazione;
+  scelto: number | undefined;
+  titolari: number[];
+  panchina: number[];
+  dato: PaginaFormazione;
+  perId: Map<number, GiocatoreScelta>;
+  onScegli: (id: number) => void;
+  onChiudi: () => void;
+}) {
+  const radice = useRef<HTMLDivElement>(null);
+
+  // Esc chiude, Tab resta dentro il foglio, la pagina sotto non scorre, e il
+  // focus parte da chi è già scelto.
+  useEffect(() => {
+    const prima = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const iniziale =
+      radice.current?.querySelector<HTMLElement>(".giocatore-riga.attivo") ??
+      radice.current?.querySelector<HTMLElement>(".giocatore-riga");
+    iniziale?.focus();
+
+    function tasto(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onChiudi();
+        return;
+      }
+      if (e.key !== "Tab" || !radice.current) return;
+      const dentro = Array.from(
+        radice.current.querySelectorAll<HTMLElement>("button:not(:disabled)"),
+      );
+      if (dentro.length === 0) return;
+      const primo = dentro[0];
+      const ultimo = dentro[dentro.length - 1];
+      if (e.shiftKey && document.activeElement === primo) {
+        e.preventDefault();
+        ultimo.focus();
+      } else if (!e.shiftKey && document.activeElement === ultimo) {
+        e.preventDefault();
+        primo.focus();
+      }
+    }
+    document.addEventListener("keydown", tasto);
+    return () => {
+      document.body.style.overflow = prima;
+      document.removeEventListener("keydown", tasto);
+    };
+  }, []);
+
+  function dove(id: number): string | undefined {
+    const altrove = titolari.indexOf(id);
+    if (id === scelto) return "qui";
+    if (altrove >= 0)
+      return `in campo come ${dato.caselle[altrove]?.etichetta ?? "titolare"}`;
+    const posto = panchina.indexOf(id);
+    return posto >= 0 ? `in panchina, ${posto + 1}°` : undefined;
+  }
+
+  const liberi = casella.liberi
+    .map((id) => perId.get(id))
+    .filter((g): g is GiocatoreScelta => g !== undefined);
+  const adattati = casella.adattati
+    .map((id) => perId.get(id))
+    .filter((g): g is GiocatoreScelta => g !== undefined);
+
+  return (
+    <div className="foglio-velo" onClick={onChiudi}>
+      <div
+        ref={radice}
+        className="foglio"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="foglio-titolo"
+        onClick={(e) => e.stopPropagation()}
       >
-        {inCorso ? "Salvo…" : "💾 Salva la formazione"}
-      </button>
+        <header>
+          <h3 id="foglio-titolo">
+            Chi gioca come {casella.etichetta}{" "}
+            <small>({casella.reparto})</small>
+          </h3>
+          <button
+            type="button"
+            className="chiudi"
+            aria-label="Chiudi senza cambiare"
+            onClick={onChiudi}
+          >
+            ✕
+          </button>
+        </header>
+        <div className="foglio-corpo">
+          <ul className="rosa-elenco">
+            {liberi.map((g) => (
+              <li key={g.id}>
+                <RigaGiocatore
+                  giocatore={g}
+                  attivo={g.id === scelto}
+                  nota={dove(g.id)}
+                  onClick={() => onScegli(g.id)}
+                />
+              </li>
+            ))}
+          </ul>
+          {adattati.length > 0 && (
+            <>
+              <h4>
+                Adattati{" "}
+                <span className="distintivo ambra">
+                  −{Math.abs(dato.malus_adattamento)}
+                </span>{" "}
+                <small>giocano fuori ruolo e costano punti</small>
+              </h4>
+              <ul className="rosa-elenco">
+                {adattati.map((g) => (
+                  <li key={g.id}>
+                    <RigaGiocatore
+                      giocatore={g}
+                      attivo={g.id === scelto}
+                      nota={dove(g.id)}
+                      onClick={() => onScegli(g.id)}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

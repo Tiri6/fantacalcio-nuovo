@@ -529,3 +529,18 @@ capire se e' una regola o un'eccezione.
 **Da fare:** le caselle dei quattro moduli che restano (3-5-1-1, 4-3-3,
 4-4-2, 4-3-2-1) e una seconda giornata per il caso del modificatore. I due
 test con `xfail` diventano verdi da soli quando ci siamo.
+
+## 22. Le medie in Formazione: MV e FM — ✅ CHIUSO
+
+La pagina Formazione mostra per ogni giocatore **MV** (media del voto puro) e
+**FM** (fantamedia: voto piu' bonus e malus della lega), entrambe con due
+decimali, piu' la percentuale di giornate giocate da titolare. Le calcola il
+server (`fantacalcio/statistiche.py`) sui voti importati; i bonus sono quelli
+della lega.
+
+Fissato: contano solo le giornate in cui il giocatore **ha preso voto** (un
+senza voto non abbassa le medie); titolare vuol dire «nei titolari di una
+formazione di campionato salvata»; chi non ha mai preso voto mostra un
+trattino, non uno zero.
+
+**Da decidere ancora:** se la coppa deve contare nella titolarita'.

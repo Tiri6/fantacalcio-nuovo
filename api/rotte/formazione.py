@@ -29,9 +29,12 @@ from fantacalcio.data import (
     carica_formazioni,
     carica_giocatori,
     carica_rose,
+    carica_titolari_per_giornata,
+    carica_voti_stagione,
     salva_formazione,
 )
 from fantacalcio.formazioni import (
+    SIGLE_REPARTO,
     TITOLARI,
     Formazione,
     adattamenti,
@@ -40,12 +43,14 @@ from fantacalcio.formazioni import (
     frase_adattamenti,
     leggi_modulo,
     puo_occupare,
+    reparto_principale,
     schieramento,
     stato_blocco,
     valida,
 )
 from fantacalcio.leghe import ModalitaSostituzioni
 from fantacalcio.mantra import Esito
+from fantacalcio.statistiche import statistiche_stagione
 
 from ..contesto import Contesto, contesto_di
 from ..dipendenze import UtenteDentro
@@ -66,6 +71,17 @@ class GiocatoreScelta(BaseModel):
     id: int
     nome: str
     ruoli: list[str]
+    #: P, D, C o A: il reparto di casa, per raggruppare e filtrare. Vuoto se la
+    #: scheda non ha ruoli.
+    sigla: str = ""
+    #: Dalla nostra storia, calcolati dal server: la pagina li stampa e basta.
+    #: `None` = mai preso voto, e la pagina scrive un trattino (non uno zero).
+    media_voto: float | None = None
+    #: FM: voto con bonus e malus della lega. `None` come sopra.
+    fantamedia: float | None = None
+    #: Giornate con voto e quota di quelle giocate da titolare (0-100).
+    presenze: int = 0
+    titolare_pct: int | None = None
 
 
 class CasellaLetta(BaseModel):
@@ -79,6 +95,8 @@ class CasellaLetta(BaseModel):
     indice: int
     etichetta: str
     reparto: str
+    #: La lettera del reparto (P, D, C, A) per il badge.
+    sigla: str
     liberi: list[int]
     adattati: list[int]
 
@@ -157,9 +175,24 @@ class DaSchierare(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _giocatore(id_: int, nomi: dict[int, str], ruoli: dict) -> GiocatoreScelta:
+def _sigla(ruoli) -> str:
+    reparto = reparto_principale(tuple(ruoli))
+    return SIGLE_REPARTO[reparto] if reparto else ""
+
+
+def _giocatore(
+    id_: int, nomi: dict[int, str], ruoli: dict, statistiche: dict | None = None
+) -> GiocatoreScelta:
+    stat = (statistiche or {}).get(id_)
     return GiocatoreScelta(
-        id=id_, nome=nomi.get(id_, str(id_)), ruoli=list(ruoli.get(id_, ()))
+        id=id_,
+        nome=nomi.get(id_, str(id_)),
+        ruoli=list(ruoli.get(id_, ())),
+        sigla=_sigla(ruoli.get(id_, ())),
+        media_voto=stat.media if stat else None,
+        fantamedia=stat.fantamedia if stat else None,
+        presenze=stat.presenze if stat else 0,
+        titolare_pct=stat.percentuale_titolare if stat else None,
     )
 
 
@@ -214,6 +247,11 @@ def pagina(
     nomi = {g.id: g.nome for g in giocatori.values()}
     ruoli = {g.id: g.ruoli for g in giocatori.values()}
     salvate = carica_formazioni(ctx.arch, giornata, competizione)
+    statistiche = statistiche_stagione(
+        carica_voti_stagione(ctx.arch),
+        carica_titolari_per_giornata(ctx.arch),
+        bonus=opzioni.bonus if opzioni else None,
+    )
 
     moduli = list(opzioni.moduli_ammessi) if opzioni else ["3-4-3"]
     mia = utente.squadra_id if utente.squadra_id in rose else None
@@ -278,6 +316,7 @@ def pagina(
                 if schema.ufficiale
                 else casella.reparto.etichetta,
                 reparto=casella.reparto.etichetta,
+                sigla=SIGLE_REPARTO[casella.reparto],
                 liberi=liberi,
                 adattati=adattati,
             )
@@ -327,7 +366,7 @@ def pagina(
         adattamento_ammesso=adattamento_ammesso,
         malus_adattamento=abs(ctx.parametri.malus_adattamento),
         modalita_sostituzioni=modalita.etichetta,
-        rosa=[_giocatore(g, nomi, ruoli) for g in in_rosa],
+        rosa=[_giocatore(g, nomi, ruoli, statistiche) for g in in_rosa],
         titolari=list(base.titolari),
         panchina=[g for g in base.panchina if g in in_rosa][:panchinari],
         squadre=squadre,

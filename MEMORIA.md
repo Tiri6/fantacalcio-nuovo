@@ -11,10 +11,10 @@ tabella qui sotto.
 Gestionale della lega (10 squadre, Mantra, regolamento V3): contratti, monte anni, Cap/Floor, draft, scambi,
 calendario, risultati. Il gioco vero (voti, formazioni) resta su Leghe Fantacalcio: il sito ne importa i file.
 
-**Ultimo aggiornamento:** 20 ottobre 2026 — la data di nascita ha una maschera `gg/mm/aaaa` per il tastierino di
-iOS/Android (ramo `campo-data-nascita`, da unire). Dal 14 ottobre il sito importa calendario e tabellino di Leghe e
-il calcolo della giornata torna su 9 squadre su 10. Il 18 e' emerso che **il repository e' pubblico** con una
-vecchia chiave a pieni poteri nella cronologia: *Cosa manca*, punto 1.
+**Ultimo aggiornamento:** 21 ottobre 2026 — la pagina Formazione e' stata ridisegnata (campo in cui si compone,
+panchina, rosa filtrabile, MV e FM per giocatore); la maschera della data di nascita e' gia' in `main` (PR #22).
+Il 18 e' emerso che **il repository e' pubblico** con una vecchia chiave a pieni poteri nella cronologia:
+*Cosa manca*, punto 1.
 
 ## Decisioni prese (non riaprirle senza motivo)
 
@@ -28,6 +28,7 @@ vecchia chiave a pieni poteri nella cronologia: *Cosa manca*, punto 1.
 | **Coppa e F1 Rush le genera il presidente dal sito** quando le 10 squadre sono dentro. **Rose e anni**: il primo anno a mano via Excel, poi automatici dopo la Draft Room | 14 ott | Detto dal presidente: la coppa non e' ancora partita |
 | La giornata entra col **tabellino di Leghe** che il presidente carica a ogni giornata | 14 ott | Richiesto dal presidente. Lo scraping non e' praticabile: il CDN di Leghe risponde 403 ai server |
 | **Data di nascita con maschera**: solo cifre, barre automatiche, errore accanto al campo; il formato al server resta `gg/mm/aaaa` | 20 ott | Il tastierino numerico di iOS/Android non ha lo slash |
+| **Formazione**: per ogni giocatore **MV** (voto puro) e **FM** (con i bonus della lega), `x.xx`; **«Tit.» resta vuota** finche' non si sceglie da che fonte prenderla | 21 ott | Detto dal presidente. Il server la calcola gia' (`titolare_pct`) dalle formazioni salvate, ma la pagina non la mostra |
 | **Impianto** (ago-set): registrazione autonoma e codice d'invito di 8 caratteri; inviti per email che *non spediscono*; opzioni di lega in JSON, modificabili solo dal creatore; sostituzioni Easy/Basic/Master; portiere mai adattato; formazione bloccata un minuto prima; chat sul regolamento da un dossier generato | 21 ago-24 set | Un server di posta per dieci persone non si giustifica; le opzioni cambiano ogni stagione; la chat non cita mai a memoria |
 
 ## Cosa c'e' (funziona e ha i test: 1822, due `xfail` che misurano il calcolo)
@@ -39,9 +40,10 @@ vecchia chiave a pieni poteri nella cronologia: *Cosa manca*, punto 1.
   chi entra col codice sceglie la sua) e **tabellino di giornata** (formazioni, voti, risultati della piattaforma).
 - **Calcolo giornata**: 9 squadre su 10 col totale esatto sul tabellino vero (`tests/dati/`); sceglie le caselle,
   **cambia modulo**. Coppa e F1 Rush sono *viste calcolate*, non partite vere.
-- **Altro**: `mantra.py` e' dato trascritto a mano (i test ne provano la *forma*); data di nascita in
-  `web/src/data.ts` + `campoData.tsx` (eta' minima e massima solo al server; «Il mio profilo» la mostra soltanto);
-  chat sul regolamento; diagnostica dello schema.
+- **Formazione**: si compone toccando le maglie (riusa `scegli()`), avvisi come badge sulla maglia; MV/FM da
+  `statistiche.py`, la lettera del reparto P/D/C/A da `reparto_principale`: il browser non calcola niente.
+- **Altro**: `mantra.py` trascritto a mano (i test ne provano la *forma*); data di nascita con maschera
+  (`data.ts`, eta' minima e massima solo al server); chat sul regolamento; diagnostica dello schema.
 
 ## Cosa manca (in ordine di utilita')
 
@@ -51,18 +53,18 @@ vecchia chiave a pieni poteri nella cronologia: *Cosa manca*, punto 1.
    sicurezza, `/docs` spento e un backup documentato.
 2. **Dati veri**: stipendi, nascite, nazionalita' (senza, Cap/Floor/U21 lavorano su zeri). Le `fasce_difesa` della
    lega vera hanno ancora i valori vecchi.
-3. **Coppa e F1 Rush** generate dal sito, e **calendario da data d'inizio e fine** per l'anno prossimo.
-4. **Calcolo 10 su 10**: caselle di 3-5-1-1, 4-3-3, 4-4-2, 4-3-2-1; un caso di modificatore; servono altre giornate
-   di tabellino.
-5. Svincoli registrati (il Dead Money si calcola, non si scrive); registro dei lodi; minimi italiani/U21 e scambi a
+3. **Titolarita'** in Formazione: va scelta la fonte; il server intanto la ricava dalle formazioni salvate.
+4. **Coppa e F1 Rush** generate dal sito, e **calendario da data d'inizio e fine** per l'anno prossimo.
+5. **Calcolo 10 su 10**: caselle di 3-5-1-1, 4-3-3, 4-4-2, 4-3-2-1 e un caso di modificatore (altri tabellini).
+6. Svincoli registrati (il Dead Money si calcola, non si scrive); registro dei lodi; minimi italiani/U21 e scambi a
    stagione non imposti.
-6. Pulizia: `render.yaml`, 22 branch remoti da verificare, nessun lockfile Python, listone con stipendi di fonti
+7. Pulizia: `render.yaml`, 22 branch remoti da verificare, nessun lockfile Python, listone con stipendi di fonti
    terze in `dati/` (ora pubblico).
 
 ## In sospeso, con l'innesco
 
-- **Deploy**: dopo ogni merge `git pull` e `fly deploy` (Fly non ridispiega da solo). Da confermare l'ultimo, col
-  fix dei moduli (PR #21).
+- **Deploy**: dopo ogni merge `git pull` e `fly deploy` (Fly non ridispiega da solo; le sessioni web non hanno
+  `fly`). Da fare: il redesign della Formazione; da confermare data di nascita (PR #22) e moduli (PR #21).
 - **Chat**: serve `ANTHROPIC_API_KEY` in `fly secrets`; mai provata con una chiave vera. Se sbaglia un numero, il
   difetto e' nel dossier.
 - **Tabelle dei moduli**: innesco, lo schema ufficiale o altri tabellini. Il 3-4-2-1 e il 3-5-2 sono *dedotti* dai
@@ -83,23 +85,24 @@ ufficiale ha **27 giornate**: da riflettere nel punto 5).
   vecchio (`_deserializza`) e un test con la riga com'era.
 - **Un motore coerente puo' essere sbagliato.** Solo un tabellino vero ha mostrato 9 squadre su 10 errate: caselle
   dedotte, un attaccante a zero, esterni fuori dalla media.
-- **Cambiare ramo con modifiche non committate** e poi `git checkout ramo -- file` le cancella. Commit o stash
-  prima; uno stash si ritrova con `git fsck --lost-found`.
+- **Cambiare ramo con modifiche non committate** le perde: commit o stash prima (`git fsck --lost-found`).
 - **Il presidente lancia i comandi dalla home**: `git` e `fly` cercano `.git` e `fly.toml` nella cartella corrente.
-  Dare prima un `cd`, poi `git status`. In zsh un commento in riga non e' un commento.
-- **Server locale**: non si accorge del codice nuovo (riavviare). `pkill -f` uccide la propria shell: il PID si
-  prende con `ss -ltnp`. Due comandi Bash in parallelo con `cd` diversi si pestano la cartella.
-- **`insert or replace` annulla un `unique`**: per scrivere in sola aggiunta c'e' `Archivio.aggiungi`. **scrypt nei
-  test** costa piu' del resto: fixture `scrypt_da_test`.
+  Dare prima un `cd`. In zsh un commento in riga non e' un commento.
+- **Server locale**: non vede il codice nuovo (riavviare). `pkill -f` uccide la propria shell. Due comandi Bash in
+  parallelo con `cd` diversi si pestano la cartella.
+- **`insert or replace` annulla un `unique`**: c'e' `Archivio.aggiungi`. **scrypt nei test**: `scrypt_da_test`.
 - **SQLite e PostgREST rispondono diversamente**: tabella vuota senza colonne, colonna mancante, GRANT. Provare col
   finto backend di `test_backend_vuoto.py` e con la diagnostica. `create table if not exists` non aggiunge colonne:
   serve l'`alter table`.
-- **Ricostruire una dataclass** perde i campi che non nomini. Un `except` largo che torna un valore vuoto nasconde
-  i guasti. I dati inventati non mostrano i buchi (il ruolo `B` c'era solo nel listone vero).
-- **Le regole di validazione vanno scritte accanto al campo**: se le scopre l'errore del server, sembra che il sito
-  sia rotto. **Chi guida una squadra** lo dice `Utente.squadra_id`, mai il campo `presidente`.
-- **Il demo si costruisce una volta** (fixture `db_demo`). **Il container si ricicla**: si ri-clona, non si
-  riscrive a memoria.
+- **Ricostruire una dataclass** perde i campi che non nomini. Un `except` largo nasconde i guasti. I dati inventati
+  non mostrano i buchi (il ruolo `B` c'era solo nel listone vero).
+- **Regole di validazione accanto al campo**, o sembra che il sito sia rotto. **Chi guida una squadra** lo dice
+  `Utente.squadra_id`, mai il campo `presidente`.
+- **Nomi di classe CSS gia' presi**: `.porta` e' la pagina di accesso (`min-height: 100vh`) e ha stirato di tremila
+  pixel lo schema di un modulo. Prima di battezzare una classe, `grep` in `stile.css`. Una griglia senza
+  `grid-template-columns: minmax(0, 1fr)` si allarga al contenuto: una striscia scorrevole dentro la fa scrollare
+  la pagina intera. `ruff format` riscrive le righe: una sostituzione di testo fatta dopo puo' non trovarle.
+- **Il demo si costruisce una volta** (fixture `db_demo`). **Il container si ricicla**: si ri-clona.
 
 ## Come si lavora
 

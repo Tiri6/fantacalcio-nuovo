@@ -819,12 +819,21 @@ export type GiocatoreScelta = {
   id: number;
   nome: string;
   ruoli: string[];
+  // P, D, C o A: il reparto di casa, deciso dal server.
+  sigla: string;
+  // Calcolati dal server dalla storia della lega: la pagina li stampa e basta.
+  // `null` = mai preso voto (si scrive un trattino, non uno zero).
+  media_voto: number | null;
+  fantamedia: number | null;
+  presenze: number;
+  titolare_pct: number | null;
 };
 
 export type CasellaFormazione = {
   indice: number;
   etichetta: string;
   reparto: string;
+  sigla: string;
   liberi: number[];
   adattati: number[];
 };
