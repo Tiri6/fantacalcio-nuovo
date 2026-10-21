@@ -34,6 +34,7 @@ from fantacalcio.data import (
     salva_formazione,
 )
 from fantacalcio.formazioni import (
+    SIGLE_REPARTO,
     TITOLARI,
     Formazione,
     adattamenti,
@@ -42,6 +43,7 @@ from fantacalcio.formazioni import (
     frase_adattamenti,
     leggi_modulo,
     puo_occupare,
+    reparto_principale,
     schieramento,
     stato_blocco,
     valida,
@@ -69,6 +71,9 @@ class GiocatoreScelta(BaseModel):
     id: int
     nome: str
     ruoli: list[str]
+    #: P, D, C o A: il reparto di casa, per raggruppare e filtrare. Vuoto se la
+    #: scheda non ha ruoli.
+    sigla: str = ""
     #: Dalla nostra storia, calcolati dal server: la pagina li stampa e basta.
     #: `None` = mai preso voto, e la pagina scrive un trattino (non uno zero).
     media_voto: float | None = None
@@ -88,6 +93,8 @@ class CasellaLetta(BaseModel):
     indice: int
     etichetta: str
     reparto: str
+    #: La lettera del reparto (P, D, C, A) per il badge.
+    sigla: str
     liberi: list[int]
     adattati: list[int]
 
@@ -166,6 +173,11 @@ class DaSchierare(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _sigla(ruoli) -> str:
+    reparto = reparto_principale(tuple(ruoli))
+    return SIGLE_REPARTO[reparto] if reparto else ""
+
+
 def _giocatore(
     id_: int, nomi: dict[int, str], ruoli: dict, statistiche: dict | None = None
 ) -> GiocatoreScelta:
@@ -174,6 +186,7 @@ def _giocatore(
         id=id_,
         nome=nomi.get(id_, str(id_)),
         ruoli=list(ruoli.get(id_, ())),
+        sigla=_sigla(ruoli.get(id_, ())),
         media_voto=stat.media if stat else None,
         presenze=stat.presenze if stat else 0,
         titolare_pct=stat.percentuale_titolare if stat else None,
@@ -298,6 +311,7 @@ def pagina(
                 if schema.ufficiale
                 else casella.reparto.etichetta,
                 reparto=casella.reparto.etichetta,
+                sigla=SIGLE_REPARTO[casella.reparto],
                 liberi=liberi,
                 adattati=adattati,
             )

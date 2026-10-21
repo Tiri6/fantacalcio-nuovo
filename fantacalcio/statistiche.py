@@ -63,9 +63,7 @@ def statistiche_stagione(
             continue
         visti.add((v.giocatore_id, v.giornata))
         g = v.giocatore_id
-        valore = (
-            punteggio_giocatore(v, bonus) if base is BaseMedia.FANTAVOTO else v.voto
-        )
+        valore = punteggio_giocatore(v, bonus) if base is BaseMedia.FANTAVOTO else v.voto
         somme[g] = somme.get(g, 0.0) + float(valore)
         presenze[g] = presenze.get(g, 0) + 1
         if g in titolari_per_giornata.get(v.giornata, ()):

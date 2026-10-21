@@ -58,6 +58,30 @@ class Reparto(Enum):
         return any(ruolo in self.ruoli for ruolo in ruoli_giocatore)
 
 
+# La lettera con cui un reparto si scrive sui badge: P, D, C, A.
+SIGLE_REPARTO = {
+    Reparto.PORTA: "P",
+    Reparto.DIFESA: "D",
+    Reparto.CENTROCAMPO: "C",
+    Reparto.ATTACCO: "A",
+}
+
+
+def reparto_principale(ruoli: tuple[str, ...]) -> Reparto | None:
+    """Il reparto «di casa» di un giocatore, per chi deve raggrupparli o filtrarli.
+
+    Si guarda il **primo ruolo** della scheda e il primo reparto, nell'ordine
+    porta-difesa-centrocampo-attacco, che lo ammette: un «E» e' un difensore
+    (come per il modificatore di difesa), una «W» o un «T» un centrocampista.
+    Serve solo a etichettare: dove puo' giocare davvero lo dicono le caselle.
+    """
+    for ruolo in ruoli:
+        for reparto in Reparto:
+            if ruolo in reparto.ruoli:
+                return reparto
+    return None
+
+
 # I ruoli di confine valgono in due reparti: l'esterno «E» fa il terzino o
 # l'ala di centrocampo, l'ala «W» e il trequartista «T» giocano avanzati o in
 # mezzo. E' il motivo per cui i reparti sopra si sovrappongono.

@@ -89,6 +89,18 @@ class TestLaPagina:
         assert dati["modalita_sostituzioni"]
 
 
+class TestLeSigle:
+    """La lettera del reparto la dice il server: il browser non mappa ruoli."""
+
+    def test_ogni_giocatore_e_ogni_casella_hanno_la_sigla(self, client):
+        entra(client)
+        dati = pagina(client)
+        assert {g["sigla"] for g in dati["rosa"]} <= {"P", "D", "C", "A"}
+        assert all(g["sigla"] for g in dati["rosa"])
+        assert {c["sigla"] for c in dati["caselle"]} <= {"P", "D", "C", "A"}
+        assert [c["sigla"] for c in dati["caselle"]].count("P") == 1
+
+
 class TestLeStatistiche:
     """Media voto e titolarita' arrivano calcolate: il browser non somma niente."""
 

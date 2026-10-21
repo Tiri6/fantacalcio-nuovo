@@ -26,6 +26,7 @@ from fantacalcio.formazioni import (
     formazione_suggerita,
     leggi_modulo,
     punteggio_giocatore,
+    reparto_principale,
     schieramento,
     stato_blocco,
     valida,
@@ -835,3 +836,27 @@ class TestCambioModulo:
 
         assert tabellino.modulo == "3-4-3"
         assert [s.entrato for s in tabellino.sostituzioni] == [40]
+
+
+class TestIlRepartoDiCasa:
+    """Serve ai filtri e ai badge, non a dire dove un giocatore puo' giocare."""
+
+    @pytest.mark.parametrize(
+        "ruoli, atteso",
+        [
+            (("Por",), Reparto.PORTA),
+            (("Dc",), Reparto.DIFESA),
+            (("Dd", "E"), Reparto.DIFESA),
+            (("E",), Reparto.DIFESA),
+            (("M", "C"), Reparto.CENTROCAMPO),
+            (("W", "A"), Reparto.CENTROCAMPO),
+            (("T",), Reparto.CENTROCAMPO),
+            (("A", "Pc"), Reparto.ATTACCO),
+            (("Pc",), Reparto.ATTACCO),
+        ],
+    )
+    def test_conta_il_primo_ruolo(self, ruoli, atteso):
+        assert reparto_principale(ruoli) is atteso
+
+    def test_senza_ruoli_non_c_e(self):
+        assert reparto_principale(()) is None
