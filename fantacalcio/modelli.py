@@ -24,6 +24,9 @@ class Giocatore:
     ingaggio: float
     nazionalita: str = "Italia"
     data_nascita: date | None = None
+    # Under 21 italiano (art. 2): lo dice la lega, caricandolo con le rose o dal
+    # listone. Non si ricava dalla data di nascita, che puo' mancare.
+    italiano_u21: bool = False
     # Il ruolo Classic (P/D/C/A) del listone. Non si ricava da quelli Mantra:
     # un esterno «E» in Classic puo' essere difensore o centrocampista, e solo
     # la fonte sa quale dei due. Se non si sa, resta vuoto.
@@ -38,31 +41,19 @@ class Giocatore:
     def portiere(self) -> bool:
         return RUOLO_PORTIERE in self.ruoli
 
-    def eta_al(self, giorno: date) -> int | None:
-        """Anni compiuti a una certa data. None se la data di nascita manca."""
-        if self.data_nascita is None:
-            return None
-        anni = giorno.year - self.data_nascita.year
-        if (giorno.month, giorno.day) < (self.data_nascita.month, self.data_nascita.day):
-            anni -= 1
-        return anni
-
     @property
     def italiano(self) -> bool:
         return self.nazionalita.strip().lower() == "italia"
 
-    def under_21(self, data_riferimento: date, parametri: ParametriLega) -> bool:
-        """Articolo 2: italiano che non ha 21 anni alla data di riferimento.
+    def under_21(self) -> bool:
+        """Articolo 2: Under 21 italiano, come lo ha segnato la lega.
 
-        La data e' il **31 agosto** della stagione, fissa tutti gli anni per
-        scelta della lega: lo status si cristallizza li' e vale per l'annata.
-        Chi compie 21 anni a ottobre resta Under per la stagione in corso.
-        Vedi `competizioni.data_riferimento_u21`.
+        Lo status si valuta al **31 agosto** della stagione e vale per tutta
+        l'annata (`competizioni.data_riferimento_u21`): chi carica i dati
+        porta il flag a quella data. Il sito non lo ricalcola da una data di
+        nascita, che per molti giocatori non c'e'.
         """
-        if self.nazionalita != parametri.nazionalita_u21:
-            return False
-        eta = self.eta_al(data_riferimento)
-        return eta is not None and eta < parametri.eta_limite_u21
+        return self.italiano_u21
 
 
 @dataclass(frozen=True)
@@ -247,11 +238,11 @@ class Rosa:
         """Sul Salary Cap: ingaggi in rosa piu' cio' che lascia uno svincolo."""
         return self.monte_ingaggi + self.dead_money_totale + self.ingaggi_degli_svincolati
 
-    def u21_in_rosa(self, data_draft: date, parametri: ParametriLega) -> int:
+    def u21_in_rosa(self) -> int:
         """Quanti Under 21 italiani ci sono **adesso** in rosa."""
-        return sum(1 for g in self.giocatori if g.under_21(data_draft, parametri))
+        return sum(1 for g in self.giocatori if g.under_21())
 
-    def slot_u21(self, data_draft: date, parametri: ParametriLega) -> int:
+    def slot_u21(self, parametri: ParametriLega) -> int:
         """Posti rosa aggiuntivi guadagnati dagli Under 21 italiani (art. 2).
 
         Il numero si «ricalcola una sola volta l'anno, prima dell'asta di
@@ -267,7 +258,7 @@ class Rosa:
         """
         if self.slot_u21_congelato is not None:
             return max(0, min(self.slot_u21_congelato, parametri.slot_u21_massimi))
-        return min(self.u21_in_rosa(data_draft, parametri), parametri.slot_u21_massimi)
+        return min(self.u21_in_rosa(), parametri.slot_u21_massimi)
 
     def contratto_di(self, giocatore_id: int) -> Contratto | None:
         return next((c for c in self.contratti if c.giocatore_id == giocatore_id), None)

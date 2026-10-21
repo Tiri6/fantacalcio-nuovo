@@ -186,7 +186,7 @@ def pagina(utente: UtenteDentro) -> PaginaAssegnazioni:
                     ruoli=list(g.ruoli),
                     ingaggio=g.ingaggio,
                     nazionalita=g.nazionalita,
-                    u21=g.under_21(ctx.riferimento_u21, ctx.parametri),
+                    u21=g.under_21(),
                 )
                 for gid, g in giocatori.items()
                 if gid in liberi

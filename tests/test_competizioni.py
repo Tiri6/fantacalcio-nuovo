@@ -453,9 +453,9 @@ class TestDataUnder21:
     """La data che decide gli Under 21: il 31 agosto, fissa tutti gli anni.
 
     L'articolo 2 scrive «alla data del draft di Settembre»; la lega ha scelto
-    una data fissa, cosi' lo status non si muove se l'asta slitta. E' una
-    divergenza voluta dal testo, e questi test la tengono ferma: se qualcuno
-    un giorno tornera' alla data del draft, dovra' passare di qui.
+    una data fissa, cosi' lo status non si muove se l'asta slitta. Oggi lo
+    status e' un flag che la lega segna a quella data (`Giocatore.italiano_u21`),
+    e questi test tengono ferma la data e il fatto che il flag decide.
     """
 
     def test_e_il_31_agosto_della_stagione(self):
@@ -466,41 +466,23 @@ class TestDataUnder21:
         assert data_riferimento_u21("2026/27") == date(2026, 8, 31)
         assert data_riferimento_u21("2030/31") == date(2030, 8, 31)
 
-    def test_non_dipende_da_quando_si_fa_il_draft(self):
+    def test_lo_status_e_il_flag_della_lega_non_la_data_di_nascita(self):
+        """Il 31 agosto e' la data a cui la lega segna il flag; il sito non ricalcola."""
         from datetime import date
 
         from fantacalcio.modelli import Giocatore
-        from fantacalcio.regole import ParametriLega
 
-        # Compie 21 anni il 1 ottobre 2026: al 31 agosto e' ancora Under, e
-        # resta Under per tutta la stagione anche se il draft slitta a ottobre.
-        ragazzo = Giocatore(
-            id=1,
-            nome="Giovane",
-            club="Roma",
-            ruoli=("C",),
-            ingaggio=0,
-            nazionalita="Italia",
-            data_nascita=date(2005, 10, 1),
-        )
-        assert ragazzo.under_21(data_riferimento_u21("2026/27"), ParametriLega())
+        def giocatore(**campi):
+            return Giocatore(
+                id=1, nome="Tale", club="Roma", ruoli=("C",), ingaggio=0, **campi
+            )
 
-    def test_chi_li_compie_prima_del_31_agosto_non_e_under(self):
-        from datetime import date
-
-        from fantacalcio.modelli import Giocatore
-        from fantacalcio.regole import ParametriLega
-
-        grande = Giocatore(
-            id=2,
-            nome="Appena Grande",
-            club="Roma",
-            ruoli=("C",),
-            ingaggio=0,
-            nazionalita="Italia",
-            data_nascita=date(2005, 8, 30),
-        )
-        assert not grande.under_21(data_riferimento_u21("2026/27"), ParametriLega())
+        # Il flag vince: una data di nascita che direbbe il contrario non conta.
+        assert giocatore(italiano_u21=True, data_nascita=date(1990, 1, 1)).under_21()
+        assert not giocatore(italiano_u21=False, data_nascita=date(2007, 1, 1)).under_21()
+        # Senza data di nascita (il caso normale) lo status c'e' lo stesso.
+        assert giocatore(italiano_u21=True).under_21()
+        assert not giocatore().under_21()
 
     def test_una_stagione_scritta_male_non_fa_fallire_niente(self):
         from datetime import date
@@ -602,3 +584,57 @@ class TestInizioGiornata:
 
         assert inizio_giornata(pd.DataFrame(), 1) is None
         assert inizio_giornata(None, 1) is None
+
+
+class TestPrimaGiornataDiSerieANelleOpzioni:
+    """Da quale giornata di Serie A parte il campionato lo sceglie la lega."""
+
+    def test_un_solo_valore_di_default(self):
+        from fantacalcio.competizioni import PRIMA_GIORNATA_SERIE_A
+        from fantacalcio.leghe import OpzioniLega
+
+        assert OpzioniLega().prima_giornata_serie_a == PRIMA_GIORNATA_SERIE_A
+        # `costruisci_weekend` senza l'argomento parte dallo stesso numero.
+        turni = costruisci_weekend(10, 3, None)
+        assert turni[0].giornata_serie_a == PRIMA_GIORNATA_SERIE_A
+
+    @pytest.mark.parametrize("numero", [0, -1, 39])
+    def test_fuori_dalla_serie_a_si_rifiuta(self, numero):
+        from fantacalcio.leghe import LegaNonValida, OpzioniLega
+
+        with pytest.raises(LegaNonValida, match="prima giornata di Serie A"):
+            OpzioniLega(prima_giornata_serie_a=numero)
+
+    def test_una_lega_salvata_senza_il_campo_prende_il_default(self):
+        """Le leghe gia' nel database non hanno la chiave: devono restare leggibili."""
+        from fantacalcio.competizioni import PRIMA_GIORNATA_SERIE_A
+        from fantacalcio.leghe import OpzioniLega
+
+        opzioni = OpzioniLega.da_json('{"modalita": "MANTRA", "partecipanti": 10}')
+        assert opzioni.prima_giornata_serie_a == PRIMA_GIORNATA_SERIE_A
+
+    def test_il_valore_scelto_si_conserva_e_cambia_i_weekend(self):
+        from fantacalcio.leghe import OpzioniLega
+
+        opzioni = OpzioniLega(prima_giornata_serie_a=8)
+        riletta = OpzioniLega.da_json(opzioni.a_json())
+        assert riletta.prima_giornata_serie_a == 8
+        turni = costruisci_weekend(
+            10, 3, None, prima_giornata_serie_a=riletta.prima_giornata_serie_a
+        )
+        assert turni[0].giornata_serie_a == 8
+
+    def test_sta_nel_modulo_delle_regole(self):
+        from fantacalcio.leghe import OpzioniLega, descrivi_opzioni
+
+        campi = {c.nome: c for g in descrivi_opzioni(OpzioniLega()) for c in g.campi}
+        assert campi["prima_giornata_serie_a"].tipo == "intero"
+
+    def test_la_serie_a_ha_una_sola_costante(self):
+        """Il 38 non sta sparso nelle rotte: lo dice `GIORNATE_SERIE_A`."""
+        from pathlib import Path
+
+        import api.rotte.competizioni as rotta
+
+        testo = Path(rotta.__file__).read_text()
+        assert "38" not in testo

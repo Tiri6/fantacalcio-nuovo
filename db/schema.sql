@@ -89,6 +89,9 @@ create table if not exists giocatori (
     ingaggio      numeric(12, 2) not null default 0,
     nazionalita   text not null default 'Italia',
     data_nascita  date,
+    -- Under 21 italiano: lo decide la lega (si carica dal CSV delle rose o dal
+    -- listone), non si ricava dalla data di nascita.
+    italiano_u21  boolean not null default false,
     -- Dal listone: quotazione Mantra e valore di mercato. Non c'entrano con il
     -- Salary Cap (che usa gli ingaggi Capology) ma servono al draft.
     quotazione    numeric(6, 2),
@@ -321,6 +324,7 @@ alter table calendario add column if not exists turno text not null default '';
 alter table utenti  add column if not exists lega_id bigint references leghe(id) on delete set null;
 
 alter table giocatori add column if not exists ruolo_classic text not null default '';
+alter table giocatori add column if not exists italiano_u21 boolean not null default false;
 
 alter table calendario add column if not exists inizio_previsto timestamptz;
 

@@ -9,6 +9,7 @@ import {
   type Violazione,
 } from "../api";
 import { milioni, useCarica } from "../carica";
+import { ModuloIdentita } from "../moduloIdentita";
 
 function Numero({
   etichetta,
@@ -79,7 +80,6 @@ function Rosa({
               <th>Club</th>
               <th>Ruoli</th>
               <th>Nazionalità</th>
-              <th className="numerica">Età</th>
               <th className="centrata">U21</th>
               <th className="numerica">Anni</th>
               <th className="numerica">Ingaggio</th>
@@ -104,7 +104,6 @@ function Rosa({
                   {g.italiano && <span title="Italiano">🇮🇹 </span>}
                   {g.nazionalita}
                 </td>
-                <td className="numerica">{g.eta ?? "—"}</td>
                 <td className="centrata">{g.u21 ? "●" : ""}</td>
                 <td className={`numerica${g.in_scadenza ? " scadenza" : ""}`}>
                   {g.anni_residui}
@@ -465,13 +464,33 @@ export function Squadra() {
     [numero, giro],
   );
   const [conferma, setConferma] = useState<string | null>(null);
+  // L'identità (maglia, colori) e chi la può cambiare vengono dalla galleria:
+  // `modificabile` lo calcola il server, qui non si rifà.
+  const { dato: galleria } = useCarica(() => api.identita(), [giro]);
+  const [modificando, setModificando] = useState(false);
 
   if (inCorso) return <div className="fantasma alto" />;
   if (errore) return <div className="errore">{errore}</div>;
   if (!dato) return null;
 
+  const identita = galleria?.squadre.find((s) => s.id === dato.id) ?? null;
+
+  if (modificando && galleria && identita?.modificabile) {
+    return (
+      <ModuloIdentita
+        galleria={galleria}
+        squadra={identita}
+        onChiudi={() => setModificando(false)}
+        onSalvata={(messaggio) => {
+          setModificando(false);
+          setConferma(messaggio);
+          setGiro((g) => g + 1);
+        }}
+      />
+    );
+  }
+
   const c = dato.conti;
-  const capResiduo = c.limite_cap - c.monte_ingaggi;
 
   return (
     <>
@@ -488,12 +507,29 @@ export function Squadra() {
             background: `linear-gradient(90deg, ${dato.colori.primario}, ${dato.colori.secondario})`,
           }}
         />
+        {identita && (
+          <img
+            className="maglia-squadra"
+            src={identita.maglia}
+            alt={`Maglia di ${dato.nome}`}
+            width={96}
+          />
+        )}
         <div>
           <h1>
             {dato.nome}
             {dato.e_mia && <span className="pastiglia-mia">LA TUA</span>}
           </h1>
           {dato.motto && <p className="motto">{dato.motto}</p>}
+          {identita?.modificabile && (
+            <button
+              type="button"
+              className="secondario modifica-identita"
+              onClick={() => setModificando(true)}
+            >
+              ✏️ Modifica
+            </button>
+          )}
         </div>
         <dl className="anagrafica">
           <div>
@@ -567,10 +603,10 @@ export function Squadra() {
           />
           <Numero
             etichetta="Cap residuo"
-            valore={milioni(capResiduo)}
+            valore={milioni(c.cap_residuo)}
             nota={`su ${milioni(c.limite_cap, 0)}`}
-            sfora={capResiduo < 0}
-            quota={c.monte_ingaggi / Math.max(c.limite_cap, 1)}
+            sfora={c.cap_residuo < 0}
+            quota={c.spesa_salariale / Math.max(c.limite_cap, 1)}
           />
           <Numero
             etichetta="Italiani"
@@ -578,6 +614,54 @@ export function Squadra() {
             nota={`di cui ${c.u21} Under 21`}
           />
         </div>
+      </section>
+
+      <section>
+        <h2 className="sezione">🧾 Registro dei dead money</h2>
+        {dato.registro_dead_money.length === 0 ? (
+          <p className="didascalia">
+            Nessuno svincolo registrato: questa squadra non ha dead money.
+          </p>
+        ) : (
+          <div className="tabella-contenitore">
+            <table className="tabella">
+              <thead>
+                <tr>
+                  <th>Giocatore</th>
+                  <th>Stagione</th>
+                  <th className="numerica">Buonuscita</th>
+                  <th className="numerica">Ingaggio a carico</th>
+                  <th className="numerica">Totale sul Cap</th>
+                  <th>Stato</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dato.registro_dead_money.map((v, i) => (
+                  <tr key={`${v.giocatore}-${v.stagione}-${i}`}>
+                    <td className="forte">{v.giocatore}</td>
+                    <td className="tenue">{v.stagione}</td>
+                    <td className="numerica">{milioni(v.buonuscita, 2)}</td>
+                    <td className="numerica">
+                      {v.ingaggio_a_carico
+                        ? milioni(v.ingaggio_a_carico, 2)
+                        : "—"}
+                    </td>
+                    <td className="numerica">{milioni(v.totale, 2)}</td>
+                    <td className="tenue">
+                      {v.addebitato ? "Già addebitato" : "Pesa sul Cap"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="didascalia">
+          La buonuscita è metà del valore residuo oltre l'anno in corso (Lodo
+          Origi); l'ingaggio di chi è stato svincolato in stagione resta a
+          carico fino al termine dell'annata. Fino all'asta di Settembre uno
+          svincolo non lascia niente.
+        </p>
       </section>
 
       <section>

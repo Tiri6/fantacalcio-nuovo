@@ -151,6 +151,7 @@ COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
         "ingaggio",
         "nazionalita",
         "data_nascita",
+        "italiano_u21",
         "quotazione",
         "fvm",
     ),
@@ -594,6 +595,15 @@ def _numero(valore) -> float | None:
     return float(valore)
 
 
+def _booleano(valore) -> bool:
+    """Un flag da 0/1, True/False o NaN (colonna assente o vuota: falso)."""
+    if valore is None or (isinstance(valore, float) and pd.isna(valore)):
+        return False
+    if isinstance(valore, str):
+        return valore.strip().lower() in ("1", "true", "t", "si")
+    return bool(int(valore))
+
+
 def _id_opzionale(valore) -> int | None:
     """Un id che puo' non esserci, da qualunque forma arrivi.
 
@@ -622,6 +632,7 @@ def carica_giocatori(arch: Archivio) -> dict[int, Giocatore]:
             ingaggio=float(riga["ingaggio"]),
             nazionalita=riga["nazionalita"],
             data_nascita=_data(riga.get("data_nascita")),
+            italiano_u21=_booleano(riga.get("italiano_u21")),
             id_ufficiale=(
                 None
                 if (ufficiale := riga.get("id_ufficiale")) is None or pd.isna(ufficiale)
@@ -805,6 +816,25 @@ def congela_slot_u21(arch: Archivio, squadra_id: int, slot: int | None) -> None:
         return
     arch._client.table("squadre").update({"slot_u21_congelato": valore}).eq(
         "id", int(squadra_id)
+    ).execute()
+
+
+def imposta_italiano_u21(arch: Archivio, giocatore_id: int, valore: bool) -> None:
+    """Scrive lo status Under 21 italiano di un giocatore.
+
+    Update mirato: `scrivi` su SQLite e' un `insert or replace` e riscriverebbe
+    tutta la riga, riportando a default le colonne che non nomini.
+    """
+    flag = int(bool(valore))
+    if isinstance(arch, ArchivioSQLite):
+        with sqlite3.connect(arch.percorso) as conn:
+            conn.execute(
+                "update giocatori set italiano_u21 = ? where id = ?",
+                (flag, int(giocatore_id)),
+            )
+        return
+    arch._client.table("giocatori").update({"italiano_u21": bool(valore)}).eq(
+        "id", int(giocatore_id)
     ).execute()
 
 
@@ -1268,7 +1298,7 @@ def salva_formazione(arch: Archivio, formazione: Formazione) -> None:
     )
 
 
-def _numero(valore, difetto=0):
+def _intero(valore, difetto=0):
     if valore is None or (isinstance(valore, float) and pd.isna(valore)):
         return difetto
     try:
@@ -1295,16 +1325,16 @@ def _voto_da_riga(riga) -> Voto | None:
         giocatore_id=giocatore,
         giornata=quale,
         voto=voto,
-        gol=_numero(riga.get("gol")),
-        gol_su_rigore=_numero(riga.get("gol_su_rigore")),
-        rigori_sbagliati=_numero(riga.get("rigori_sbagliati")),
-        rigori_parati=_numero(riga.get("rigori_parati")),
-        autogol=_numero(riga.get("autogol")),
-        assist=_numero(riga.get("assist")),
-        ammonizioni=_numero(riga.get("ammonizioni")),
-        espulsioni=_numero(riga.get("espulsioni")),
-        gol_subiti=_numero(riga.get("gol_subiti")),
-        imbattuto=bool(_numero(riga.get("imbattuto"))),
+        gol=_intero(riga.get("gol")),
+        gol_su_rigore=_intero(riga.get("gol_su_rigore")),
+        rigori_sbagliati=_intero(riga.get("rigori_sbagliati")),
+        rigori_parati=_intero(riga.get("rigori_parati")),
+        autogol=_intero(riga.get("autogol")),
+        assist=_intero(riga.get("assist")),
+        ammonizioni=_intero(riga.get("ammonizioni")),
+        espulsioni=_intero(riga.get("espulsioni")),
+        gol_subiti=_intero(riga.get("gol_subiti")),
+        imbattuto=bool(_intero(riga.get("imbattuto"))),
     )
 
 

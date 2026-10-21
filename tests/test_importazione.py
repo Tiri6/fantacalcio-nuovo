@@ -32,7 +32,7 @@ from fantacalcio.importazione import (
 
 DATA_DRAFT = date(2026, 9, 15)
 
-INTESTAZIONI = "squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita;data_nascita"
+INTESTAZIONI = "squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita;italiano_u21"
 
 
 def csv_rose(*righe: str) -> str:
@@ -49,7 +49,7 @@ def rosa_completa(
         anni = 1 if indice < 10 else 2
         righe.append(
             f"{squadra};Giocatore {squadra[:3]}{indice};Inter;{ruolo};"
-            f"{ingaggio};{anni};Italia;01/01/1996"
+            f"{ingaggio};{anni};Italia;NO"
         )
     return righe
 
@@ -60,7 +60,7 @@ class TestNormalizzazione:
         [
             ("Anni Residui ", "anniresidui"),
             ("Nazionalità", "nazionalita"),
-            ("DATA_NASCITA", "datanascita"),
+            ("ITALIANO_U21", "italianou21"),
             ("Ruolo (Mantra)", "ruolomantra"),
         ],
     )
@@ -153,16 +153,16 @@ class TestImportaRose:
         contenuto = (
             INTESTAZIONI.replace(";", ",")
             + "\n"
-            + ("Tiri Team,Rossi,Inter,Dc,2.000.000,3,Italia,01/01/1996")
+            + ("Tiri Team,Rossi,Inter,Dc,2.000.000,3,Italia,NO")
         )
         esito = importa_rose(contenuto)
         assert esito.importabile
         assert esito.righe[0]["ingaggio"] == 2_000_000
 
     def test_bytes_in_latin1(self):
-        contenuto = csv_rose(
-            "Tiri Team;Pérez;Inter;Dc;2.000.000;3;Spagna;01/01/1996"
-        ).encode("latin-1")
+        contenuto = csv_rose("Tiri Team;Pérez;Inter;Dc;2.000.000;3;Spagna;NO").encode(
+            "latin-1"
+        )
         esito = importa_rose(contenuto)
         assert esito.importabile
         assert esito.righe[0]["giocatore"] == "Pérez"
@@ -180,7 +180,7 @@ class TestImportaRose:
     def test_righe_vuote_ignorate(self):
         esito = importa_rose(
             csv_rose(
-                "Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia;01/01/1996",
+                "Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia;NO",
                 ";;;;;;;",
                 "",
             )
@@ -189,9 +189,7 @@ class TestImportaRose:
         assert len(esito.righe) == 1
 
     def test_contratto_fuori_scala_e_bloccante(self):
-        esito = importa_rose(
-            csv_rose("Tiri Team;Rossi;Inter;Dc;2.000.000;7;Italia;01/01/1996")
-        )
+        esito = importa_rose(csv_rose("Tiri Team;Rossi;Inter;Dc;2.000.000;7;Italia;NO"))
         assert not esito.importabile
         errore = esito.errori[0]
         assert errore.colonna == "anni"
@@ -200,8 +198,8 @@ class TestImportaRose:
     def test_il_numero_di_riga_e_quello_del_foglio(self):
         esito = importa_rose(
             csv_rose(
-                "Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia;01/01/1996",
-                "Tiri Team;Bianchi;Inter;Libero;2.000.000;3;Italia;01/01/1996",
+                "Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia;NO",
+                "Tiri Team;Bianchi;Inter;Libero;2.000.000;3;Italia;NO",
             )
         )
         # Riga 1 = intestazioni, riga 2 = Rossi, riga 3 = Bianchi.
@@ -210,23 +208,22 @@ class TestImportaRose:
     def test_giocatore_in_due_rose(self):
         esito = importa_rose(
             csv_rose(
-                "Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia;01/01/1996",
-                "Padel United;rossi;Inter;Dc;2.000.000;3;Italia;01/01/1996",
+                "Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia;NO",
+                "Padel United;rossi;Inter;Dc;2.000.000;3;Italia;NO",
             )
         )
         assert not esito.importabile
         assert "una sola rosa" in esito.errori[0].messaggio
 
-    def test_data_mancante_e_solo_un_avviso(self):
+    def test_flag_vuoto_vale_no_e_non_e_un_avviso(self):
         esito = importa_rose(csv_rose("Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia;"))
         assert esito.importabile
-        assert any(p.colonna == "data_nascita" for p in esito.avvisi)
+        assert esito.avvisi == []
+        assert esito.righe[0]["italiano_u21"] is False
 
     def test_riga_disallineata_spiega_la_causa(self):
         """Il caso piu' comune: ruoli scritti "M;C" in un CSV separato da ';'."""
-        esito = importa_rose(
-            csv_rose("Tiri Team;Rossi;Inter;M;C;2.000.000;3;Italia;01/01/1996")
-        )
+        esito = importa_rose(csv_rose("Tiri Team;Rossi;Inter;M;C;2.000.000;3;Italia;NO"))
         assert not esito.importabile
         errore = esito.errori[0]
         assert errore.colonna == "riga"
@@ -234,9 +231,7 @@ class TestImportaRose:
         assert "Dc/Dd" in errore.messaggio
 
     def test_ruoli_multipli_con_barra_funzionano(self):
-        esito = importa_rose(
-            csv_rose("Tiri Team;Rossi;Inter;M/C;2.000.000;3;Italia;01/01/1996")
-        )
+        esito = importa_rose(csv_rose("Tiri Team;Rossi;Inter;M/C;2.000.000;3;Italia;NO"))
         assert esito.importabile
         assert esito.righe[0]["ruoli"] == ("M", "C")
 
@@ -244,11 +239,72 @@ class TestImportaRose:
         contenuto = (
             (INTESTAZIONI + ";note")
             + "\n"
-            + ("Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia;01/01/1996;pick 1")
+            + ("Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia;NO;pick 1")
         )
         esito = importa_rose(contenuto)
         assert esito.importabile
         assert esito.intestazioni_ignorate == ["note"]
+
+
+class TestItalianoU21:
+    """Il flag lo decide la lega: SI/NO, anche nelle varianti piu' comuni."""
+
+    @pytest.mark.parametrize(
+        "scritto, atteso",
+        [
+            ("SI", True),
+            ("si", True),
+            ("sì", True),
+            ("1", True),
+            ("true", True),
+            ("NO", False),
+            ("no", False),
+            ("0", False),
+            ("false", False),
+            ("", False),
+        ],
+    )
+    def test_le_varianti_di_si_e_no(self, scritto, atteso):
+        esito = importa_rose(
+            csv_rose(f"Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia;{scritto}")
+        )
+        assert esito.importabile, esito.errori
+        assert esito.righe[0]["italiano_u21"] is atteso
+
+    def test_un_valore_che_non_e_si_ne_no_blocca_la_riga(self):
+        esito = importa_rose(
+            csv_rose("Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia;forse")
+        )
+        assert not esito.importabile
+        assert esito.errori[0].colonna == "italiano_u21"
+        assert "non e' SI ne' NO" in esito.errori[0].messaggio
+
+    def test_un_under_21_italiano_non_puo_essere_straniero(self):
+        esito = importa_rose(csv_rose("Tiri Team;Rossi;Inter;Dc;2.000.000;3;Francia;SI"))
+        assert not esito.importabile
+        assert "Un Under 21 italiano" in esito.errori[0].messaggio
+
+    def test_senza_la_colonna_il_flag_non_dice_niente(self):
+        esito = importa_rose(
+            "squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita\n"
+            "Tiri Team;Rossi;Inter;Dc;2.000.000;3;Italia"
+        )
+        assert esito.importabile
+        assert esito.righe[0]["italiano_u21"] is None
+
+    def test_i_sinonimi_dell_intestazione(self):
+        for nome in ("Italiano U21", "u21", "italiano_u21"):
+            esito = importa_rose(
+                f"squadra;giocatore;club;ruoli;ingaggio;anni;{nome}\n"
+                "Tiri Team;Rossi;Inter;Dc;2.000.000;3;SI"
+            )
+            assert esito.righe[0]["italiano_u21"] is True, nome
+
+    def test_il_modello_scaricabile_ha_il_formato_nuovo(self):
+        intestazione = modello_rose().splitlines()[0]
+        assert "italiano_u21" in intestazione
+        assert "data_nascita" not in intestazione
+        assert "prolungato" not in intestazione
 
 
 class TestAnteprimaConformita:
@@ -306,10 +362,166 @@ class TestApplicaRose:
 
     def test_rifiuta_un_esito_con_errori(self, archivio):
         esito = importa_rose(
-            csv_rose("Tiri Team;Rossi;Inter;Libero;2.000.000;3;Italia;01/01/1996")
+            csv_rose("Tiri Team;Rossi;Inter;Libero;2.000.000;3;Italia;NO")
         )
         with pytest.raises(ValueError, match="errori da correggere"):
             applica_rose(archivio, esito)
+
+
+class TestCosaUnImportNonPerde:
+    """Il CSV non porta data di nascita ne' prolungamento: restano del database."""
+
+    @pytest.fixture
+    def archivio(self, archivio_demo):
+        # Una rosa piccola e nota: due giocatori, uno dei quali ha gia' usato il
+        # prolungamento da scambio (Lodo Corti) in una stagione.
+        archivio_demo.svuota("contratti")
+        archivio_demo.svuota("giocatori")
+        base = {"club": "Roma", "ruoli": "Dc", "nazionalita": "Italia"}
+        archivio_demo.scrivi(
+            "giocatori",
+            [
+                {
+                    **base,
+                    "id": 1,
+                    "nome": "Rossi Marco",
+                    "ingaggio": 2_000_000,
+                    "data_nascita": "2005-10-01",
+                    "italiano_u21": 1,
+                },
+                {
+                    **base,
+                    "id": 2,
+                    "nome": "Bianchi Luca",
+                    "ingaggio": 1_000_000,
+                    "data_nascita": None,
+                    "italiano_u21": 0,
+                },
+            ],
+            chiave="id",
+        )
+        archivio_demo.scrivi(
+            "contratti",
+            [
+                {
+                    "giocatore_id": 1,
+                    "squadra_id": 1,
+                    "anni_residui": 2,
+                    "prolungato": 1,
+                    "stagione_prolungamento": "2025/26",
+                },
+                {
+                    "giocatore_id": 2,
+                    "squadra_id": 1,
+                    "anni_residui": 1,
+                    "prolungato": 0,
+                    "stagione_prolungamento": None,
+                },
+            ],
+            chiave="giocatore_id",
+        )
+        return archivio_demo
+
+    def righe(self, archivio):
+        giocatori = archivio.giocatori().set_index("nome")
+        contratti = archivio.contratti().set_index("giocatore_id")
+        return {
+            nome: (g, contratti.loc[int(g["id"])]) for nome, g in giocatori.iterrows()
+        }
+
+    def test_il_prolungamento_resta_anche_se_il_file_non_ne_parla(self, archivio):
+        """Il caso che conta: un import non azzera mai `prolungato`."""
+        esito = importa_rose(
+            csv_rose(
+                "Tiri Team;Rossi Marco;Roma;Dc;2.500.000;3;Italia;SI",
+                "Tiri Team;Bianchi Luca;Roma;Dc;1.500.000;2;Italia;NO",
+            )
+        )
+        applica_rose(archivio, esito, sostituisci=True)
+
+        rossi, contratto = self.righe(archivio)["Rossi Marco"]
+        assert int(contratto["prolungato"]) == 1
+        assert contratto["stagione_prolungamento"] == "2025/26"
+        # Gli anni e l'ingaggio, invece, sono quelli del file nuovo.
+        assert int(contratto["anni_residui"]) == 3
+        assert rossi["ingaggio"] == 2_500_000
+        _, altro = self.righe(archivio)["Bianchi Luca"]
+        assert int(altro["prolungato"]) == 0
+
+    def test_un_file_vecchio_con_prolungato_no_non_lo_azzera(self, archivio):
+        """Chi ha ancora la colonna `prolungato` nel foglio non cancella lo stato."""
+        vecchio = (
+            "squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita;prolungato\n"
+            "Tiri Team;Rossi Marco;Roma;Dc;2.500.000;3;Italia;no\n"
+        )
+        applica_rose(archivio, importa_rose(vecchio), sostituisci=True)
+
+        _, contratto = self.righe(archivio)["Rossi Marco"]
+        assert int(contratto["prolungato"]) == 1
+
+    def test_un_file_vecchio_con_prolungato_si_non_lo_accende(self, archivio):
+        vecchio = (
+            "squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita;prolungato\n"
+            "Tiri Team;Bianchi Luca;Roma;Dc;1.500.000;2;Italia;si\n"
+        )
+        applica_rose(archivio, importa_rose(vecchio), sostituisci=True)
+
+        _, contratto = self.righe(archivio)["Bianchi Luca"]
+        assert int(contratto["prolungato"]) == 0
+
+    def test_la_data_di_nascita_non_si_cancella(self, archivio):
+        esito = importa_rose(
+            csv_rose("Tiri Team;Rossi Marco;Roma;Dc;2.500.000;3;Italia;SI")
+        )
+        applica_rose(archivio, esito, sostituisci=True)
+
+        rossi, _ = self.righe(archivio)["Rossi Marco"]
+        assert rossi["data_nascita"] == "2005-10-01"
+
+    def test_la_data_nel_file_si_ignora(self, archivio):
+        vecchio = (
+            "squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita;datanascita\n"
+            "Tiri Team;Rossi Marco;Roma;Dc;2.500.000;3;Italia;01/01/1990\n"
+        )
+        applica_rose(archivio, importa_rose(vecchio), sostituisci=True)
+
+        rossi, _ = self.righe(archivio)["Rossi Marco"]
+        assert rossi["data_nascita"] == "2005-10-01"
+
+    def test_il_flag_del_file_vince(self, archivio):
+        esito = importa_rose(
+            csv_rose(
+                "Tiri Team;Rossi Marco;Roma;Dc;2.500.000;3;Italia;NO",
+                "Tiri Team;Bianchi Luca;Roma;Dc;1.500.000;2;Italia;SI",
+            )
+        )
+        applica_rose(archivio, esito, sostituisci=True)
+
+        righe = self.righe(archivio)
+        assert int(righe["Rossi Marco"][0]["italiano_u21"]) == 0
+        assert int(righe["Bianchi Luca"][0]["italiano_u21"]) == 1
+
+    def test_senza_la_colonna_il_flag_resta_com_era(self, archivio):
+        senza = (
+            "squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita\n"
+            "Tiri Team;Rossi Marco;Roma;Dc;2.500.000;3;Italia\n"
+            "Tiri Team;Bianchi Luca;Roma;Dc;1.500.000;2;Italia\n"
+        )
+        applica_rose(archivio, importa_rose(senza), sostituisci=True)
+
+        righe = self.righe(archivio)
+        assert int(righe["Rossi Marco"][0]["italiano_u21"]) == 1
+        assert int(righe["Bianchi Luca"][0]["italiano_u21"]) == 0
+
+    def test_un_giocatore_nuovo_parte_senza_flag(self, archivio):
+        esito = importa_rose(
+            csv_rose("Tiri Team;Nuovo Arrivato;Roma;Dc;1.500.000;2;Italia;")
+        )
+        applica_rose(archivio, esito, sostituisci=True)
+
+        nuovo, contratto = self.righe(archivio)["Nuovo Arrivato"]
+        assert int(nuovo["italiano_u21"]) == 0
+        assert int(contratto["prolungato"]) == 0
 
 
 class TestRisultati:
@@ -1040,3 +1252,33 @@ class TestApplicaCalendario:
 
         with pytest.raises(ValueError, match="errori"):
             applica_calendario(archivio_demo, importa_calendario(contenuto))
+
+
+class TestIlFormatoVecchioSiImportaAncora:
+    """Chi ha un CSV col formato di prima non deve vederlo rifiutato.
+
+    Il formato vecchio aveva `datanascita` e `prolungato`. Il file nuovo non li
+    porta piu', ma i fogli gia' pronti in giro li hanno ancora: devono entrare
+    senza errori.
+    """
+
+    VECCHIO = (
+        "squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita;datanascita;prolungato\n"
+        "Tiri Team;Rossi Marco;Inter;Dc;2.500.000;3;Italia;17/04/2001;no\n"
+        "Tiri Team;Bianchi Luca;Juventus;Por;1.800.000;2;Italia;02/11/1996;si\n"
+        "Padel United;Silva Joao;Napoli;W/T;4,2M;2;Brasile;30/06/1999;no\n"
+    )
+
+    def test_si_importa_senza_errori(self):
+        esito = importa_rose(self.VECCHIO)
+        assert esito.importabile
+        assert esito.errori == []
+        assert len(esito.righe) == 3
+
+    def test_le_colonne_tolte_sono_segnalate_come_ignorate(self):
+        esito = importa_rose(self.VECCHIO)
+        assert esito.intestazioni_ignorate == ["datanascita", "prolungato"]
+        assert esito.avvisi == []
+        # E il loro contenuto non entra: niente chiavi per data e prolungamento.
+        assert "data_nascita" not in esito.righe[0]
+        assert "prolungato" not in esito.righe[0]

@@ -20,6 +20,7 @@ from fantacalcio.identita import (
     StileMaglia,
     immagine_a_data_uri,
 )
+from fantacalcio.leghe import motivo_squadra_non_creabile
 from fantacalcio.modelli import Squadra
 
 from ..contesto import contesto_di
@@ -71,7 +72,12 @@ class SquadraInGalleria(BaseModel):
 class Galleria(BaseModel):
     squadre: list[SquadraInGalleria]
     stili: list[StileDisponibile]
+    # Vero solo per il presidente e solo se la lega ha ancora squadre da creare.
     posso_crearne: bool
+    # Se non si puo', perche': la pagina lo scrive accanto al pulsante spento.
+    perche_non_crearne: str
+    squadre_nella_lega: int
+    squadre_previste: int
     # Serve al modulo per dire «esiste gia' una squadra chiamata cosi'»
     # prima di provare a salvare.
     nomi_occupati: list[str]
@@ -126,10 +132,14 @@ def _galleria(utente) -> Galleria:
         )
 
     squadre.sort(key=lambda s: s.nome)
+    motivo = motivo_squadra_non_creabile(utente, ctx.lega, len(squadre))
     return Galleria(
         squadre=squadre,
         stili=[StileDisponibile(nome=s.name, etichetta=s.value) for s in StileMaglia],
-        posso_crearne=utente.puo_importare,
+        posso_crearne=motivo is None,
+        perche_non_crearne=motivo or "",
+        squadre_nella_lega=len(squadre),
+        squadre_previste=ctx.lega.opzioni.partecipanti if ctx.lega else len(squadre),
         nomi_occupati=[s.nome for s in squadre],
     )
 
@@ -240,13 +250,23 @@ def modifica(
 def crea(richiesta: Modifica, utente: UtenteDentro) -> SquadraInGalleria:
     ctx = contesto_di(utente)
 
-    if not utente.puo_importare:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo il presidente puo' creare una squadra.",
-        )
-
+    # Il permesso e il tetto li decide il dominio, non il pulsante spento.
+    # Il tetto si conta come la galleria: le squadre di questa lega.
     rose = carica_rose(ctx.arch)
+    nella_lega = sum(
+        1
+        for r in rose.values()
+        if utente.lega_id is None or r.squadra.lega_id in (None, utente.lega_id)
+    )
+    motivo = motivo_squadra_non_creabile(utente, ctx.lega, nella_lega)
+    if motivo is not None:
+        codice = (
+            status.HTTP_403_FORBIDDEN
+            if not utente.puo_importare
+            else status.HTTP_409_CONFLICT
+        )
+        raise HTTPException(status_code=codice, detail=motivo)
+
     _nome_libero(richiesta.nome, rose, escludi=None)
 
     try:

@@ -37,6 +37,9 @@ from fantacalcio.data import (
 )
 from fantacalcio.identita import ColoreNonValido, IdentitaSquadra, StileMaglia
 from fantacalcio.leghe import (
+    PARTECIPANTI_MASSIMI,
+    PARTECIPANTI_MINIMI,
+    PARTECIPANTI_PREDEFINITI,
     FormatoCampionato,
     LegaNonValida,
     Modalita,
@@ -99,6 +102,11 @@ class StatoOnboarding(BaseModel):
     modalita: list[Voce]
     formati: list[Voce]
     stili_maglia: list[Voce]
+    # Quante squadre puo' avere una lega: il modulo di creazione le legge da
+    # qui invece di scriverle a mano.
+    partecipanti_predefiniti: int
+    partecipanti_minimi: int
+    partecipanti_massimi: int
 
 
 def _invito_che_aspetta(utente) -> InvitoTrovato | None:
@@ -164,6 +172,9 @@ def stato(utente: UtenteDentro) -> StatoOnboarding:
         modalita=[Voce(nome=m.name, etichetta=m.etichetta) for m in Modalita],
         formati=[Voce(nome=f.name, etichetta=f.etichetta) for f in FormatoCampionato],
         stili_maglia=[Voce(nome=s.name, etichetta=s.value) for s in StileMaglia],
+        partecipanti_predefiniti=PARTECIPANTI_PREDEFINITI,
+        partecipanti_minimi=PARTECIPANTI_MINIMI,
+        partecipanti_massimi=PARTECIPANTI_MASSIMI,
     )
 
 
@@ -181,7 +192,9 @@ class NuovaLega(BaseModel):
     # partire dall'altra vuol dire che chi non guarda crea la lega sbagliata.
     modalita: str = Modalita.MANTRA.name
     formato: str = FormatoCampionato.ANDATA_RITORNO.name
-    partecipanti: int = Field(default=10, ge=2, le=20)
+    partecipanti: int = Field(
+        default=PARTECIPANTI_PREDEFINITI, ge=PARTECIPANTI_MINIMI, le=PARTECIPANTI_MASSIMI
+    )
     coppa_italia: bool = False
     f1_rush: bool = False
 

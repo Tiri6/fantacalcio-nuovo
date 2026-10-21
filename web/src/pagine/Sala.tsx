@@ -644,7 +644,6 @@ function Tabellone() {
                 <th>Squadra</th>
                 <th>Giocatore</th>
                 <th>Ruoli</th>
-                <th className="numerica">Età</th>
                 <th className="numerica">Ingaggio</th>
               </tr>
             </thead>
@@ -654,7 +653,6 @@ function Tabellone() {
                   <td className="tenue">{s.squadra}</td>
                   <td className="forte">{s.giocatore}</td>
                   <td className="tenue">{s.ruoli}</td>
-                  <td className="numerica">{s.eta ?? "—"}</td>
                   <td className="numerica">{milioni(s.ingaggio)}</td>
                 </tr>
               ))}

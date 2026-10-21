@@ -96,8 +96,6 @@ export type GiocatoreInRosa = {
   club: string;
   ruoli: string[];
   nazionalita: string;
-  data_nascita: string | null;
-  eta: number | null;
   italiano: boolean;
   u21: boolean;
   anni_residui: number;
@@ -127,9 +125,21 @@ export type Conti = {
   annuali_richiesti: number;
   monte_ingaggi: number;
   dead_money: number;
+  /** Sul Cap: ingaggi + buonuscite + ingaggi di chi è stato svincolato. */
+  spesa_salariale: number;
+  cap_residuo: number;
   limite_cap: number;
   italiani: number;
   u21: number;
+};
+
+export type VoceDeadMoney = {
+  giocatore: string;
+  stagione: string;
+  buonuscita: number;
+  ingaggio_a_carico: number;
+  totale: number;
+  addebitato: boolean;
 };
 
 export type PortiereDellaRosa = {
@@ -169,6 +179,7 @@ export type ContoTitoli = { etichetta: string; icona: string; quanti: number };
 export type SquadraInDettaglio = Squadra & {
   posso_gestirla: boolean;
   conti: Conti;
+  registro_dead_money: VoceDeadMoney[];
   rosa: GiocatoreInRosa[];
   violazioni: Violazione[];
   titoli: Titolo[];
@@ -188,8 +199,6 @@ export type Giocatore = {
   anni: number;
   ingaggio: number;
   nazionalita: string;
-  data_nascita: string | null;
-  eta: number | null;
   italiano: boolean;
   u21: boolean;
   quotazione: number | null;
@@ -200,8 +209,9 @@ export type Listone = {
   giocatori: Giocatore[];
   svincolato: string;
   con_stipendio: number;
-  con_data_nascita: number;
   riferimento_u21: string;
+  /** Chi può segnare lo status Under 21: lo calcola il server. */
+  posso_modificare_u21: boolean;
 };
 
 export type SquadraInGalleria = {
@@ -224,7 +234,12 @@ export type SquadraInGalleria = {
 export type Galleria = {
   squadre: SquadraInGalleria[];
   stili: { nome: string; etichetta: string }[];
+  /** Vero solo per il presidente e solo se la lega ha ancora squadre da creare. */
   posso_crearne: boolean;
+  /** Se non si può, il motivo: si scrive accanto al pulsante spento. */
+  perche_non_crearne: string;
+  squadre_nella_lega: number;
+  squadre_previste: number;
   nomi_occupati: string[];
 };
 
@@ -506,6 +521,10 @@ export type StatoOnboarding = {
   modalita: VoceModulo[];
   formati: VoceModulo[];
   stili_maglia: VoceModulo[];
+  /** Quante squadre può avere una lega: lo dice il server. */
+  partecipanti_predefiniti: number;
+  partecipanti_minimi: number;
+  partecipanti_massimi: number;
 };
 
 export type NuovaLega = {
@@ -982,6 +1001,10 @@ export type PaginaCalendario = {
   senza_partite: boolean;
   weekend: Weekend[];
   gioca_coppa: boolean;
+  // Opzione della lega; `posso_modificare` lo calcola il server.
+  prima_serie_a: number;
+  serie_a_totali: number;
+  posso_modificare: boolean;
 };
 
 export type FaseDiCoppa = { fase: string; quando: string; stato: string };
@@ -1187,7 +1210,6 @@ export type InScadenza = {
   giocatore: string;
   club: string;
   ruoli: string;
-  eta: number | null;
   ingaggio: number;
 };
 
@@ -1278,6 +1300,11 @@ export const api = {
   squadre: () => chiama<Squadra[]>("/squadre"),
   squadra: (id: number) => chiama<SquadraInDettaglio>(`/squadre/${id}`),
   listone: () => chiama<Listone>("/giocatori"),
+  impostaU21: (id: number, italiano_u21: boolean) =>
+    chiama<Giocatore>(`/giocatori/${id}/u21`, {
+      method: "PUT",
+      body: JSON.stringify({ italiano_u21 }),
+    }),
   onboarding: () => chiama<StatoOnboarding>("/onboarding"),
   scambi: () => chiama<PaginaScambi>("/scambi"),
   proponiScambio: (corpo: {
@@ -1507,9 +1534,10 @@ export const api = {
         `&competizione=${encodeURIComponent(competizione)}`,
       { method: "POST" },
     ),
-  calendario: (prima_serie_a: number, fino_a: number) =>
+  // «Fino a» è solo una vista; da dove parte il campionato lo dice la lega.
+  calendario: (fino_a: number | null) =>
     chiama<PaginaCalendario>(
-      `/calendario?prima_serie_a=${prima_serie_a}&fino_a=${fino_a}`,
+      fino_a === null ? "/calendario" : `/calendario?fino_a=${fino_a}`,
     ),
   coppa: () => chiama<PaginaCoppa>("/coppa"),
   f1Rush: () => chiama<PaginaF1>("/f1-rush"),

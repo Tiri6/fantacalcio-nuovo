@@ -237,7 +237,7 @@ export function Assegnazioni() {
   if (errore)
     return (
       <div className="vuoto">
-        <h1>📝 Assegnazioni</h1>
+        <h1>📝 Registra acquisto</h1>
         <p>{errore}</p>
       </div>
     );
@@ -246,10 +246,11 @@ export function Assegnazioni() {
   return (
     <>
       <div className="intestazione-pagina">
-        <h1>📝 Assegnazioni</h1>
+        <h1>📝 Registra acquisto</h1>
         <p>
-          Registra chi si è preso chi: {dato.liberi.length} da assegnare su{" "}
-          {dato.in_listone} in listone.
+          Mette in rosa uno svincolato fuori dal draft: scegli il giocatore, la
+          squadra e gli anni di contratto. Ci sono {dato.liberi.length} giocatori
+          da assegnare su {dato.in_listone} in listone.
         </p>
       </div>
 

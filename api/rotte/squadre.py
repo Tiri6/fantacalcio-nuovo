@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
@@ -126,8 +127,6 @@ class GiocatoreInRosa(BaseModel):
     club: str
     ruoli: list[str]
     nazionalita: str
-    data_nascita: str | None
-    eta: int | None
     italiano: bool
     u21: bool
     anni_residui: int
@@ -169,9 +168,28 @@ class Conti(BaseModel):
     annuali_richiesti: int
     monte_ingaggi: float
     dead_money: float
+    # Quanto pesa sul Salary Cap: ingaggi in rosa piu' buonuscite piu' gli
+    # ingaggi di chi e' stato svincolato in stagione. E' la somma di `Rosa`,
+    # gia' calcolata: la pagina non la rifa' e non sottrae da sola.
+    spesa_salariale: float
+    cap_residuo: float
     limite_cap: float
     italiani: int
     u21: int
+
+
+class VoceDeadMoneyLetta(BaseModel):
+    """Una riga del registro dei dead money: cosa uno svincolo ha lasciato."""
+
+    giocatore: str
+    stagione: str
+    # Le due cose che l'art. 7 tiene distinte: la buonuscita del Lodo Origi e
+    # l'ingaggio che resta a carico fino a fine stagione.
+    buonuscita: float
+    ingaggio_a_carico: float
+    totale: float
+    # Gia' addebitata: non pesa piu' sul Cap della stagione in corso.
+    addebitato: bool
 
 
 class PortiereDellaRosa(BaseModel):
@@ -225,6 +243,7 @@ class SquadraInDettaglio(BaseModel):
     e_mia: bool
     posso_gestirla: bool
     conti: Conti
+    registro_dead_money: list[VoceDeadMoneyLetta]
     rosa: list[GiocatoreInRosa]
     violazioni: list[Violazione]
     titoli: list[Titolo]
@@ -394,10 +413,8 @@ def dettaglio(squadra_id: int, utente: UtenteDentro) -> SquadraInDettaglio:
                 club=g.club,
                 ruoli=list(g.ruoli),
                 nazionalita=g.nazionalita,
-                data_nascita=g.data_nascita.isoformat() if g.data_nascita else None,
-                eta=g.eta_al(ctx.riferimento_u21),
                 italiano=g.italiano,
-                u21=g.under_21(ctx.riferimento_u21, ctx.parametri),
+                u21=g.under_21(),
                 anni_residui=contratto.anni_residui,
                 ingaggio=g.ingaggio,
                 prolungato=contratto.prolungato,
@@ -440,10 +457,23 @@ def dettaglio(squadra_id: int, utente: UtenteDentro) -> SquadraInDettaglio:
             annuali_richiesti=stato.annuali_richiesti,
             monte_ingaggi=stato.monte_ingaggi,
             dead_money=stato.dead_money,
+            spesa_salariale=stato.spesa_salariale,
+            cap_residuo=stato.spazio_salariale,
             limite_cap=stato.limite_cap,
             italiani=sum(1 for g in giocatori if g.italiano),
             u21=sum(1 for g in giocatori if g.u21),
         ),
+        registro_dead_money=[
+            VoceDeadMoneyLetta(
+                giocatore=v.nome_giocatore,
+                stagione=v.stagione,
+                buonuscita=v.importo,
+                ingaggio_a_carico=v.ingaggio_a_carico,
+                totale=v.totale,
+                addebitato=v.addebitato,
+            )
+            for v in rosa.dead_money
+        ],
         rosa=giocatori,
         violazioni=[
             Violazione(
@@ -567,6 +597,15 @@ def svincolabili(squadra_id: int, utente: UtenteDentro) -> Svincoli:
     )
 
 
+# Uno svincolo alla volta. Senza, due richieste identiche (un doppio clic, un
+# riprova dopo un'attesa lunga) leggono entrambe «il giocatore e' in rosa» e
+# scrivono entrambe il Dead Money: quattro richieste hanno lasciato quattro
+# debiti per un giocatore solo. Il blocco vale per il processo, che qui e' uno
+# solo (un worker di uvicorn); un secondo processo vorrebbe un vincolo nel
+# database.
+_SVINCOLO_IN_CORSO = threading.Lock()
+
+
 @rotte.post("/squadre/{squadra_id}/svincoli", response_model=SvincoloFatto)
 def svincola_giocatore(
     squadra_id: int, richiesta: DaSvincolare, utente: UtenteDentro
@@ -577,6 +616,13 @@ def svincola_giocatore(
     e' del presidente anche sulla propria squadra. Che questa rotta ci sia o no
     non e' il controllo, e' la conseguenza.
     """
+    with _SVINCOLO_IN_CORSO:
+        return _svincola(squadra_id, richiesta, utente)
+
+
+def _svincola(
+    squadra_id: int, richiesta: DaSvincolare, utente: UtenteDentro
+) -> SvincoloFatto:
     ctx = contesto_di(utente)
     rosa = carica_rose(ctx.arch).get(squadra_id)
     if rosa is None:

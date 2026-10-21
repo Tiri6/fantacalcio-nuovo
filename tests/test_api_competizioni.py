@@ -88,20 +88,77 @@ class TestCalendario:
         assert len(dati["weekend"]) > 20
         assert dati["weekend"][0]["serie_a"] == 5
 
-    def test_da_quale_giornata_di_serie_a_si_parte_e_un_parametro(self, client):
+    def test_la_prima_giornata_di_serie_a_e_un_opzione_della_lega(self, client):
+        from dataclasses import replace
+
+        from fantacalcio.data import archivio, carica_leghe, salva_lega
+
+        entra(client)
+        arch = archivio()
+        lega = next(iter(carica_leghe(arch).values()))
+        salva_lega(
+            arch, replace(lega, opzioni=replace(lega.opzioni, prima_giornata_serie_a=8))
+        )
+
+        dati = client.get("/api/calendario").json()
+
+        assert dati["prima_serie_a"] == 8
+        assert dati["weekend"][0]["serie_a"] == 8
+
+    def test_senza_opzioni_salvate_vale_il_default(self, client):
+        from fantacalcio.competizioni import GIORNATE_SERIE_A, PRIMA_GIORNATA_SERIE_A
+
+        entra(client)
+        dati = client.get("/api/calendario").json()
+        assert dati["prima_serie_a"] == PRIMA_GIORNATA_SERIE_A
+        assert dati["serie_a_totali"] == GIORNATE_SERIE_A
+        assert dati["weekend"][-1]["serie_a"] == GIORNATE_SERIE_A
+
+    def test_il_parametro_prima_serie_a_non_conta_piu(self, client):
+        """Prima si passava dall'URL: ora lo decide la lega, non chi guarda."""
         entra(client)
         dati = client.get("/api/calendario", params={"prima_serie_a": 8}).json()
-        assert dati["weekend"][0]["serie_a"] == 8
+        assert dati["weekend"][0]["serie_a"] == dati["prima_serie_a"]
+
+    def test_lo_dice_chi_puo_cambiarla(self, client):
+        """Il campo lo calcola il server: la pagina non rifa' la regola."""
+        entra(client, "Marco")
+        assert client.get("/api/calendario").json()["posso_modificare"] is True
+        entra(client, "Luca")
+        assert client.get("/api/calendario").json()["posso_modificare"] is False
+
+    def test_solo_chi_gestisce_la_lega_la_cambia(self, client):
+        """E il controllo sta nel dominio: anche saltando la pagina, si rifiuta."""
+        entra(client, "Luca")
+        risposta = client.put(
+            "/api/lega/regole", json={"valori": {"prima_giornata_serie_a": 9}}
+        )
+        assert risposta.status_code == 403
+
+    def test_il_presidente_la_cambia_e_il_calendario_la_segue(self, client):
+        entra(client, "Marco")
+        risposta = client.put(
+            "/api/lega/regole", json={"valori": {"prima_giornata_serie_a": 9}}
+        )
+        assert risposta.status_code == 200
+        dati = client.get("/api/calendario").json()
+        assert dati["weekend"][0]["serie_a"] == 9
 
     def test_una_giornata_di_serie_a_fuori_scala_non_rompe(self, client):
         entra(client)
-        dati = client.get(
-            "/api/calendario", params={"prima_serie_a": 99, "fino_a": 1}
-        ).json()
-        # «Fino alla 1ª» partendo dalla 38ª non vuol dire niente: invece di
-        # una tabella vuota si tiene l'inizio e si allunga la fine.
+        dati = client.get("/api/calendario", params={"fino_a": 1}).json()
+        # «Fino alla 1ª» partendo dalla 5ª non vuol dire niente: invece di una
+        # tabella vuota si tiene l'inizio e si allunga la fine.
         assert dati["weekend"]
-        assert all(1 <= w["serie_a"] <= 38 for w in dati["weekend"])
+        assert dati["weekend"][0]["serie_a"] == dati["prima_serie_a"]
+        assert len(dati["weekend"]) == 1
+
+    def test_un_valore_assurdo_nelle_opzioni_si_rifiuta(self, client):
+        entra(client, "Marco")
+        risposta = client.put(
+            "/api/lega/regole", json={"valori": {"prima_giornata_serie_a": 99}}
+        )
+        assert risposta.status_code == 422
 
 
 class TestCoppa:

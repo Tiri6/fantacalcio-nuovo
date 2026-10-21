@@ -454,9 +454,6 @@ class TestIlListoneInUnFileSolo:
         assert dybala.ingaggio == 6_000_000
         assert dybala.data_nascita == date(1993, 11, 15)
         assert dybala.nazionalita == "Argentina"
-        # E con la data di nascita lo status Under 21 si puo' finalmente
-        # calcolare: e' tutto il punto di caricarla.
-        assert dybala.eta_al(date(2026, 8, 31)) == 32
 
     def test_una_riga_rotta_e_un_avviso_non_un_errore(self, client):
         """Le altre quattrocentonovantanove entrano lo stesso, ma quella che

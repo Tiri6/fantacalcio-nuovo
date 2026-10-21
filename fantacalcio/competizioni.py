@@ -34,6 +34,13 @@ GIORNO_RIFERIMENTO_U21 = (8, 31)
 # pagine: se la Serie A cambiasse formato, si corregge in un punto solo.
 GIORNATE_SERIE_A = 38
 
+# Da quale giornata di Serie A parte il fantacampionato quando la lega non l'ha
+# scelto: la lega si forma dopo il draft di settembre. E' **l'unico** valore di
+# default — `OpzioniLega.prima_giornata_serie_a` e `costruisci_weekend` lo
+# prendono da qui — perche' la corrispondenza fra giornate di lega e weekend e'
+# solo numerica e non richiede di caricare il calendario della Serie A.
+PRIMA_GIORNATA_SERIE_A = 5
+
 
 def data_riferimento_u21(stagione: str) -> date:
     """Il 31 agosto della stagione: da '2026/27' si ricava il 2026.
@@ -461,7 +468,7 @@ def costruisci_weekend(
     giornate_serie_a: int,
     giornate_campionato: int,
     regole_coppa: RegoleCoppa | None = None,
-    prima_giornata_serie_a: int = 1,
+    prima_giornata_serie_a: int = PRIMA_GIORNATA_SERIE_A,
     regole_f1_rush: RegoleF1Rush | None = None,
 ) -> list[Weekend]:
     """Distribuisce campionato e coppa sui turni di Serie A.

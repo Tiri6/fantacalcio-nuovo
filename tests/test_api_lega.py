@@ -349,9 +349,12 @@ class TestCambiareLeRegole:
         assert campi["punti_vittoria"]["valore"] == 2
         assert campi["coppa_italia"]["valore"] is True
         # E la lega riletta dice la stessa cosa, non solo la risposta.
-        assert (
-            client.get("/api/lega/regole").json()["gruppi"][0]["campi"][4]["valore"] == 2
-        )
+        riletta = {
+            c["nome"]: c
+            for g in client.get("/api/lega/regole").json()["gruppi"]
+            for c in g["campi"]
+        }
+        assert riletta["punti_vittoria"]["valore"] == 2
 
     def test_un_lodo_che_cambia_il_cap_arriva_al_cruscotto(self, client):
         """Il giro completo: si cambia la regola e il conto che ne dipende
@@ -456,16 +459,7 @@ class TestIlRicalcoloDegliUnder21:
             pytest.skip("Nessuna squadra di demo ha Under 21 in rosa")
 
         rosa = carica_rose(archivio())[con_under]
-        under = next(
-            g
-            for g in rosa.giocatori
-            if g.under_21(
-                __import__("datetime").date(2026, 8, 31),
-                __import__(
-                    "fantacalcio.regole", fromlist=["ParametriLega"]
-                ).ParametriLega(),
-            )
-        )
+        under = next(g for g in rosa.giocatori if g.under_21())
         client.post(
             f"/api/squadre/{con_under}/svincoli",
             json={"giocatore_id": under.id, "motivo": "pre-asta"},

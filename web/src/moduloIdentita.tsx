@@ -5,62 +5,19 @@ import {
   type Galleria,
   type ModificaIdentita,
   type SquadraInGalleria,
-} from "../api";
-import { useCarica } from "../carica";
+} from "./api";
 
 /**
- * La maglia la disegna il server, non questa pagina.
+ * Il modulo per creare una squadra o cambiarne l'identità.
  *
- * Due squadre con gli stessi colori devono venire identiche a chiunque le
- * guardi, e la funzione che le disegna è già provata in Python: ridisegnarla
- * qui vorrebbe dire tenerne due copie che prima o poi divergono. Quindi niente
- * anteprima dal vivo mentre si scelgono i colori — la maglia nuova compare
- * nella galleria appena il salvataggio è andato a buon fine.
+ * La maglia la disegna il server, non questo modulo: due squadre con gli
+ * stessi colori devono venire identiche a chiunque le guardi, e la funzione
+ * che le disegna è già provata in Python. Niente anteprima dal vivo: la maglia
+ * nuova compare appena il salvataggio è andato a buon fine.
+ *
+ * Chi può usarlo non si decide qui: lo dicono `modificabile` e `posso_crearne`
+ * del server, e le rotte rifiutano comunque chi non può.
  */
-function Scheda({
-  squadra,
-  onModifica,
-}: {
-  squadra: SquadraInGalleria;
-  onModifica: () => void;
-}) {
-  return (
-    <article className="scheda-identita">
-      <img src={squadra.maglia} alt={`Maglia di ${squadra.nome}`} width={120} />
-      <h3>{squadra.nome}</h3>
-      {squadra.presidente && <p className="tenue">{squadra.presidente}</p>}
-      {squadra.motto && <p className="motto">{squadra.motto}</p>}
-      <dl className="minuta">
-        {squadra.stadio && (
-          <div>
-            <dt>🏟️</dt>
-            <dd>
-              {squadra.stadio}
-              {squadra.citta && `, ${squadra.citta}`}
-            </dd>
-          </div>
-        )}
-        {!squadra.stadio && squadra.citta && (
-          <div>
-            <dt>📍</dt>
-            <dd>{squadra.citta}</dd>
-          </div>
-        )}
-        {squadra.curva && (
-          <div>
-            <dt>📣</dt>
-            <dd>{squadra.curva}</dd>
-          </div>
-        )}
-      </dl>
-      {squadra.modificabile && (
-        <button className="secondario" onClick={onModifica}>
-          ✏️ Modifica
-        </button>
-      )}
-    </article>
-  );
-}
 
 function vuota(stili: Galleria["stili"]): ModificaIdentita {
   return {
@@ -92,7 +49,7 @@ function daSquadra(s: SquadraInGalleria): ModificaIdentita {
   };
 }
 
-function Modulo({
+export function ModuloIdentita({
   galleria,
   squadra,
   onChiudi,
@@ -284,60 +241,5 @@ function Modulo({
         {inCorso ? "Salvo…" : nuova ? "Crea la squadra" : "💾 Salva"}
       </button>
     </form>
-  );
-}
-
-export function Identita() {
-  const [giro, setGiro] = useState(0);
-  const { dato, errore, inCorso } = useCarica(() => api.identita(), [giro]);
-  const [modifica, setModifica] = useState<SquadraInGalleria | null | undefined>(
-    undefined,
-  );
-  const [conferma, setConferma] = useState<string | null>(null);
-
-  if (inCorso) return <div className="fantasma alto" />;
-  if (errore) return <div className="errore">{errore}</div>;
-  if (!dato) return null;
-
-  // `undefined` = nessun modulo aperto, `null` = sto creando una squadra nuova.
-  if (modifica !== undefined) {
-    return (
-      <Modulo
-        galleria={dato}
-        squadra={modifica}
-        onChiudi={() => setModifica(undefined)}
-        onSalvata={(messaggio) => {
-          setModifica(undefined);
-          setConferma(messaggio);
-          setGiro((g) => g + 1);
-        }}
-      />
-    );
-  }
-
-  return (
-    <>
-      <div className="intestazione-pagina">
-        <h1>Identità squadre</h1>
-        <p>
-          Presidente, motto, stadio, città, curva e colori sociali. Le maglie
-          sono disegnate dai colori di ogni squadra.
-        </p>
-      </div>
-
-      {conferma && <div className="conferma">{conferma}</div>}
-
-      {dato.posso_crearne && (
-        <button className="secondario crea" onClick={() => setModifica(null)}>
-          ➕ Crea una squadra nuova
-        </button>
-      )}
-
-      <div className="galleria">
-        {dato.squadre.map((s) => (
-          <Scheda key={s.id} squadra={s} onModifica={() => setModifica(s)} />
-        ))}
-      </div>
-    </>
   );
 }
