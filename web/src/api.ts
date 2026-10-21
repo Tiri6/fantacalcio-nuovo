@@ -96,8 +96,6 @@ export type GiocatoreInRosa = {
   club: string;
   ruoli: string[];
   nazionalita: string;
-  data_nascita: string | null;
-  eta: number | null;
   italiano: boolean;
   u21: boolean;
   anni_residui: number;
@@ -188,8 +186,6 @@ export type Giocatore = {
   anni: number;
   ingaggio: number;
   nazionalita: string;
-  data_nascita: string | null;
-  eta: number | null;
   italiano: boolean;
   u21: boolean;
   quotazione: number | null;
@@ -200,7 +196,6 @@ export type Listone = {
   giocatori: Giocatore[];
   svincolato: string;
   con_stipendio: number;
-  con_data_nascita: number;
   riferimento_u21: string;
 };
 
@@ -1187,7 +1182,6 @@ export type InScadenza = {
   giocatore: string;
   club: string;
   ruoli: string;
-  eta: number | null;
   ingaggio: number;
 };
 

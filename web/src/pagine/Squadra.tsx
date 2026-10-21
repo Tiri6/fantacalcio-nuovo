@@ -79,7 +79,6 @@ function Rosa({
               <th>Club</th>
               <th>Ruoli</th>
               <th>Nazionalità</th>
-              <th className="numerica">Età</th>
               <th className="centrata">U21</th>
               <th className="numerica">Anni</th>
               <th className="numerica">Ingaggio</th>
@@ -104,7 +103,6 @@ function Rosa({
                   {g.italiano && <span title="Italiano">🇮🇹 </span>}
                   {g.nazionalita}
                 </td>
-                <td className="numerica">{g.eta ?? "—"}</td>
                 <td className="centrata">{g.u21 ? "●" : ""}</td>
                 <td className={`numerica${g.in_scadenza ? " scadenza" : ""}`}>
                   {g.anni_residui}

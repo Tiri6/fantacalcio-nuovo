@@ -291,9 +291,9 @@ function AnteprimaListone({ esito }: { esito: EsitoListoneImport }) {
         contratto e, se il file non lo porta, anche l'ingaggio.
       </p>
 
-      {/* I tre conti che decidono se metà regolamento funziona: senza
-          stipendio il Salary Cap resta a zero, senza data di nascita lo
-          status Under 21 non si può determinare. */}
+      {/* I conti che decidono se metà regolamento funziona: senza stipendio
+          il Salary Cap resta a zero. La data di nascita non decide più
+          l'Under 21: è un flag che si carica con le rose. */}
       <div className="conti-import">
         <span className={esito.con_stipendio ? "pastiglia verde" : "pastiglia"}>
           {esito.con_stipendio} con lo stipendio
@@ -442,8 +442,10 @@ function SchedaListone({ formati }: { formati: FormatiImport }) {
         <strong>L'xlsx ufficiale di Fantacalcio.it</strong> (
         <code>Quotazioni_Fantacalcio_Stagione_*.xlsx</code>, foglio{" "}
         <strong>Tutti</strong>) porta anagrafica, ruoli e quotazioni. Stipendi,
-        date di nascita e nazionalità non ce li ha: senza quelli il Salary Cap
-        resta a zero e lo status Under 21 non si può determinare.
+        date di nascita e nazionalità non ce li ha: senza gli stipendi il Salary
+        Cap resta a zero. Lo status Under 21 italiano non si ricava più dalla
+        data di nascita: si segna con la colonna «italiano_u21» del CSV delle
+        rose.
       </p>
       <p className="prosa">
         <strong>Il CSV completo</strong> li porta tutti e tre. È il file che si

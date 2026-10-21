@@ -68,8 +68,7 @@ export function Listone() {
         <h1>Listone giocatori</h1>
         <p>
           {tutti.length} giocatori · {svincolati} svincolati ·{" "}
-          {dato.con_stipendio} con stipendio · {dato.con_data_nascita} con data
-          di nascita
+          {dato.con_stipendio} con stipendio
         </p>
       </div>
 
@@ -146,7 +145,6 @@ export function Listone() {
               <th className="numerica">Anni</th>
               <th className="numerica">Ingaggio</th>
               <th>Nazionalità</th>
-              <th className="numerica">Età</th>
               <th className="centrata">U21</th>
             </tr>
           </thead>
@@ -171,7 +169,6 @@ export function Listone() {
                   {g.italiano && "🇮🇹 "}
                   {g.nazionalita}
                 </td>
-                <td className="numerica">{g.eta ?? ""}</td>
                 <td className="centrata">{g.u21 ? "●" : ""}</td>
               </tr>
             ))}
