@@ -670,6 +670,18 @@ class RegoleNonModificabili(PermissionError):
     """Le regole le cambia chi amministra la lega, e nessun altro."""
 
 
+def puo_amministrare(chi, lega: Lega | None) -> bool:
+    """Chi amministra la lega: chi l'ha creata e il presidente.
+
+    E' la stessa nozione che le rotte della lega scrivono a mano
+    (`utente.id == lega.admin_id or utente.puo_importare`): il presidente
+    importa i dati e ratifica, chi ha creato la lega ne cambia le regole.
+    """
+    if chi is None or lega is None:
+        return False
+    return puo_modificare_regole(chi, lega) or bool(getattr(chi, "puo_importare", False))
+
+
 def puo_modificare_regole(chi, lega: Lega | None) -> bool:
     """Solo l'amministratore **di quella** lega.
 

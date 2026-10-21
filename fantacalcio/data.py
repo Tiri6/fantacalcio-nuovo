@@ -819,6 +819,25 @@ def congela_slot_u21(arch: Archivio, squadra_id: int, slot: int | None) -> None:
     ).execute()
 
 
+def imposta_italiano_u21(arch: Archivio, giocatore_id: int, valore: bool) -> None:
+    """Scrive lo status Under 21 italiano di un giocatore.
+
+    Update mirato: `scrivi` su SQLite e' un `insert or replace` e riscriverebbe
+    tutta la riga, riportando a default le colonne che non nomini.
+    """
+    flag = int(bool(valore))
+    if isinstance(arch, ArchivioSQLite):
+        with sqlite3.connect(arch.percorso) as conn:
+            conn.execute(
+                "update giocatori set italiano_u21 = ? where id = ?",
+                (flag, int(giocatore_id)),
+            )
+        return
+    arch._client.table("giocatori").update({"italiano_u21": bool(valore)}).eq(
+        "id", int(giocatore_id)
+    ).execute()
+
+
 def imposta_portiere_emergenza(
     arch: Archivio,
     squadra_id: int,
