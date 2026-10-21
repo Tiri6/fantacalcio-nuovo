@@ -47,8 +47,11 @@ COLONNE_ROSE = {
         "costo",
     ),
     "nazionalita": ("nazionalita", "nazione", "paese", "country"),
-    "data_nascita": ("datanascita", "nascita", "datadinascita", "compleanno"),
-    "prolungato": ("prolungato", "giaprolungato", "prolungamento"),
+    # Under 21 italiano: lo decide la lega, non lo ricaviamo da una data. Le
+    # vecchie colonne `datanascita` e `prolungato` non si leggono piu': un file
+    # che le ha ancora entra lo stesso, e finiscono fra le intestazioni
+    # ignorate.
+    "italiano_u21": ("italianou21", "u21italiano", "italianounder21", "u21"),
 }
 
 COLONNE_RISULTATI = {
@@ -153,12 +156,13 @@ CAMPI_ROSE = (
         "Squadra di Serie A. Anche questa si ricava dal listone.",
     ),
     CampoFile("nazionalita", False, "Argentina", "Serve al minimo italiani."),
-    CampoFile("datanascita", False, "15/11/1993", "Serve all'Under 21."),
     CampoFile(
-        "prolungato",
+        "italiano_u21",
         False,
-        "no",
-        "Se ha gia' usato il prolungamento da scambio (Lodo Corti).",
+        "NO",
+        "SI se e' un Under 21 italiano (anche sì/no, 1/0, true/false). "
+        "Vuoto vale NO per i giocatori nuovi, e lascia com'e' chi c'e' gia'. "
+        "Data di nascita e prolungamento non si caricano da qui.",
     ),
 )
 
@@ -343,8 +347,18 @@ def leggi_data(valore: str) -> date | None:
     raise ValueError(f"'{valore}' non e' una data riconoscibile (usa gg/mm/aaaa)")
 
 
-def leggi_booleano(valore: str) -> bool:
-    return str(valore).strip().lower() in ("si", "sì", "s", "true", "1", "x", "vero")
+_SI = ("si", "sì", "s", "true", "1", "x", "vero")
+_NO = ("no", "n", "false", "0", "falso")
+
+
+def leggi_si_no(valore: str) -> bool:
+    """SI/NO, anche sì/no, 1/0, true/false. Vuoto vale NO; il resto e' un errore."""
+    testo = str(valore).strip().lower()
+    if testo in _SI:
+        return True
+    if testo in _NO or testo == "":
+        return False
+    raise ValueError(f"«{valore}» non e' SI ne' NO")
 
 
 # ---------------------------------------------------------------------------
@@ -534,28 +548,33 @@ def importa_rose(
             esito.problemi.append(Problema(numero, "anni", campo("anni"), str(errore)))
             valida = False
 
-        try:
-            riga["data_nascita"] = leggi_data(campo("data_nascita"))
-        except ValueError as errore:
-            esito.problemi.append(
-                Problema(numero, "data_nascita", campo("data_nascita"), str(errore))
-            )
-            valida = False
-
         riga["nazionalita"] = campo("nazionalita") or "Italia"
-        riga["prolungato"] = leggi_booleano(campo("prolungato"))
 
-        if not riga.get("data_nascita"):
+        # Colonna assente: `None`, cioe' «non dire niente». L'import non deve
+        # azzerare lo status di chi c'e' gia'.
+        if "italiano_u21" in colonne:
+            try:
+                riga["italiano_u21"] = leggi_si_no(campo("italiano_u21"))
+            except ValueError as errore:
+                esito.problemi.append(
+                    Problema(numero, "italiano_u21", campo("italiano_u21"), str(errore))
+                )
+                valida = False
+        else:
+            riga["italiano_u21"] = None
+
+        if riga.get("italiano_u21") and riga["nazionalita"] != parametri.nazionalita_u21:
             esito.problemi.append(
                 Problema(
                     numero,
-                    "data_nascita",
-                    "",
-                    "Senza data di nascita non si puo' verificare lo status "
-                    "Under 21 (art. 2)",
-                    bloccante=False,
+                    "italiano_u21",
+                    campo("italiano_u21"),
+                    f"Un Under 21 italiano deve avere nazionalita' "
+                    f"«{parametri.nazionalita_u21}», qui c'e' «{riga['nazionalita']}»",
                 )
             )
+            valida = False
+
         if not riga["club"]:
             esito.problemi.append(
                 Problema(numero, "club", "", "Squadra di Serie A non indicata", False)
@@ -693,10 +712,10 @@ def importa_risultati(contenuto: str | bytes) -> EsitoImportazione:
 # Modelli di CSV da scaricare
 # ---------------------------------------------------------------------------
 
-MODELLO_ROSE = """squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita;data_nascita
-Tiri Team;Rossi Marco;Juventus;Dc;2.500.000;3;Italia;17/04/2001
-Tiri Team;Bianchi Luca;Inter;Por;1.800.000;1;Italia;02/11/1996
-Padel United;Silva Joao;Napoli;W/T;4,2M;2;Brasile;30/06/1999
+MODELLO_ROSE = """squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita;italiano_u21
+Tiri Team;Rossi Marco;Juventus;Dc;2.500.000;3;Italia;SI
+Tiri Team;Bianchi Luca;Inter;Por;1.800.000;1;Italia;NO
+Padel United;Silva Joao;Napoli;W/T;4,2M;2;Brasile;NO
 """
 
 MODELLO_RISULTATI = """giornata;casa;trasferta;punti_casa;punti_trasferta
@@ -748,14 +767,13 @@ def rose_da_esito(
                 ruoli=riga["ruoli"],
                 ingaggio=riga["ingaggio"],
                 nazionalita=riga.get("nazionalita", "Italia"),
-                data_nascita=riga.get("data_nascita"),
+                italiano_u21=bool(riga.get("italiano_u21")),
             )
             contratti.append(
                 Contratto(
                     giocatore_id=identificativo,
                     squadra_id=indice,
                     anni_residui=riga["anni"],
-                    prolungato=riga.get("prolungato", False),
                 )
             )
             identificativo += 1
@@ -783,12 +801,54 @@ def anteprima_conformita(
     }
 
 
+def _vuoto(valore) -> bool:
+    return valore is None or (isinstance(valore, float) and pd.isna(valore))
+
+
+def _stato_precedente(arch) -> dict[str, dict]:
+    """Quel che il CSV delle rose non porta e che un import non deve perdere.
+
+    Per nome normalizzato (gli id si rifanno): la data di nascita, lo status
+    Under 21 italiano e lo stato del prolungamento da scambio. Un nuovo file
+    rimpiazza le rose, ma queste tre cose le sa solo il database: azzerarle
+    cancellerebbe in silenzio, per esempio, chi ha gia' usato il Lodo Corti.
+    """
+    giocatori = arch.giocatori()
+    if giocatori.empty:
+        return {}
+    contratti = arch.tabella("contratti")
+    per_giocatore = {}
+    if not contratti.empty:
+        per_giocatore = {int(c["giocatore_id"]): c for _, c in contratti.iterrows()}
+
+    stato: dict[str, dict] = {}
+    for _, g in giocatori.iterrows():
+        contratto = per_giocatore.get(int(g["id"]))
+        nascita = g.get("data_nascita")
+        flag = g.get("italiano_u21")
+        stagione = None if contratto is None else contratto.get("stagione_prolungamento")
+        stato[normalizza_nome_giocatore(g["nome"])] = {
+            "data_nascita": None if _vuoto(nascita) else nascita,
+            "italiano_u21": False if _vuoto(flag) else bool(int(flag)),
+            "prolungato": bool(
+                contratto is not None
+                and not _vuoto(contratto.get("prolungato"))
+                and int(contratto["prolungato"])
+            ),
+            "stagione_prolungamento": None if _vuoto(stagione) else stagione,
+        }
+    return stato
+
+
 def applica_rose(arch, esito: EsitoImportazione, sostituisci: bool = True) -> dict:
     """Scrive nel database le rose importate.
 
     Con `sostituisci` le rose precedenti vengono azzerate: e' il caso normale
     dopo un draft, in cui il CSV rappresenta la situazione completa.
     Le squadre gia' esistenti mantengono id e identita' visiva.
+
+    Data di nascita, prolungamento e (se il file non ha la colonna) status
+    Under 21 italiano si riportano da quello che c'era: vedi `_stato_precedente`.
     """
     from .data import prossimo_id
 
@@ -818,6 +878,8 @@ def applica_rose(arch, esito: EsitoImportazione, sostituisci: bool = True) -> di
     if nuove_squadre:
         arch.scrivi("squadre", nuove_squadre, chiave="id")
 
+    precedente = _stato_precedente(arch)
+
     if sostituisci:
         arch.svuota("contratti")
         arch.svuota("giocatori")
@@ -828,7 +890,10 @@ def applica_rose(arch, esito: EsitoImportazione, sostituisci: bool = True) -> di
 
     for riga in esito.righe:
         squadra_id = id_per_nome[riga["squadra"].strip().lower()]
-        nascita = riga.get("data_nascita")
+        prima = precedente.get(normalizza_nome_giocatore(riga["giocatore"]), {})
+        flag = riga.get("italiano_u21")
+        if flag is None:  # colonna assente nel file: resta com'era
+            flag = prima.get("italiano_u21", False)
         giocatori.append(
             {
                 "id": identificativo,
@@ -837,7 +902,8 @@ def applica_rose(arch, esito: EsitoImportazione, sostituisci: bool = True) -> di
                 "ruoli": ";".join(riga["ruoli"]),
                 "ingaggio": riga["ingaggio"],
                 "nazionalita": riga.get("nazionalita", "Italia"),
-                "data_nascita": nascita.isoformat() if nascita else None,
+                "data_nascita": prima.get("data_nascita"),
+                "italiano_u21": int(bool(flag)),
             }
         )
         contratti.append(
@@ -845,8 +911,8 @@ def applica_rose(arch, esito: EsitoImportazione, sostituisci: bool = True) -> di
                 "giocatore_id": identificativo,
                 "squadra_id": squadra_id,
                 "anni_residui": riga["anni"],
-                "prolungato": int(bool(riga.get("prolungato", False))),
-                "stagione_prolungamento": None,
+                "prolungato": int(prima.get("prolungato", False)),
+                "stagione_prolungamento": prima.get("stagione_prolungamento"),
             }
         )
         identificativo += 1
@@ -1145,11 +1211,13 @@ def applica_listone(arch, esito: EsitoImportazione) -> dict:
             ingaggio = float(precedente.get("ingaggio") or 0.0)
             nazionalita = precedente.get("nazionalita") or "Italia"
             nascita = precedente.get("data_nascita")
+            flag = precedente.get("italiano_u21")
+            italiano_u21 = 0 if _vuoto(flag) else int(bool(flag))
             aggiornati += 1
         else:
             identificativo = prossimo
             prossimo += 1
-            ingaggio, nazionalita, nascita = 0.0, "Italia", None
+            ingaggio, nazionalita, nascita, italiano_u21 = 0.0, "Italia", None, 0
 
         righe.append(
             {
@@ -1162,6 +1230,7 @@ def applica_listone(arch, esito: EsitoImportazione) -> dict:
                 "ingaggio": ingaggio,
                 "nazionalita": nazionalita,
                 "data_nascita": nascita if isinstance(nascita, str) else None,
+                "italiano_u21": italiano_u21,
                 "quotazione": riga["quotazione"],
                 "fvm": riga["fvm"],
             }
