@@ -7,6 +7,7 @@ from fantacalcio.data import (
     ArchivioSQLite,
     calendario_dettagliato,
     carica_credenziali,
+    carica_giocatori,
     carica_inviti,
     carica_leghe,
     carica_rose,
@@ -916,3 +917,53 @@ class TestLaSalaSuDatabase:
             salva_chiamata(
                 archivio_demo, sala.id, Scelta(1, squadre[1], liberi[1], 1, "2026-09-15")
             )
+
+
+class TestIDecimaliNonSiPerdono:
+    """Un helper omonimo, piu' sotto, arrotondava quotazioni e ingaggi a carico."""
+
+    def test_la_quotazione_resta_decimale_e_vuota_se_manca(self, archivio_demo):
+        archivio_demo.svuota("contratti")
+        archivio_demo.svuota("giocatori")
+        base = {
+            "club": "Roma",
+            "ruoli": "A",
+            "ingaggio": 1_000_000,
+            "nazionalita": "Italia",
+        }
+        archivio_demo.scrivi(
+            "giocatori",
+            [
+                {**base, "id": 1, "nome": "Tale 1", "quotazione": 12.5, "fvm": 3.5},
+                {**base, "id": 2, "nome": "Tale 2", "quotazione": None, "fvm": None},
+            ],
+            chiave="id",
+        )
+        giocatori = carica_giocatori(archivio_demo)
+        assert giocatori[1].quotazione == 12.5
+        assert giocatori[2].quotazione is None
+
+    def test_l_ingaggio_a_carico_conserva_i_centesimi(self, archivio_demo):
+        from fantacalcio.modelli import VoceDeadMoney
+
+        archivio_demo.svuota("dead_money")
+        archivio_demo.scrivi(
+            "dead_money",
+            [
+                {
+                    "id": 1,
+                    "squadra_id": 7,
+                    "giocatore_id": 1,
+                    "nome_giocatore": "Tale 1",
+                    "importo": 1_500_000.0,
+                    "stagione": "2026/27",
+                    "addebitato": 0,
+                    "ingaggio_a_carico": 1_234_567.89,
+                }
+            ],
+            chiave="id",
+        )
+        rose = carica_rose(archivio_demo)
+        voci = rose[7].dead_money
+        assert isinstance(voci[0], VoceDeadMoney)
+        assert voci[0].ingaggio_a_carico == pytest.approx(1_234_567.89)

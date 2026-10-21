@@ -1268,7 +1268,7 @@ def salva_formazione(arch: Archivio, formazione: Formazione) -> None:
     )
 
 
-def _numero(valore, difetto=0):
+def _intero(valore, difetto=0):
     if valore is None or (isinstance(valore, float) and pd.isna(valore)):
         return difetto
     try:
@@ -1295,16 +1295,16 @@ def _voto_da_riga(riga) -> Voto | None:
         giocatore_id=giocatore,
         giornata=quale,
         voto=voto,
-        gol=_numero(riga.get("gol")),
-        gol_su_rigore=_numero(riga.get("gol_su_rigore")),
-        rigori_sbagliati=_numero(riga.get("rigori_sbagliati")),
-        rigori_parati=_numero(riga.get("rigori_parati")),
-        autogol=_numero(riga.get("autogol")),
-        assist=_numero(riga.get("assist")),
-        ammonizioni=_numero(riga.get("ammonizioni")),
-        espulsioni=_numero(riga.get("espulsioni")),
-        gol_subiti=_numero(riga.get("gol_subiti")),
-        imbattuto=bool(_numero(riga.get("imbattuto"))),
+        gol=_intero(riga.get("gol")),
+        gol_su_rigore=_intero(riga.get("gol_su_rigore")),
+        rigori_sbagliati=_intero(riga.get("rigori_sbagliati")),
+        rigori_parati=_intero(riga.get("rigori_parati")),
+        autogol=_intero(riga.get("autogol")),
+        assist=_intero(riga.get("assist")),
+        ammonizioni=_intero(riga.get("ammonizioni")),
+        espulsioni=_intero(riga.get("espulsioni")),
+        gol_subiti=_intero(riga.get("gol_subiti")),
+        imbattuto=bool(_intero(riga.get("imbattuto"))),
     )
 
 
