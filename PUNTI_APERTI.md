@@ -530,24 +530,17 @@ capire se e' una regola o un'eccezione.
 4-4-2, 4-3-2-1) e una seconda giornata per il caso del modificatore. I due
 test con `xfail` diventano verdi da soli quando ci siamo.
 
-## 22. La media voto in Formazione: voto puro o fantamedia?
+## 22. Le medie in Formazione: MV e FM — ✅ CHIUSO
 
-La pagina Formazione mostra, per ogni giocatore, la **media voto di stagione**
-(e la percentuale di giornate giocate da titolare), calcolate dal server sui
-voti importati. Il regolamento non dice a quale media ci si riferisca:
+La pagina Formazione mostra per ogni giocatore **MV** (media del voto puro) e
+**FM** (fantamedia: voto piu' bonus e malus della lega), entrambe con due
+decimali, piu' la percentuale di giornate giocate da titolare. Le calcola il
+server (`fantacalcio/statistiche.py`) sui voti importati; i bonus sono quelli
+della lega.
 
-- **voto puro** (quello del giornale, senza bonus ne' malus), oppure
-- **fantamedia** (voto piu' bonus e malus della lega).
-
-**Ipotesi implementata:** il voto puro, il piu' vicino a quel che mostra
-Leghe Fantacalcio accanto al nome. E' il parametro `BaseMedia` in
-`fantacalcio/statistiche.py` (`BASE_MEDIA_PREDEFINITA`): per passare alla
-fantamedia basta `BaseMedia.FANTAVOTO`, che usa i bonus della lega.
-
-Fissato, invece: contano solo le giornate in cui il giocatore **ha preso voto**
-(un senza voto non abbassa la media); titolare vuol dire «nei titolari di una
+Fissato: contano solo le giornate in cui il giocatore **ha preso voto** (un
+senza voto non abbassa le medie); titolare vuol dire «nei titolari di una
 formazione di campionato salvata»; chi non ha mai preso voto mostra un
 trattino, non uno zero.
 
-**Da decidere:** quale media vuole la lega, e se la coppa deve contare nella
-titolarita'.
+**Da decidere ancora:** se la coppa deve contare nella titolarita'.

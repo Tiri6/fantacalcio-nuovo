@@ -13,7 +13,7 @@ from fantacalcio.data import (
 )
 from fantacalcio.formazioni import Formazione, Voto
 from fantacalcio.leghe import Bonus
-from fantacalcio.statistiche import BaseMedia, statistiche_stagione
+from fantacalcio.statistiche import statistiche_stagione
 
 
 def v(giocatore, giornata, voto, **altro):
@@ -46,19 +46,22 @@ class TestLaMedia:
         assert s[1].media == 7.0
 
 
-class TestLaBaseDellaMedia:
-    """Voto puro o fantamedia e' un punto aperto: si parte dal voto puro."""
+class TestLaFantamedia:
+    """FM: voto piu' bonus e malus, accanto alla MV che resta sul voto puro."""
 
-    GOL = v(1, 1, 6.0, gol=1)
+    def test_mv_e_fm_stanno_insieme(self):
+        gol = v(1, 1, 6.0, gol=1)
+        s = statistiche_stagione([gol, v(1, 2, 6.0)], {}, bonus=Bonus(gol_segnato=3.0))
+        assert s[1].media == 6.0
+        assert s[1].fantamedia == 7.5
 
-    def test_di_partenza_i_bonus_non_entrano(self):
-        assert statistiche_stagione([self.GOL], {})[1].media == 6.0
+    def test_senza_bonus_particolari_vale_la_lega_di_partenza(self):
+        s = statistiche_stagione([v(1, 1, 6.0, ammonizioni=1)], {})
+        assert s[1].fantamedia == 5.5
 
-    def test_la_fantamedia_li_somma(self):
-        s = statistiche_stagione(
-            [self.GOL], {}, base=BaseMedia.FANTAVOTO, bonus=Bonus(gol_segnato=3.0)
-        )
-        assert s[1].media == 9.0
+    def test_il_senza_voto_non_entra_nemmeno_nella_fm(self):
+        s = statistiche_stagione([v(1, 1, 7.0), v(1, 2, None, gol=2)], {})
+        assert s[1].fantamedia == 7.0
 
 
 class TestLaTitolarita:

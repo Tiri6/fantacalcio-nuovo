@@ -77,6 +77,8 @@ class GiocatoreScelta(BaseModel):
     #: Dalla nostra storia, calcolati dal server: la pagina li stampa e basta.
     #: `None` = mai preso voto, e la pagina scrive un trattino (non uno zero).
     media_voto: float | None = None
+    #: FM: voto con bonus e malus della lega. `None` come sopra.
+    fantamedia: float | None = None
     #: Giornate con voto e quota di quelle giocate da titolare (0-100).
     presenze: int = 0
     titolare_pct: int | None = None
@@ -188,6 +190,7 @@ def _giocatore(
         ruoli=list(ruoli.get(id_, ())),
         sigla=_sigla(ruoli.get(id_, ())),
         media_voto=stat.media if stat else None,
+        fantamedia=stat.fantamedia if stat else None,
         presenze=stat.presenze if stat else 0,
         titolare_pct=stat.percentuale_titolare if stat else None,
     )
@@ -245,7 +248,9 @@ def pagina(
     ruoli = {g.id: g.ruoli for g in giocatori.values()}
     salvate = carica_formazioni(ctx.arch, giornata, competizione)
     statistiche = statistiche_stagione(
-        carica_voti_stagione(ctx.arch), carica_titolari_per_giornata(ctx.arch)
+        carica_voti_stagione(ctx.arch),
+        carica_titolari_per_giornata(ctx.arch),
+        bonus=opzioni.bonus if opzioni else None,
     )
 
     moduli = list(opzioni.moduli_ammessi) if opzioni else ["3-4-3"]

@@ -62,21 +62,20 @@ function mancaBreve(secondi: number): string {
   return minuti <= 1 ? "meno di un minuto" : `${minuti} minuti`;
 }
 
-/** Media e titolarità come le ha calcolate il server; un trattino se mancano. */
+/** MV, FM e titolarità come le ha calcolate il server; un trattino se mancano. */
 function Statistiche({ giocatore }: { giocatore: GiocatoreScelta }) {
   const trattino = <span aria-label="nessun voto">–</span>;
+  const due = (n: number | null) => (n === null ? trattino : n.toFixed(2));
   return (
     <span className="statistiche">
-      <span>
-        Media{" "}
-        <b>
-          {giocatore.media_voto === null
-            ? trattino
-            : giocatore.media_voto.toFixed(2)}
-        </b>
+      <span title="Media voto">
+        MV <b>{due(giocatore.media_voto)}</b>
       </span>
-      <span>
-        Titolare{" "}
+      <span title="Fantamedia: voto con bonus e malus">
+        FM <b>{due(giocatore.fantamedia)}</b>
+      </span>
+      <span title="Giornate giocate da titolare, sul totale di quelle con voto">
+        Tit.{" "}
         <b>
           {giocatore.titolare_pct === null ? (
             trattino
