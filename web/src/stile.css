@@ -3873,3 +3873,24 @@ a.bottone-principale:hover {
 .scelte-multiple .pastiglia {
   cursor: pointer;
 }
+
+/* Un valore che si legge ma non si scrive qui: sta dove starebbe un campo, con
+   la stessa etichetta, e rimanda a chi lo puo' cambiare. */
+.etichetta-campo {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 13px;
+  font-weight: 560;
+  color: var(--testo-tenue);
+}
+
+.valore-opzione {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-height: 44px;
+  margin: 0;
+  padding: 9px 0;
+  font-size: 15px;
+}

@@ -349,9 +349,12 @@ class TestCambiareLeRegole:
         assert campi["punti_vittoria"]["valore"] == 2
         assert campi["coppa_italia"]["valore"] is True
         # E la lega riletta dice la stessa cosa, non solo la risposta.
-        assert (
-            client.get("/api/lega/regole").json()["gruppi"][0]["campi"][4]["valore"] == 2
-        )
+        riletta = {
+            c["nome"]: c
+            for g in client.get("/api/lega/regole").json()["gruppi"]
+            for c in g["campi"]
+        }
+        assert riletta["punti_vittoria"]["valore"] == 2
 
     def test_un_lodo_che_cambia_il_cap_arriva_al_cruscotto(self, client):
         """Il giro completo: si cambia la regola e il conto che ne dipende

@@ -22,6 +22,8 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from .competizioni import (
+    GIORNATE_SERIE_A,
+    PRIMA_GIORNATA_SERIE_A,
     CriterioF1Rush,
     FormatoCoppa,
     RegoleCoppa,
@@ -277,6 +279,10 @@ class OpzioniLega:
     partecipanti: int = 10
     formato: FormatoCampionato = FormatoCampionato.ANDATA_RITORNO
     giornate_totali: int = 27
+    # La giornata di Serie A da cui parte il fantacampionato. Serve alla pagina
+    # Calendario per far corrispondere giornate di lega e weekend: basta il
+    # numero, non il calendario della Serie A.
+    prima_giornata_serie_a: int = PRIMA_GIORNATA_SERIE_A
 
     # Rosa e mercato
     tipo_asta: TipoAsta = TipoAsta.DRAFT
@@ -361,6 +367,10 @@ class OpzioniLega:
             raise LegaNonValida(
                 f"Moduli non previsti in modalita' {self.modalita.etichetta}: "
                 f"{', '.join(fuori)}"
+            )
+        if not 1 <= self.prima_giornata_serie_a <= GIORNATE_SERIE_A:
+            raise LegaNonValida(
+                f"La prima giornata di Serie A va da 1 a {GIORNATE_SERIE_A}"
             )
         if self.passo_gol <= 0:
             raise LegaNonValida(
@@ -715,6 +725,7 @@ ETICHETTE_OPZIONI: dict[str, str] = {
     "partecipanti": "Partecipanti",
     "formato": "Formato del campionato",
     "giornate_totali": "Giornate totali",
+    "prima_giornata_serie_a": "Il campionato parte alla giornata di Serie A",
     "tipo_asta": "Come si assegnano i giocatori",
     "anni_contratto_massimi": "Anni di contratto massimi",
     "budget_cap": "Budget cap",
@@ -1176,6 +1187,7 @@ GRUPPI_OPZIONI: tuple[tuple[str, tuple[str, ...]], ...] = (
             "partecipanti",
             "formato",
             "giornate_totali",
+            "prima_giornata_serie_a",
             "punti_vittoria",
             "punti_pareggio",
         ),

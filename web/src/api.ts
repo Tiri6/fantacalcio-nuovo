@@ -977,6 +977,10 @@ export type PaginaCalendario = {
   senza_partite: boolean;
   weekend: Weekend[];
   gioca_coppa: boolean;
+  // Opzione della lega; `posso_modificare` lo calcola il server.
+  prima_serie_a: number;
+  serie_a_totali: number;
+  posso_modificare: boolean;
 };
 
 export type FaseDiCoppa = { fase: string; quando: string; stato: string };
@@ -1501,9 +1505,10 @@ export const api = {
         `&competizione=${encodeURIComponent(competizione)}`,
       { method: "POST" },
     ),
-  calendario: (prima_serie_a: number, fino_a: number) =>
+  // «Fino a» è solo una vista; da dove parte il campionato lo dice la lega.
+  calendario: (fino_a: number | null) =>
     chiama<PaginaCalendario>(
-      `/calendario?prima_serie_a=${prima_serie_a}&fino_a=${fino_a}`,
+      fino_a === null ? "/calendario" : `/calendario?fino_a=${fino_a}`,
     ),
   coppa: () => chiama<PaginaCoppa>("/coppa"),
   f1Rush: () => chiama<PaginaF1>("/f1-rush"),

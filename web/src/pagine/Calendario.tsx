@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { api, type PartitaInCalendario } from "../api";
 import { useCarica } from "../carica";
 
@@ -297,11 +298,11 @@ function PerSquadra({
 }
 
 export function Calendario() {
-  const [primaSerieA, setPrimaSerieA] = useState(5);
-  const [finoA, setFinoA] = useState(38);
+  // `null` = fino all'ultima giornata di Serie A, che sa il server.
+  const [finoA, setFinoA] = useState<number | null>(null);
   const { dato, errore, inCorso } = useCarica(
-    () => api.calendario(primaSerieA, finoA),
-    [primaSerieA, finoA],
+    () => api.calendario(finoA),
+    [finoA],
   );
   const [scheda, setScheda] = useState<Scheda>("Weekend");
 
@@ -328,10 +329,10 @@ export function Calendario() {
       </div>
 
       {dato.senza_partite ? (
-        <div className="riquadro avviso">
-          🗓️ Le partite non sono ancora state importate: qui sotto trovi
-          comunque la corrispondenza fra i weekend di Serie A e le giornate
-          della lega.
+        <div className="riquadro avviso" role="status">
+          <strong>🗓️ Calendario non caricato.</strong> Le partite della lega
+          non sono ancora state importate: qui sotto trovi comunque la
+          corrispondenza fra i weekend di Serie A e le giornate della lega.
         </div>
       ) : (
         <div className="numeri">
@@ -378,26 +379,28 @@ export function Calendario() {
           </p>
           <div className="filtri">
             <div className="campo">
-              <label htmlFor="prima-serie-a">
+              <span className="etichetta-campo" id="prima-serie-a-etichetta">
                 Il fantacampionato parte alla giornata di Serie A
-              </label>
-              <input
-                id="prima-serie-a"
-                type="number"
-                min={1}
-                max={38}
-                value={primaSerieA}
-                onChange={(e) => setPrimaSerieA(Number(e.target.value))}
-              />
+              </span>
+              <p className="valore-opzione" data-testid="prima-serie-a">
+                <strong>{dato.prima_serie_a}ª</strong>{" "}
+                {dato.posso_modificare ? (
+                  <Link to="/lega">Cambia nelle regole della lega</Link>
+                ) : (
+                  <span className="didascalia">
+                    La decide chi gestisce la lega.
+                  </span>
+                )}
+              </p>
             </div>
             <div className="campo">
               <label htmlFor="fino-a">Fino alla giornata di Serie A</label>
               <input
                 id="fino-a"
                 type="number"
-                min={2}
-                max={38}
-                value={finoA}
+                min={dato.prima_serie_a}
+                max={dato.serie_a_totali}
+                value={finoA ?? dato.serie_a_totali}
                 onChange={(e) => setFinoA(Number(e.target.value))}
               />
             </div>

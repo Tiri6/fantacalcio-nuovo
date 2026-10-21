@@ -18,6 +18,8 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from fantacalcio.competizioni import (
+    GIORNATE_SERIE_A,
+    PRIMA_GIORNATA_SERIE_A,
     CriterioF1Rush,
     TipoCompetizione,
     classifica_f1,
@@ -33,6 +35,7 @@ from fantacalcio.data import (
     prossimo_id,
     salva_titolo,
 )
+from fantacalcio.leghe import puo_modificare_regole
 from fantacalcio.vista import tappe_f1
 
 from ..contesto import Contesto, contesto_di
@@ -76,22 +79,27 @@ class PaginaCalendario(BaseModel):
     # cui la pagina resta utile proprio a inizio stagione, quando serve di piu'.
     weekend: list[Weekend]
     gioca_coppa: bool
+    # Da quale giornata di Serie A parte il campionato: e' un'opzione della
+    # lega, qui si legge e basta. Chi puo' cambiarla lo dice `posso_modificare`
+    # (la stessa regola della pagina delle regole, calcolata dal server).
+    prima_serie_a: int
+    serie_a_totali: int
+    posso_modificare: bool
 
 
 @rotte.get("/calendario", response_model=PaginaCalendario)
-def calendario(
-    utente: UtenteDentro, prima_serie_a: int = 5, fino_a: int = 38
-) -> PaginaCalendario:
+def calendario(utente: UtenteDentro, fino_a: int = GIORNATE_SERIE_A) -> PaginaCalendario:
     ctx = contesto_di(utente)
     opzioni = ctx.lega.opzioni if ctx.lega else None
     partite = calendario_dettagliato(ctx.arch)
     vuoto = partite.empty
 
-    prima_serie_a = max(1, min(prima_serie_a, 38))
+    prima_serie_a = opzioni.prima_giornata_serie_a if opzioni else PRIMA_GIORNATA_SERIE_A
+    posso_modificare = puo_modificare_regole(utente, ctx.lega)
     # «Fino alla 2ª» partendo dalla 10ª non vuol dire niente, e darebbe una
     # tabella vuota senza spiegare perche'. Si tiene l'inizio e si allunga la
     # fine, che e' la lettura piu' probabile di chi ha sbagliato a digitare.
-    fino_a = max(prima_serie_a, min(fino_a, 38))
+    fino_a = max(prima_serie_a, min(fino_a, GIORNATE_SERIE_A))
 
     turni = costruisci_weekend(
         giornate_serie_a=fino_a,
@@ -116,6 +124,9 @@ def calendario(
                 for i, t in enumerate(turni, start=1)
             ],
             gioca_coppa=bool(opzioni and opzioni.coppa_italia),
+            prima_serie_a=prima_serie_a,
+            serie_a_totali=GIORNATE_SERIE_A,
+            posso_modificare=posso_modificare,
         )
 
     giocate = partite[partite["gol_casa"].notna()]
@@ -142,6 +153,9 @@ def calendario(
             for i, t in enumerate(turni, start=1)
         ],
         gioca_coppa=bool(opzioni and opzioni.coppa_italia),
+        prima_serie_a=prima_serie_a,
+        serie_a_totali=GIORNATE_SERIE_A,
+        posso_modificare=posso_modificare,
     )
 
 
