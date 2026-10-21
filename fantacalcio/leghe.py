@@ -182,6 +182,13 @@ MODULI_CLASSIC = (
 # elenco a piacere: nel Mantra i moduli sono quelli e basta, e **la difesa a
 # cinque non esiste** — chi la cercava qui dentro la trovava, e il sito
 # avrebbe accettato una formazione che la piattaforma rifiuta.
+# Quante squadre ha una lega, di partenza e al massimo. Non sono numeri del
+# regolamento ma del formato: le pagine e le rotte li leggono da qui (o dalle
+# opzioni della lega), non li riscrivono.
+PARTECIPANTI_PREDEFINITI = 10
+PARTECIPANTI_MINIMI = 2
+PARTECIPANTI_MASSIMI = 20
+
 MODULI_MANTRA = (
     "3-4-3",
     "3-4-1-2",
@@ -276,7 +283,7 @@ class OpzioniLega:
 
     # Impostazioni generali
     modalita: Modalita = Modalita.MANTRA
-    partecipanti: int = 10
+    partecipanti: int = PARTECIPANTI_PREDEFINITI
     formato: FormatoCampionato = FormatoCampionato.ANDATA_RITORNO
     giornate_totali: int = 27
     # La giornata di Serie A da cui parte il fantacampionato. Serve alla pagina
@@ -355,10 +362,12 @@ class OpzioniLega:
     fasce_attacco: tuple[FasciaModificatore, ...] = FASCE_ATTACCO
 
     def __post_init__(self) -> None:
-        if self.partecipanti < 2:
+        if self.partecipanti < PARTECIPANTI_MINIMI:
             raise LegaNonValida("Una lega ha almeno due partecipanti")
-        if self.partecipanti > 20:
-            raise LegaNonValida("Il massimo previsto e' 20 partecipanti")
+        if self.partecipanti > PARTECIPANTI_MASSIMI:
+            raise LegaNonValida(
+                f"Il massimo previsto e' {PARTECIPANTI_MASSIMI} partecipanti"
+            )
         if not self.moduli_ammessi:
             raise LegaNonValida("Serve almeno un modulo ammesso")
         ammessi = set(moduli_disponibili(self.modalita))
@@ -668,6 +677,29 @@ def crea_lega(
 
 class RegoleNonModificabili(PermissionError):
     """Le regole le cambia chi amministra la lega, e nessun altro."""
+
+
+def motivo_squadra_non_creabile(
+    chi, lega: Lega | None, squadre_nella_lega: int
+) -> str | None:
+    """Perche' adesso non si puo' creare una squadra, o `None` se si puo'.
+
+    Due condizioni: lo fa solo il presidente (art. 1: e' lui che importa e
+    ratifica), e la lega deve avere ancora squadre da creare, cioe' meno dei
+    `partecipanti` previsti dalle sue opzioni. Il numero non e' scritto nelle
+    pagine: lo dice la lega, e questo e' l'unico posto che lo confronta.
+    """
+    if lega is None:
+        return "Non sei in nessuna lega."
+    if not getattr(chi, "puo_importare", False):
+        return "Solo il presidente puo' creare una squadra."
+    previste = lega.opzioni.partecipanti
+    if squadre_nella_lega >= previste:
+        return (
+            f"La lega ha gia' tutte le sue {previste} squadre: "
+            f"per crearne un'altra bisogna prima alzare i partecipanti nelle regole."
+        )
+    return None
 
 
 def puo_amministrare(chi, lega: Lega | None) -> bool:

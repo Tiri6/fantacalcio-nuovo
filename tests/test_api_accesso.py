@@ -313,7 +313,8 @@ class TestIdentita:
     def test_il_presidente_puo_tutto_il_fantallenatore_solo_la_sua(self, client):
         self.entra(client, "marco")
         g = client.get("/api/identita").json()
-        assert g["posso_crearne"] is True
+        # La lega di demo ha gia' tutte le sue dieci squadre: crearne e' un
+        # secondo discorso (`TestCreareUnaSquadra`), qui contano le modifiche.
         assert all(s["modificabile"] for s in g["squadre"])
 
         self.entra(client, "luca")
@@ -579,3 +580,84 @@ class TestRientrareSenzaLaPassword:
         client.post("/api/recupero/richiesta", json={"nome_utente": "luca"})
 
         assert len(carica_richieste_password(archivio())) == 1
+
+
+class TestCreareUnaSquadra:
+    """Si crea solo se si e' presidenti **e** la lega ha ancora squadre da creare."""
+
+    def entra(self, client, chi="marco"):
+        client.post("/api/esci")
+        client.post("/api/accesso", json={"nome_utente": chi, "password": "fantanuovo26"})
+
+    def partecipanti(self, quanti: int) -> None:
+        from dataclasses import replace
+
+        from fantacalcio.data import archivio, carica_leghe, salva_lega
+
+        arch = archivio()
+        lega = next(iter(carica_leghe(arch).values()))
+        salva_lega(
+            arch, replace(lega, opzioni=replace(lega.opzioni, partecipanti=quanti))
+        )
+
+    def corpo(self, client, nome="Squadra Nuova"):
+        modello = client.get("/api/identita").json()["squadre"][0]
+        corpo = {
+            k: modello[k]
+            for k in (
+                "presidente",
+                "motto",
+                "stadio",
+                "citta",
+                "curva",
+                "colore_primario",
+                "colore_secondario",
+                "stile_maglia",
+                "anno_fondazione",
+            )
+        }
+        return {**corpo, "nome": nome}
+
+    def test_lega_piena_il_presidente_non_puo_e_la_pagina_lo_spiega(self, client):
+        self.entra(client)
+        g = client.get("/api/identita").json()
+        assert g["squadre_nella_lega"] == g["squadre_previste"] == 10
+        assert g["posso_crearne"] is False
+        assert "tutte le sue 10 squadre" in g["perche_non_crearne"]
+
+    def test_lega_piena_il_server_rifiuta_comunque(self, client):
+        """Il pulsante spento non e' un controllo: lo e' la rotta."""
+        self.entra(client)
+        r = client.post("/api/squadre", json=self.corpo(client))
+        assert r.status_code == 409
+        assert "tutte le sue 10 squadre" in r.json()["detail"]
+        assert len(client.get("/api/squadre").json()) == 10
+
+    def test_con_un_posto_libero_il_presidente_crea(self, client):
+        self.partecipanti(11)
+        self.entra(client)
+        g = client.get("/api/identita").json()
+        assert g["posso_crearne"] is True
+        assert g["perche_non_crearne"] == ""
+
+        r = client.post("/api/squadre", json=self.corpo(client))
+        assert r.status_code == 201
+        assert len(client.get("/api/squadre").json()) == 11
+        # E ora la lega e' di nuovo piena.
+        g = client.get("/api/identita").json()
+        assert g["posso_crearne"] is False
+
+    def test_un_fantallenatore_non_puo_nemmeno_con_posti_liberi(self, client):
+        self.partecipanti(12)
+        self.entra(client, "luca")
+        g = client.get("/api/identita").json()
+        assert g["posso_crearne"] is False
+        assert g["perche_non_crearne"] == "Solo il presidente puo' creare una squadra."
+
+        r = client.post("/api/squadre", json=self.corpo(client))
+        assert r.status_code == 403
+
+    def test_il_numero_di_squadre_lo_dice_la_lega_non_la_pagina(self, client):
+        self.partecipanti(14)
+        self.entra(client)
+        assert client.get("/api/identita").json()["squadre_previste"] == 14

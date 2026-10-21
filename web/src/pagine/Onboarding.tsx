@@ -156,7 +156,7 @@ function CreaLega({
     // partire dall'altra fa creare la lega sbagliata a chi non guarda.
     modalita: "MANTRA",
     formato: stato.formati[0]?.nome ?? "ANDATA_RITORNO",
-    partecipanti: 10,
+    partecipanti: stato.partecipanti_predefiniti,
     coppa_italia: false,
     f1_rush: false,
   });
@@ -213,8 +213,8 @@ function CreaLega({
           <input
             id="l-partecipanti"
             type="number"
-            min={2}
-            max={20}
+            min={stato.partecipanti_minimi}
+            max={stato.partecipanti_massimi}
             value={campi.partecipanti}
             onChange={(e) => cambia("partecipanti", Number(e.target.value))}
           />

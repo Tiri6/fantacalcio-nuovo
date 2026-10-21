@@ -221,7 +221,12 @@ export type SquadraInGalleria = {
 export type Galleria = {
   squadre: SquadraInGalleria[];
   stili: { nome: string; etichetta: string }[];
+  /** Vero solo per il presidente e solo se la lega ha ancora squadre da creare. */
   posso_crearne: boolean;
+  /** Se non si può, il motivo: si scrive accanto al pulsante spento. */
+  perche_non_crearne: string;
+  squadre_nella_lega: number;
+  squadre_previste: number;
   nomi_occupati: string[];
 };
 
@@ -503,6 +508,10 @@ export type StatoOnboarding = {
   modalita: VoceModulo[];
   formati: VoceModulo[];
   stili_maglia: VoceModulo[];
+  /** Quante squadre può avere una lega: lo dice il server. */
+  partecipanti_predefiniti: number;
+  partecipanti_minimi: number;
+  partecipanti_massimi: number;
 };
 
 export type NuovaLega = {

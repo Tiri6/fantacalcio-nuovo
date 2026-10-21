@@ -131,6 +131,19 @@ class TestDoveSiamo:
         assert [m["nome"] for m in stato["modalita"]] == ["CLASSIC", "MANTRA"]
         assert any(s["nome"] == "STRISCE" for s in stato["stili_maglia"])
 
+    def test_quante_squadre_puo_avere_una_lega_lo_dice_il_server(self, nuovo):
+        """Il modulo non scrive 10, 2 e 20: li legge da qui."""
+        from fantacalcio.leghe import (
+            PARTECIPANTI_MASSIMI,
+            PARTECIPANTI_MINIMI,
+            PARTECIPANTI_PREDEFINITI,
+        )
+
+        stato = nuovo.get("/api/onboarding").json()
+        assert stato["partecipanti_predefiniti"] == PARTECIPANTI_PREDEFINITI
+        assert stato["partecipanti_minimi"] == PARTECIPANTI_MINIMI
+        assert stato["partecipanti_massimi"] == PARTECIPANTI_MASSIMI
+
 
 class TestCreareUnaLega:
     def test_chi_la_crea_ne_diventa_presidente(self, nuovo):
