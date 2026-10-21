@@ -642,7 +642,6 @@ class InScadenza(BaseModel):
     giocatore: str
     club: str
     ruoli: str
-    eta: int | None
     ingaggio: float
 
 
@@ -654,7 +653,7 @@ def scadenze(utente: UtenteDentro) -> list[InScadenza]:
     rientra nel draft se nessuno lo rinnova.
     """
     ctx = contesto_di(utente)
-    tabella = contratti_in_scadenza(carica_rose(ctx.arch), DATA_DRAFT)
+    tabella = contratti_in_scadenza(carica_rose(ctx.arch))
     if tabella.empty:
         return []
     return [
@@ -663,7 +662,6 @@ def scadenze(utente: UtenteDentro) -> list[InScadenza]:
             giocatore=r["Giocatore"],
             club=r["Club"],
             ruoli=r["Ruoli"],
-            eta=None if r["Eta"] is None or r["Eta"] != r["Eta"] else int(r["Eta"]),
             ingaggio=float(r["Ingaggio"]),
         )
         for _, r in tabella.iterrows()

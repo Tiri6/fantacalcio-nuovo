@@ -88,37 +88,37 @@ class TestCruscotto:
 class TestRosaDettagliata:
     def test_una_riga_per_contratto(self, rose):
         rosa = rose[1]
-        tabella = rosa_dettagliata(rosa, DATA_DRAFT)
+        tabella = rosa_dettagliata(rosa)
         assert len(tabella) == rosa.dimensione
 
     def test_il_dead_money_e_meta_del_valore_residuo(self, rose):
-        tabella = rosa_dettagliata(rose[1], DATA_DRAFT)
+        tabella = rosa_dettagliata(rose[1])
         atteso = tabella["Valore residuo"] * 0.5
         assert (tabella["Dead money se tagliato"] - atteso).abs().max() < 0.01
 
     def test_il_valore_residuo_esclude_l_anno_in_corso(self, rose):
         """Art. 7 del V3: l'anno in corso si paga comunque, non e' buonuscita."""
-        tabella = rosa_dettagliata(rose[1], DATA_DRAFT)
+        tabella = rosa_dettagliata(rose[1])
         atteso = tabella["Ingaggio"] * (tabella["Anni residui"] - 1)
         assert (tabella["Valore residuo"] - atteso).abs().max() < 0.01
 
     def test_le_scadenze_sono_marcate(self, rose):
-        tabella = rosa_dettagliata(rose[1], DATA_DRAFT)
+        tabella = rosa_dettagliata(rose[1])
         scadenze = tabella[tabella["In scadenza"] == "Si"]
         assert (scadenze["Anni residui"] == 1).all()
         assert len(scadenze) == len(rose[1].contratti_annuali)
 
     def test_ordinata_per_scadenza(self, rose):
-        anni = rosa_dettagliata(rose[1], DATA_DRAFT)["Anni residui"].tolist()
+        anni = rosa_dettagliata(rose[1])["Anni residui"].tolist()
         assert anni == sorted(anni)
 
 
 class TestDraftList:
     def test_contiene_solo_contratti_annuali(self, rose):
-        scadenze = contratti_in_scadenza(rose, DATA_DRAFT)
+        scadenze = contratti_in_scadenza(rose)
         attesi = sum(len(r.contratti_annuali) for r in rose.values())
         assert len(scadenze) == attesi
 
     def test_ogni_squadra_e_rappresentata(self, rose):
-        scadenze = contratti_in_scadenza(rose, DATA_DRAFT)
+        scadenze = contratti_in_scadenza(rose)
         assert set(scadenze["Squadra"]) == {r.squadra.nome for r in rose.values()}

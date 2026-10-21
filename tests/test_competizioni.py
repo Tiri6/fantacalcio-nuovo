@@ -453,9 +453,9 @@ class TestDataUnder21:
     """La data che decide gli Under 21: il 31 agosto, fissa tutti gli anni.
 
     L'articolo 2 scrive «alla data del draft di Settembre»; la lega ha scelto
-    una data fissa, cosi' lo status non si muove se l'asta slitta. E' una
-    divergenza voluta dal testo, e questi test la tengono ferma: se qualcuno
-    un giorno tornera' alla data del draft, dovra' passare di qui.
+    una data fissa, cosi' lo status non si muove se l'asta slitta. Oggi lo
+    status e' un flag che la lega segna a quella data (`Giocatore.italiano_u21`),
+    e questi test tengono ferma la data e il fatto che il flag decide.
     """
 
     def test_e_il_31_agosto_della_stagione(self):
@@ -466,41 +466,23 @@ class TestDataUnder21:
         assert data_riferimento_u21("2026/27") == date(2026, 8, 31)
         assert data_riferimento_u21("2030/31") == date(2030, 8, 31)
 
-    def test_non_dipende_da_quando_si_fa_il_draft(self):
+    def test_lo_status_e_il_flag_della_lega_non_la_data_di_nascita(self):
+        """Il 31 agosto e' la data a cui la lega segna il flag; il sito non ricalcola."""
         from datetime import date
 
         from fantacalcio.modelli import Giocatore
-        from fantacalcio.regole import ParametriLega
 
-        # Compie 21 anni il 1 ottobre 2026: al 31 agosto e' ancora Under, e
-        # resta Under per tutta la stagione anche se il draft slitta a ottobre.
-        ragazzo = Giocatore(
-            id=1,
-            nome="Giovane",
-            club="Roma",
-            ruoli=("C",),
-            ingaggio=0,
-            nazionalita="Italia",
-            data_nascita=date(2005, 10, 1),
-        )
-        assert ragazzo.under_21(data_riferimento_u21("2026/27"), ParametriLega())
+        def giocatore(**campi):
+            return Giocatore(
+                id=1, nome="Tale", club="Roma", ruoli=("C",), ingaggio=0, **campi
+            )
 
-    def test_chi_li_compie_prima_del_31_agosto_non_e_under(self):
-        from datetime import date
-
-        from fantacalcio.modelli import Giocatore
-        from fantacalcio.regole import ParametriLega
-
-        grande = Giocatore(
-            id=2,
-            nome="Appena Grande",
-            club="Roma",
-            ruoli=("C",),
-            ingaggio=0,
-            nazionalita="Italia",
-            data_nascita=date(2005, 8, 30),
-        )
-        assert not grande.under_21(data_riferimento_u21("2026/27"), ParametriLega())
+        # Il flag vince: una data di nascita che direbbe il contrario non conta.
+        assert giocatore(italiano_u21=True, data_nascita=date(1990, 1, 1)).under_21()
+        assert not giocatore(italiano_u21=False, data_nascita=date(2007, 1, 1)).under_21()
+        # Senza data di nascita (il caso normale) lo status c'e' lo stesso.
+        assert giocatore(italiano_u21=True).under_21()
+        assert not giocatore().under_21()
 
     def test_una_stagione_scritta_male_non_fa_fallire_niente(self):
         from datetime import date

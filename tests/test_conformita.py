@@ -1,5 +1,4 @@
 from dataclasses import replace
-from datetime import date
 
 from conftest import DATA_DRAFT, costruisci_rosa, giocatore
 
@@ -60,22 +59,20 @@ class TestDimensioneRosa:
         assert "rosa_massima" not in codici(stato)
 
     def test_u21_straniero_non_da_diritto_al_posto(self):
-        """Articolo 2: il posto extra spetta solo all'Under 21 italiano."""
+        """Articolo 2: il posto extra spetta solo all'Under 21 italiano (il flag)."""
         rosa = costruisci_rosa(dimensione=34, annuali=12, u21=1)
         u21 = min(rosa._indice.values(), key=lambda g: g.id)
-        rosa._indice[u21.id] = replace(u21, nazionalita="Francia")
+        rosa._indice[u21.id] = replace(u21, nazionalita="Francia", italiano_u21=False)
 
         stato = verifica_rosa(rosa, DATA_DRAFT)
         assert stato.slot_u21 == 0
         assert "rosa_massima" in codici(stato)
 
-    def test_ventunenne_al_draft_non_e_piu_u21(self):
-        """Chi compie 21 anni prima del draft perde lo status per la stagione."""
+    def test_chi_perde_il_flag_non_e_piu_u21(self):
+        """Lo status lo da' il flag: tolto quello, il posto in piu' non c'e'."""
         rosa = costruisci_rosa(dimensione=34, annuali=12, u21=1)
         u21 = min(rosa._indice.values(), key=lambda g: g.id)
-        from datetime import date
-
-        rosa._indice[u21.id] = replace(u21, data_nascita=date(2005, 1, 1))
+        rosa._indice[u21.id] = replace(u21, italiano_u21=False)
 
         stato = verifica_rosa(rosa, DATA_DRAFT)
         assert stato.slot_u21 == 0
@@ -255,26 +252,25 @@ class TestSlotU21Congelati:
 
     def _scambia_l_under_con_un_veterano(self, rosa):
         """Come uno scambio vero: entra uno, esce un Under, la rosa resta uguale."""
-        parametri = ParametriLega()
-        under = next(g for g in rosa.giocatori if g.under_21(DATA_DRAFT, parametri))
+        under = next(g for g in rosa.giocatori if g.under_21())
         contratto = rosa.contratto_di(under.id)
         # Stesso ruolo: cosi' l'unica cosa che cambia e' l'eta', ed e' l'unica
         # cosa di cui parla la regola.
-        veterano = giocatore(99_001, ruoli=under.ruoli, data_nascita=date(1994, 1, 1))
+        veterano = giocatore(99_001, ruoli=under.ruoli)
         senza = rosa.senza_giocatore(under.id)
         return senza.con_contratto(replace(contratto, giocatore_id=veterano.id), veterano)
 
     def test_cedere_un_u21_in_corso_d_anno_non_restringe_la_rosa(self):
         """E' il caso che l'articolo 2 nomina espressamente."""
         rosa = costruisci_rosa(dimensione=34, u21=1)
-        rosa.slot_u21_congelato = rosa.u21_in_rosa(DATA_DRAFT, ParametriLega())
+        rosa.slot_u21_congelato = rosa.u21_in_rosa()
         assert rosa.slot_u21_congelato == 1
 
         dopo = self._scambia_l_under_con_un_veterano(rosa)
         stato = verifica_rosa(dopo, DATA_DRAFT)
 
         assert dopo.dimensione == 34
-        assert dopo.u21_in_rosa(DATA_DRAFT, ParametriLega()) == 0
+        assert dopo.u21_in_rosa() == 0
         assert stato.limite_dimensione == 34
         assert "rosa_massima" not in codici(stato)
 
@@ -291,9 +287,9 @@ class TestSlotU21Congelati:
     def test_non_si_superano_mai_i_tre_posti(self):
         rosa = costruisci_rosa()
         rosa.slot_u21_congelato = 9
-        assert rosa.slot_u21(DATA_DRAFT, ParametriLega()) == 3
+        assert rosa.slot_u21(ParametriLega()) == 3
 
     def test_un_valore_negativo_non_toglie_posti(self):
         rosa = costruisci_rosa()
         rosa.slot_u21_congelato = -2
-        assert rosa.slot_u21(DATA_DRAFT, ParametriLega()) == 0
+        assert rosa.slot_u21(ParametriLega()) == 0

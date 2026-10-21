@@ -38,7 +38,7 @@ def giocatore(
     ruoli: tuple[str, ...] = ("C",),
     ingaggio: float = 3_000_000.0,
     nazionalita: str = "Italia",
-    data_nascita: date | None = date(1996, 1, 1),
+    italiano_u21: bool = False,
 ) -> Giocatore:
     return Giocatore(
         id=id_,
@@ -47,7 +47,7 @@ def giocatore(
         ruoli=ruoli,
         ingaggio=ingaggio,
         nazionalita=nazionalita,
-        data_nascita=data_nascita,
+        italiano_u21=italiano_u21,
     )
 
 
@@ -73,10 +73,8 @@ def costruisci_rosa(
     for indice in range(dimensione):
         gid = base + indice
         ruoli = ("Por",) if indice < portieri else ("C",)
-        # Gli Under 21 sono italiani nati dopo il compleanno-limite del draft.
-        nascita = date(2007, 1, 1) if indice < u21 else date(1996, 1, 1)
         giocatori[gid] = giocatore(
-            gid, ruoli=ruoli, ingaggio=ingaggio, data_nascita=nascita
+            gid, ruoli=ruoli, ingaggio=ingaggio, italiano_u21=indice < u21
         )
         contratti.append(
             Contratto(

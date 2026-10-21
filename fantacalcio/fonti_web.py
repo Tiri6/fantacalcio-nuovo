@@ -1468,6 +1468,11 @@ def a_righe_archivio(righe: Iterable[RigaListone], esistenti) -> list[dict]:
             str(precedente.get("ruolo_classic") or "") if precedente else ""
         )
 
+        # Lo status Under 21 italiano non viene dal listone: chi c'e' gia' lo
+        # tiene (su SQLite una riga riscritta senza la colonna la azzererebbe).
+        flag = precedente.get("italiano_u21") if precedente else None
+        italiano_u21 = 0 if flag is None or str(flag) in ("", "nan") else int(bool(flag))
+
         fuori.append(
             {
                 "id": identificativo,
@@ -1479,6 +1484,7 @@ def a_righe_archivio(righe: Iterable[RigaListone], esistenti) -> list[dict]:
                 "ingaggio": float(riga.ingaggio),
                 "nazionalita": nazionalita or "Italia",
                 "data_nascita": nascita,
+                "italiano_u21": italiano_u21,
                 "quotazione": riga.quotazione,
                 "fvm": riga.fvm,
             }

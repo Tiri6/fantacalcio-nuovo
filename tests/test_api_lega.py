@@ -456,16 +456,7 @@ class TestIlRicalcoloDegliUnder21:
             pytest.skip("Nessuna squadra di demo ha Under 21 in rosa")
 
         rosa = carica_rose(archivio())[con_under]
-        under = next(
-            g
-            for g in rosa.giocatori
-            if g.under_21(
-                __import__("datetime").date(2026, 8, 31),
-                __import__(
-                    "fantacalcio.regole", fromlist=["ParametriLega"]
-                ).ParametriLega(),
-            )
-        )
+        under = next(g for g in rosa.giocatori if g.under_21())
         client.post(
             f"/api/squadre/{con_under}/svincoli",
             json={"giocatore_id": under.id, "motivo": "pre-asta"},

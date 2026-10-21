@@ -226,9 +226,7 @@ def violazioni_lega(stati: dict[int, StatoRosa]) -> pd.DataFrame:
     )
 
 
-def rosa_dettagliata(
-    rosa: Rosa, data_draft: date, parametri: ParametriLega | None = None
-) -> pd.DataFrame:
+def rosa_dettagliata(rosa: Rosa, parametri: ParametriLega | None = None) -> pd.DataFrame:
     """La rosa di una squadra con contratti, ingaggi e status Under 21."""
     parametri = parametri or ParametriLega()
     righe = []
@@ -239,8 +237,7 @@ def rosa_dettagliata(
                 "Giocatore": giocatore.nome,
                 "Ruoli": " / ".join(ETICHETTE_RUOLO.get(r, r) for r in giocatore.ruoli),
                 "Club": giocatore.club,
-                "Eta": giocatore.eta_al(data_draft),
-                "U21": "Si" if giocatore.under_21(data_draft, parametri) else "",
+                "U21": "Si" if giocatore.under_21() else "",
                 "Anni residui": contratto.anni_residui,
                 "In scadenza": "Si" if contratto.in_scadenza else "",
                 "Prolungato": "Si" if contratto.prolungato else "",
@@ -268,8 +265,6 @@ SVINCOLATO = "— svincolato —"
 
 def elenco_giocatori(
     arch: Archivio,
-    riferimento: date,
-    parametri: ParametriLega | None = None,
     nomi_squadre: dict[int, str] | None = None,
 ) -> list[dict]:
     """Il listone con chi possiede ciascuno, e i flag Ita / U21.
@@ -284,7 +279,6 @@ def elenco_giocatori(
     """
     from .data import carica_giocatori
 
-    parametri = parametri or ParametriLega()
     giocatori = carica_giocatori(arch)
     if not giocatori:
         return []
@@ -313,12 +307,8 @@ def elenco_giocatori(
                 "anni": anni,
                 "ingaggio": giocatore.ingaggio,
                 "nazionalita": giocatore.nazionalita,
-                "data_nascita": (
-                    giocatore.data_nascita.isoformat() if giocatore.data_nascita else None
-                ),
-                "eta": giocatore.eta_al(riferimento),
                 "italiano": giocatore.italiano,
-                "u21": giocatore.under_21(riferimento, parametri),
+                "u21": giocatore.under_21(),
                 "quotazione": giocatore.quotazione,
                 "fvm": giocatore.fvm,
             }
@@ -328,7 +318,7 @@ def elenco_giocatori(
     return righe
 
 
-def contratti_in_scadenza(rose: dict[int, Rosa], data_draft: date) -> pd.DataFrame:
+def contratti_in_scadenza(rose: dict[int, Rosa]) -> pd.DataFrame:
     """Chi va a scadenza a fine stagione: la draft list della prossima asta."""
     righe = []
     for rosa in rose.values():
@@ -340,12 +330,11 @@ def contratti_in_scadenza(rose: dict[int, Rosa], data_draft: date) -> pd.DataFra
                     "Giocatore": giocatore.nome,
                     "Club": giocatore.club,
                     "Ruoli": " / ".join(giocatore.ruoli),
-                    "Eta": giocatore.eta_al(data_draft),
                     "Ingaggio": giocatore.ingaggio,
                 }
             )
     tabella = pd.DataFrame(
-        righe, columns=["Squadra", "Giocatore", "Club", "Ruoli", "Eta", "Ingaggio"]
+        righe, columns=["Squadra", "Giocatore", "Club", "Ruoli", "Ingaggio"]
     )
     if tabella.empty:
         return tabella

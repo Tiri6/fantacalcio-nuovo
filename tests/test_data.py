@@ -84,7 +84,7 @@ def test_almeno_una_rosa_e_ampliata_dagli_under21(rose):
     ]
     assert ampliate, "la demo deve mostrare l'espansione Under 21"
     for rosa in ampliate:
-        slot = rosa.slot_u21(DATA_DRAFT, parametri)
+        slot = rosa.slot_u21(parametri)
         assert rosa.dimensione <= parametri.rosa_massimo(slot)
 
 

@@ -722,11 +722,9 @@ def _under21(ctx: Contesto, utente, lega) -> Under21:
         RigaU21(
             squadra_id=id_,
             squadra=rosa.squadra.nome,
-            in_rosa=rosa.u21_in_rosa(ctx.riferimento_u21, ctx.parametri),
+            in_rosa=rosa.u21_in_rosa(),
             congelati=rosa.slot_u21_congelato,
-            limite_rosa=ctx.parametri.rosa_massimo(
-                rosa.slot_u21(ctx.riferimento_u21, ctx.parametri)
-            ),
+            limite_rosa=ctx.parametri.rosa_massimo(rosa.slot_u21(ctx.parametri)),
         )
         for id_, rosa in sorted(nostre.items(), key=lambda v: v[1].squadra.nome.lower())
     ]
@@ -770,7 +768,7 @@ def ricalcola_under21(utente: UtenteDentro) -> Under21:
             ctx.arch,
             id_,
             min(
-                rosa.u21_in_rosa(ctx.riferimento_u21, ctx.parametri),
+                rosa.u21_in_rosa(),
                 ctx.parametri.slot_u21_massimi,
             ),
         )

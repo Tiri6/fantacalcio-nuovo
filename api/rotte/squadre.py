@@ -126,8 +126,6 @@ class GiocatoreInRosa(BaseModel):
     club: str
     ruoli: list[str]
     nazionalita: str
-    data_nascita: str | None
-    eta: int | None
     italiano: bool
     u21: bool
     anni_residui: int
@@ -394,10 +392,8 @@ def dettaglio(squadra_id: int, utente: UtenteDentro) -> SquadraInDettaglio:
                 club=g.club,
                 ruoli=list(g.ruoli),
                 nazionalita=g.nazionalita,
-                data_nascita=g.data_nascita.isoformat() if g.data_nascita else None,
-                eta=g.eta_al(ctx.riferimento_u21),
                 italiano=g.italiano,
-                u21=g.under_21(ctx.riferimento_u21, ctx.parametri),
+                u21=g.under_21(),
                 anni_residui=contratto.anni_residui,
                 ingaggio=g.ingaggio,
                 prolungato=contratto.prolungato,

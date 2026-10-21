@@ -114,7 +114,7 @@ def verifica_rosa(
     parametri = parametri or ParametriLega()
     violazioni: list[Violazione] = []
 
-    slot_u21 = rosa.slot_u21(data_draft, parametri)
+    slot_u21 = rosa.slot_u21(parametri)
     limite_dimensione = parametri.rosa_massimo(slot_u21)
     annuali_richiesti = parametri.minimo_annuali(rosa.dimensione)
     chiude_mercato = momento in (Momento.ASTA_SETTEMBRE, Momento.RIPARAZIONE)

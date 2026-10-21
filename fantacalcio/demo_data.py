@@ -527,6 +527,7 @@ def genera_lega(rng: random.Random | None = None) -> dict:
                     "ingaggio": ingaggio,
                     "nazionalita": nazionalita,
                     "data_nascita": _data_nascita(rng, under21).isoformat(),
+                    "italiano_u21": int(under21),
                 }
             )
             contratti.append(
@@ -572,6 +573,7 @@ def genera_lega(rng: random.Random | None = None) -> dict:
                 "ingaggio": round(rng.uniform(0.4, 2.5) * 1_000_000, -4),
                 "nazionalita": rng.choice(NAZIONI),
                 "data_nascita": _data_nascita(rng, under21).isoformat(),
+                "italiano_u21": int(under21),
             }
         )
         id_giocatore += 1
@@ -689,6 +691,7 @@ create table if not exists giocatori (
     ingaggio real not null,
     nazionalita text not null,
     data_nascita text,
+    italiano_u21 integer not null default 0,
     quotazione real,
     fvm real
 );
@@ -877,7 +880,7 @@ def _schema_aggiornato(percorso: Path) -> bool:
             "portieri_indisponibili",
             "slot_u21_congelato",
         },
-        "giocatori": {"ruolo_classic"},
+        "giocatori": {"ruolo_classic", "italiano_u21"},
         "dead_money": {"importo", "ingaggio_a_carico"},
         "formazioni": {"squadra_id", "modulo", "titolari", "portiere_emergenza"},
         "voti": {"giocatore_id", "voto"},

@@ -151,6 +151,7 @@ COLONNE_ATTESE: dict[str, tuple[str, ...]] = {
         "ingaggio",
         "nazionalita",
         "data_nascita",
+        "italiano_u21",
         "quotazione",
         "fvm",
     ),
@@ -594,6 +595,15 @@ def _numero(valore) -> float | None:
     return float(valore)
 
 
+def _booleano(valore) -> bool:
+    """Un flag da 0/1, True/False o NaN (colonna assente o vuota: falso)."""
+    if valore is None or (isinstance(valore, float) and pd.isna(valore)):
+        return False
+    if isinstance(valore, str):
+        return valore.strip().lower() in ("1", "true", "t", "si")
+    return bool(int(valore))
+
+
 def _id_opzionale(valore) -> int | None:
     """Un id che puo' non esserci, da qualunque forma arrivi.
 
@@ -622,6 +632,7 @@ def carica_giocatori(arch: Archivio) -> dict[int, Giocatore]:
             ingaggio=float(riga["ingaggio"]),
             nazionalita=riga["nazionalita"],
             data_nascita=_data(riga.get("data_nascita")),
+            italiano_u21=_booleano(riga.get("italiano_u21")),
             id_ufficiale=(
                 None
                 if (ufficiale := riga.get("id_ufficiale")) is None or pd.isna(ufficiale)
