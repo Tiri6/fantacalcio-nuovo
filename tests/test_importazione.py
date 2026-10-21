@@ -1040,3 +1040,25 @@ class TestApplicaCalendario:
 
         with pytest.raises(ValueError, match="errori"):
             applica_calendario(archivio_demo, importa_calendario(contenuto))
+
+
+class TestIlFormatoVecchioSiImportaAncora:
+    """Chi ha un CSV col formato di prima non deve vederlo rifiutato.
+
+    Il formato vecchio aveva `datanascita` e `prolungato`. Il file nuovo non li
+    porta piu', ma i fogli gia' pronti in giro li hanno ancora: devono entrare
+    senza errori.
+    """
+
+    VECCHIO = (
+        "squadra;giocatore;club;ruoli;ingaggio;anni;nazionalita;datanascita;prolungato\n"
+        "Tiri Team;Rossi Marco;Inter;Dc;2.500.000;3;Italia;17/04/2001;no\n"
+        "Tiri Team;Bianchi Luca;Juventus;Por;1.800.000;2;Italia;02/11/1996;si\n"
+        "Padel United;Silva Joao;Napoli;W/T;4,2M;2;Brasile;30/06/1999;no\n"
+    )
+
+    def test_si_importa_senza_errori(self):
+        esito = importa_rose(self.VECCHIO)
+        assert esito.importabile
+        assert esito.errori == []
+        assert len(esito.righe) == 3
