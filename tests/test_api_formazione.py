@@ -89,6 +89,47 @@ class TestLaPagina:
         assert dati["modalita_sostituzioni"]
 
 
+class TestLeStatistiche:
+    """Media voto e titolarita' arrivano calcolate: il browser non somma niente."""
+
+    def test_senza_voti_non_c_e_niente_da_mostrare(self, client):
+        entra(client)
+        rosa = pagina(client)["rosa"]
+        assert rosa
+        assert all(g["media_voto"] is None for g in rosa)
+        assert all(g["titolare_pct"] is None for g in rosa)
+        assert all(g["presenze"] == 0 for g in rosa)
+
+    def test_con_i_voti_arrivano_media_e_percentuale(self, client, db_demo):
+        from fantacalcio.data import ArchivioSQLite, salva_formazione, salva_voti
+        from fantacalcio.formazioni import Formazione, Voto
+
+        entra(client)
+        rosa = pagina(client)["rosa"]
+        a, b = rosa[0]["id"], rosa[1]["id"]
+        archivio = ArchivioSQLite(db_demo)
+        salva_voti(
+            archivio,
+            [
+                Voto(giocatore_id=a, giornata=1, voto=6.0),
+                Voto(giocatore_id=a, giornata=2, voto=7.0),
+                Voto(giocatore_id=b, giornata=2, voto=None),
+            ],
+        )
+        salva_formazione(
+            archivio,
+            Formazione(squadra_id=1, giornata=1, modulo="3-4-3", titolari=(a,)),
+        )
+
+        per_id = {g["id"]: g for g in pagina(client)["rosa"]}
+        assert per_id[a]["media_voto"] == 6.5
+        assert per_id[a]["presenze"] == 2
+        assert per_id[a]["titolare_pct"] == 50
+        # Senza voto: un trattino in pagina, non uno zero.
+        assert per_id[b]["media_voto"] is None
+        assert per_id[b]["titolare_pct"] is None
+
+
 class TestLeCaselle:
     """La tabella Mantra arriva risolta, non da ricalcolare nella pagina."""
 
