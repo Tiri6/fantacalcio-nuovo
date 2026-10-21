@@ -19,7 +19,6 @@ import { Cruscotto } from "./pagine/Cruscotto";
 import { F1Rush } from "./pagine/F1Rush";
 import { Formazione } from "./pagine/Formazione";
 import { Giornata } from "./pagine/Giornata";
-import { Identita } from "./pagine/Identita";
 import { Importa } from "./pagine/Importa";
 import { Lega } from "./pagine/Lega";
 import { Listone } from "./pagine/Listone";
@@ -43,6 +42,8 @@ type Voce = {
   a: string;
   icona: string;
   testo: string;
+  /** Una riga che dice a cosa serve la voce, sotto il suo nome. */
+  descrizione?: string;
   /** Quando c'e', la voce compare solo se torna vero. */
   soloSe?: (utente: ChiSono) => boolean;
 };
@@ -81,7 +82,6 @@ const SEZIONI: { titolo: string; voci: Voce[] }[] = [
     voci: [
       { a: "/squadre", icona: "🛡️", testo: "Squadre" },
       { a: "/giocatori", icona: "📋", testo: "Listone" },
-      { a: "/identita", icona: "🎨", testo: "Identità" },
     ],
   },
   {
@@ -92,7 +92,8 @@ const SEZIONI: { titolo: string; voci: Voce[] }[] = [
       {
         a: "/assegnazioni",
         icona: "📝",
-        testo: "Assegnazioni",
+        testo: "Registra acquisto",
+        descrizione: "Mette in rosa uno svincolato fuori dal draft",
         soloSe: (u) => u.puo_importare,
       },
       { a: "/scambi", icona: "🤝", testo: "Scambi" },
@@ -139,7 +140,10 @@ function Navigazione({
                 }
               >
                 <span className="icona">{voce.icona}</span>
-                {voce.testo}
+                <span className="testo-voce">
+                  {voce.testo}
+                  {voce.descrizione && <small>{voce.descrizione}</small>}
+                </span>
               </NavLink>
             ))}
         </div>
@@ -192,7 +196,9 @@ function Intelaiatura() {
           <Route path="/squadre" element={<Squadre />} />
           <Route path="/squadre/:id" element={<Squadra />} />
           <Route path="/giocatori" element={<Listone />} />
-          <Route path="/identita" element={<Identita />} />
+          {/* L'identità vive nella scheda di ogni squadra: chi aveva il vecchio
+              indirizzo ci arriva dalla lista. */}
+          <Route path="/identita" element={<Navigate to="/squadre" replace />} />
           <Route path="/sala" element={<Sala />} />
           <Route path="/assegnazioni" element={<Assegnazioni />} />
           <Route path="/scambi" element={<Scambi />} />

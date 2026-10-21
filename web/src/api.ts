@@ -125,9 +125,21 @@ export type Conti = {
   annuali_richiesti: number;
   monte_ingaggi: number;
   dead_money: number;
+  /** Sul Cap: ingaggi + buonuscite + ingaggi di chi è stato svincolato. */
+  spesa_salariale: number;
+  cap_residuo: number;
   limite_cap: number;
   italiani: number;
   u21: number;
+};
+
+export type VoceDeadMoney = {
+  giocatore: string;
+  stagione: string;
+  buonuscita: number;
+  ingaggio_a_carico: number;
+  totale: number;
+  addebitato: boolean;
 };
 
 export type PortiereDellaRosa = {
@@ -167,6 +179,7 @@ export type ContoTitoli = { etichetta: string; icona: string; quanti: number };
 export type SquadraInDettaglio = Squadra & {
   posso_gestirla: boolean;
   conti: Conti;
+  registro_dead_money: VoceDeadMoney[];
   rosa: GiocatoreInRosa[];
   violazioni: Violazione[];
   titoli: Titolo[];

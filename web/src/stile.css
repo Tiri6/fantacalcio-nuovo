@@ -3968,3 +3968,93 @@ a.bottone-principale:hover {
   outline: 3px solid var(--azzurro-tenue);
   outline-offset: -3px;
 }
+
+/* La lista delle squadre: il nome e' il collegamento alla scheda, e occupa
+   tutta la cella cosi' il bersaglio e' alto almeno 44px. */
+.crea-squadra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-bottom: 18px;
+}
+
+.crea-squadra button {
+  min-height: 44px;
+}
+
+.crea-squadra .didascalia {
+  flex: 1 1 260px;
+  margin: 0;
+}
+
+.lista-squadre td .squadra-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin: -9px -14px;
+  padding: 9px 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.lista-squadre td .squadra-link:hover {
+  background: var(--superficie-viva);
+}
+
+.lista-squadre td .squadra-link:focus-visible {
+  outline: 3px solid var(--azzurro-tenue);
+  outline-offset: -3px;
+}
+
+.lista-squadre tr.mia td {
+  background: var(--superficie-viva);
+}
+
+.pallino-squadra {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--bordo-vivo);
+  border-radius: 50%;
+}
+
+/* Le voci di menu con una riga di descrizione sotto il nome. */
+.navigazione .voce .testo-voce {
+  display: grid;
+  gap: 1px;
+}
+
+.navigazione .voce .testo-voce small {
+  font-size: 11.5px;
+  font-weight: 450;
+  line-height: 1.25;
+  color: var(--testo-tenue);
+}
+
+/* La maglia nella scheda della squadra, accanto al nome. */
+.testata-squadra {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 22px;
+  align-items: center;
+}
+
+.testata-squadra .striscia {
+  grid-column: 1 / -1;
+}
+
+.testata-squadra .anagrafica {
+  grid-column: 1 / -1;
+}
+
+.testata-squadra .maglia-squadra {
+  height: auto;
+  max-width: 96px;
+}
+
+.testata-squadra .modifica-identita {
+  margin-top: 10px;
+  min-height: 44px;
+}
