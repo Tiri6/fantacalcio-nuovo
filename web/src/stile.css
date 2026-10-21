@@ -61,6 +61,21 @@
   --maglia-bordo: rgb(255 255 255 / 0.18);
   --su-prato: #e9efe9;
   --su-prato-tenue: rgb(233 239 233 / 0.65);
+  /* I reparti. Lo stesso colore in tutti e due i temi, con la stessa scritta
+     scura sopra: P, D, C e A si riconoscono anche da lettera e nome, il
+     colore e' solo un aiuto in piu'. */
+  --ruolo-p: #f0b429;
+  --ruolo-d: #5fd39a;
+  --ruolo-c: #6cb6f0;
+  --ruolo-a: #f58a8a;
+  --su-ruolo: #06120b;
+  /* Gli avvisi sulla maglia: stanno sul prato, che e' sempre scuro. */
+  --prato-avviso: #f0b429;
+  --prato-errore: #ff9ca0;
+  --prato-banda: rgb(255 255 255 / 0.07);
+  --prato-area: rgb(255 255 255 / 0.2);
+  /* Il velo dietro il foglio di scelta: scuro in tutti e due i temi. */
+  --velo-foglio: rgb(0 0 0 / 0.55);
   /* Un velo scuro da mettere sopra il verde pieno: la bolla di chi scrive
      e' verde in tutti e due i temi, quindi il velo non cambia. */
   --velo-su-verde: rgb(0 0 0 / 0.2);
@@ -2707,74 +2722,630 @@ pre.sql {
   color: var(--testo-tenue);
 }
 
-/* Le caselle del modulo: una riga per reparto, che va a capo da sola. */
-.reparto-scelta h3 {
-  margin: 18px 0 8px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--testo-tenue);
-}
+/* --- comporre la formazione ---------------------------------------------- */
 
-.caselle {
+.componi {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+  min-width: 0;
 }
 
-.caselle .campo + .campo {
-  margin-top: 0;
+.componi > * {
+  min-width: 0;
 }
 
-/* Chi gioca fuori ruolo si vede mentre lo scegli, non a giornata finita. */
-.caselle select.adattato {
-  border-color: var(--ambra);
-}
-
-.panchina-scelta {
+.titolo-sezione {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 18px;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0 0 10px;
+  font-size: 15px;
 }
 
-.panchina-scelta .interruttore.preso {
-  border-color: var(--verde-cupo);
+.titolo-sezione .didascalia {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 450;
+}
+
+.componi-griglia {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+}
+
+.componi-lato {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+  align-content: start;
+  min-width: 0;
+}
+
+@media (min-width: 1000px) {
+  .componi-griglia {
+    grid-template-columns: minmax(0, 520px) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  /* Accanto al campo la rosa scorre da sola invece di allungare la pagina. */
+  .componi-lato .rosa-elenco {
+    max-height: 480px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+}
+
+/* Il badge del reparto: la sagoma di una maglia con la lettera dentro. */
+.maglietta {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 26px;
+  background: var(--bordo-vivo);
+  color: var(--su-ruolo);
+  font-size: 12px;
+  line-height: 1;
+  clip-path: polygon(
+    22% 0,
+    36% 9%,
+    64% 9%,
+    78% 0,
+    100% 24%,
+    84% 40%,
+    84% 100%,
+    16% 100%,
+    16% 40%,
+    0 24%
+  );
+}
+
+.maglietta.r-p {
+  background: var(--ruolo-p);
+}
+
+.maglietta.r-d {
+  background: var(--ruolo-d);
+}
+
+.maglietta.r-c {
+  background: var(--ruolo-c);
+}
+
+.maglietta.r-a {
+  background: var(--ruolo-a);
+}
+
+/* Un'etichetta corta con il suo testo: mai solo colore. */
+.distintivo {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--su-ruolo);
+}
+
+.distintivo.ambra {
+  background: var(--prato-avviso);
+}
+
+.distintivo.rosso {
+  background: var(--prato-errore);
+}
+
+/* Il prato grande: strisce larghe, linee, aree. */
+.campo-gioco.grande {
+  gap: 0;
+  justify-content: space-around;
+  min-height: 460px;
+  padding: 18px 8px;
+}
+
+.campo-gioco.grande::before {
+  background: repeating-linear-gradient(
+    180deg,
+    var(--prato-banda) 0 44px,
+    transparent 44px 88px
+  );
+}
+
+.campo-gioco.grande .cerchio {
+  width: 110px;
+  height: 110px;
+  margin: -55px 0 0 -55px;
+}
+
+.campo-gioco .linea-meta,
+.campo-gioco .area {
+  display: none;
+}
+
+.campo-gioco.grande .linea-meta {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 2px solid var(--prato-cerchio);
+  pointer-events: none;
+}
+
+.campo-gioco.grande .area {
+  display: block;
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  height: 12%;
+  border: 2px solid var(--prato-area);
+  pointer-events: none;
+}
+
+.campo-gioco.grande .area.alta {
+  top: 0;
+  border-top: 0;
+}
+
+.campo-gioco.grande .area.bassa {
+  bottom: 0;
+  border-bottom: 0;
+}
+
+.campo-gioco.grande .reparto {
+  padding: 6px 0;
+}
+
+/* La maglia nel prato grande: badge sopra, nome sotto. */
+.campo-gioco.grande .maglia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 0 1 84px;
+  padding: 6px 4px;
+  background: transparent;
+  border: 0;
+  color: var(--su-prato);
+}
+
+.campo-gioco.grande .maglia .nome {
+  max-width: 100%;
+  padding: 1px 6px;
+  background: var(--maglia-sfondo);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.campo-gioco.grande .maglia .maglietta {
+  width: 36px;
+  height: 34px;
+  font-size: 15px;
+}
+
+.campo-gioco.grande .maglia .ruolo {
+  font-size: 11px;
+}
+
+/* La maglia che si tocca. Almeno 44px in tutti e due i versi. */
+.campo-gioco .maglia.tasto {
+  position: relative;
+  min-width: 44px;
+  min-height: 62px;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.12s var(--passo);
+}
+
+.campo-gioco .maglia.tasto:hover {
+  transform: translateY(-2px);
+}
+
+.campo-gioco .maglia.tasto .distintivo {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  box-shadow: 0 0 0 2px var(--prato-alto);
+}
+
+.campo-gioco .maglia.tasto .distintivo.rosso {
+  right: auto;
+  left: 0;
+}
+
+.campo-gioco .maglia.tasto.adattata .nome {
+  box-shadow: inset 0 0 0 2px var(--prato-avviso);
+}
+
+.campo-gioco .maglia.tasto.doppia .nome {
+  box-shadow: inset 0 0 0 2px var(--prato-errore);
+}
+
+.campo-gioco .maglia.tasto:focus-visible,
+.moduli .modulo-tasto:focus-visible,
+.giocatore-riga:focus-visible,
+.panchinaro:focus-visible,
+.foglio .chiudi:focus-visible,
+.gruppo-filtri button:focus-visible {
+  outline: 3px solid var(--azzurro-tenue);
+  outline-offset: 2px;
+}
+
+/* Il selettore del modulo, con lo schema a puntini. */
+.moduli {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.modulo-tasto {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 8px 4px;
+  background: var(--sfondo-alto);
+  border-color: var(--bordo);
+  color: var(--testo-tenue);
+  font-size: 13px;
+}
+
+.modulo-tasto:hover:not(:disabled) {
+  border-color: var(--bordo-vivo);
   color: var(--testo);
 }
 
-.panchina-scelta .ordine {
-  display: inline-block;
-  min-width: 18px;
-  margin-right: 6px;
-  padding: 0 5px;
+.modulo-tasto.attivo {
+  background: var(--superficie-viva);
+  border-color: var(--verde);
+  color: var(--testo);
+}
+
+.schema-modulo {
+  display: grid;
+  gap: 3px;
+}
+
+.schema-modulo .fila {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.schema-modulo i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.schema-modulo .fila.fila-porta i {
+  border-radius: 1px;
+}
+
+/* La panchina: una striscia che scorre da sola, la pagina no. */
+.panchina-striscia {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 2px 2px 10px;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.panchina-striscia > li {
+  flex: none;
+  scroll-snap-align: start;
+}
+
+.panchinaro {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 3px;
+  width: 92px;
+  min-height: 92px;
+  padding: 8px 6px 6px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio-piccolo);
+  color: var(--testo);
+  font-size: 12.5px;
+}
+
+.panchinaro strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+.panchinaro small {
+  color: var(--testo-tenue);
+  font-size: 11.5px;
+}
+
+.panchinaro .ordine {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
   border-radius: 999px;
   background: var(--verde-cupo);
   color: var(--su-verde);
   font-size: 11px;
-  text-align: center;
+  font-weight: 700;
 }
 
-.panchina-scelta small {
-  margin-left: 5px;
-  color: var(--testo-fioco);
+.panchinaro .togli {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  color: var(--testo-tenue);
+  font-size: 11px;
 }
 
-.riga-modulo {
+.panchinaro.vuoto {
+  place-content: center;
+  border-style: dashed;
+  border-color: var(--bordo-vivo);
+  background: transparent;
+  color: var(--testo-tenue);
+}
+
+.panchinaro.vuoto .ordine {
+  position: static;
+  background: transparent;
+  border: 1px dashed var(--bordo-vivo);
+  color: var(--testo-tenue);
+}
+
+/* La rosa: filtri per reparto, ricerca, elenco. */
+.filtri-rosa {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 16px;
+  gap: 8px 12px;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
-.riga-modulo .didascalia {
-  flex: 1 1 260px;
+.gruppo-filtri {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gruppo-filtri button.filtro {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.gruppo-filtri button.filtro.attiva {
+  border-color: var(--verde);
+}
+
+.filtri-rosa input.cerca {
+  flex: 1 1 180px;
+  width: auto;
+  min-height: 44px;
+}
+
+.rosa-elenco {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-/* Un giocatore finito in due caselle: si vede subito quali sono. */
-.caselle select.doppio {
-  border-color: var(--rosso);
+.giocatore-riga {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 10px;
+  background: var(--sfondo-alto);
+  border: 1px solid var(--bordo);
+  color: var(--testo);
+  text-align: left;
+}
+
+.giocatore-riga:hover:not(:disabled) {
+  border-color: var(--bordo-vivo);
+}
+
+.giocatore-riga.attivo {
+  border-color: var(--verde);
+  background: var(--superficie-viva);
+}
+
+.giocatore-riga .chi {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.giocatore-riga strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.giocatore-riga small {
+  color: var(--testo-tenue);
+  font-size: 12px;
+  font-weight: 450;
+}
+
+.statistiche {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  color: var(--testo-tenue);
+  font-size: 11.5px;
+  font-weight: 450;
+}
+
+.statistiche b {
+  color: var(--testo);
+  font-weight: 650;
+}
+
+/* Il riepilogo che resta in fondo allo schermo mentre si scorre. */
+.barra-salva {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin: 0 -4px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: var(--velo-testata);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+}
+
+.barra-salva .riepilogo {
+  display: flex;
+  flex: 1 1 220px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.barra-salva .riepilogo strong {
+  font-size: 16px;
+}
+
+.barra-salva .esito.ambra {
+  color: var(--ambra);
+}
+
+.barra-salva .esito.rosso {
+  color: var(--rosso-tenue);
+  font-weight: 650;
+}
+
+.barra-salva .blocco-stato {
+  color: var(--testo-tenue);
+}
+
+.principale.salva {
+  width: auto;
+  flex: 1 1 130px;
+  min-height: 44px;
+  margin: 0;
+  padding: 10px 18px;
+}
+
+@media (min-width: 640px) {
+  .principale.salva {
+    flex: 0 0 auto;
+    min-width: 160px;
+  }
+}
+
+/* Il foglio di scelta: dal basso sul telefono, centrato sul computer. */
+.foglio-velo {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: var(--velo-foglio);
+}
+
+.foglio {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  max-height: 82vh;
+  background: var(--superficie);
+  border: 1px solid var(--bordo-vivo);
+  border-radius: var(--raggio) var(--raggio) 0 0;
+  box-shadow: var(--ombra);
+}
+
+.foglio header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--bordo);
+}
+
+.foglio h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.foglio h3 small {
+  color: var(--testo-tenue);
+  font-weight: 450;
+}
+
+.foglio h4 {
+  margin: 16px 0 8px;
+  font-size: 13.5px;
+}
+
+.foglio h4 small {
+  color: var(--testo-tenue);
+  font-weight: 450;
+}
+
+.foglio .chiudi {
+  min-width: 44px;
+  min-height: 44px;
+  background: transparent;
+  border-color: var(--bordo);
+  color: var(--testo-tenue);
+}
+
+.foglio-corpo {
+  overflow-y: auto;
+  padding: 12px 14px calc(14px + env(safe-area-inset-bottom));
+}
+
+.foglio .rosa-elenco {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 700px) {
+  .foglio-velo {
+    align-items: center;
+  }
+
+  .foglio {
+    border-radius: var(--raggio);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campo-gioco .maglia.tasto {
+    transition: none;
+  }
 }
 
 /* Il riquadro del blocco: titolo e spiegazione su due righe. Attaccati, si
