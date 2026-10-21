@@ -3894,3 +3894,77 @@ a.bottone-principale:hover {
   padding: 9px 0;
   font-size: 15px;
 }
+
+/* Intestazione di tabella che si clicca per ordinare. Il tasto riempie tutta
+   la cella: il bersaglio e' alto almeno 44px, come ogni altro tasto. */
+.tabella th .ordina {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  margin: -11px -14px;
+  padding: 11px 14px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.tabella th .ordina:hover {
+  color: var(--testo);
+}
+
+.tabella th .ordina:focus-visible {
+  outline: 3px solid var(--azzurro-tenue);
+  outline-offset: -3px;
+}
+
+.tabella th[aria-sort="ascending"] .ordina,
+.tabella th[aria-sort="descending"] .ordina {
+  color: var(--testo);
+}
+
+.tabella th .freccia {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* Testo per chi usa un lettore di schermo: presente, ma fuori dalla vista. */
+.solo-lettori {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Lo status Under 21 che chi amministra puo' segnare dal listone. */
+.tabella td .u21-tasto {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -9px -14px;
+  background: transparent;
+  border: 0;
+  color: var(--testo);
+  font-size: 15px;
+}
+
+.tabella td .u21-tasto:hover:not(:disabled) {
+  background: var(--superficie-viva);
+}
+
+.tabella td .u21-tasto:focus-visible {
+  outline: 3px solid var(--azzurro-tenue);
+  outline-offset: -3px;
+}

@@ -197,6 +197,8 @@ export type Listone = {
   svincolato: string;
   con_stipendio: number;
   riferimento_u21: string;
+  /** Chi può segnare lo status Under 21: lo calcola il server. */
+  posso_modificare_u21: boolean;
 };
 
 export type SquadraInGalleria = {
@@ -1276,6 +1278,11 @@ export const api = {
   squadre: () => chiama<Squadra[]>("/squadre"),
   squadra: (id: number) => chiama<SquadraInDettaglio>(`/squadre/${id}`),
   listone: () => chiama<Listone>("/giocatori"),
+  impostaU21: (id: number, italiano_u21: boolean) =>
+    chiama<Giocatore>(`/giocatori/${id}/u21`, {
+      method: "PUT",
+      body: JSON.stringify({ italiano_u21 }),
+    }),
   onboarding: () => chiama<StatoOnboarding>("/onboarding"),
   scambi: () => chiama<PaginaScambi>("/scambi"),
   proponiScambio: (corpo: {

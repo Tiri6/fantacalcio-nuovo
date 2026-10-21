@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
-import { api, type Giocatore } from "../api";
+import { ErroreApi, api, type Giocatore } from "../api";
 import { milioni, useCarica } from "../carica";
+import { IntestazioneOrdinabile } from "../intestazioneOrdinabile";
+import { useOrdinamento } from "../ordinamento";
 
 /**
  * I filtri girano nel browser, non sul server.
@@ -19,8 +21,35 @@ export function Listone() {
   const [squadra, setSquadra] = useState("");
   const [soloIta, setSoloIta] = useState(false);
   const [soloU21, setSoloU21] = useState(false);
+  const [soloSvincolati, setSoloSvincolati] = useState(false);
+  // Le correzioni dello status Under 21 fatte da qui, per id: la riga cambia
+  // subito, senza ricaricare cinquecento giocatori. Il valore vero è quello che
+  // il server ha risposto.
+  const [u21Cambiati, setU21Cambiati] = useState<Record<number, boolean>>({});
+  const [erroreU21, setErroreU21] = useState<string | null>(null);
 
-  const tutti = dato?.giocatori ?? [];
+  const dal_server = dato?.giocatori;
+  const tutti = useMemo(
+    () =>
+      (dal_server ?? []).map((g) =>
+        g.id in u21Cambiati ? { ...g, u21: u21Cambiati[g.id] } : g,
+      ),
+    [dal_server, u21Cambiati],
+  );
+
+  async function segnaU21(g: Giocatore) {
+    setErroreU21(null);
+    try {
+      const aggiornato = await api.impostaU21(g.id, !g.u21);
+      setU21Cambiati((prima) => ({ ...prima, [g.id]: aggiornato.u21 }));
+    } catch (guasto) {
+      setErroreU21(
+        guasto instanceof ErroreApi
+          ? guasto.message
+          : "Non riesco a contattare il server.",
+      );
+    }
+  }
 
   const scelte = useMemo(() => {
     const club = new Set<string>();
@@ -52,9 +81,21 @@ export function Listone() {
       if (squadra && g.squadra !== squadra) return false;
       if (soloIta && !g.italiano) return false;
       if (soloU21 && !g.u21) return false;
+      if (soloSvincolati && g.squadra !== dato?.svincolato) return false;
       return true;
     });
-  }, [tutti, cerca, club, ruolo, squadra, soloIta, soloU21]);
+  }, [tutti, cerca, club, ruolo, squadra, soloIta, soloU21, soloSvincolati, dato]);
+
+  const { ordinate, colonna, direzione, imposta } = useOrdinamento(filtrati, {
+    nome: (g) => g.nome,
+    club: (g) => g.club,
+    ruoli: (g) => g.ruoli.join("/"),
+    squadra: (g) => g.squadra,
+    anni: (g) => g.anni || null,
+    ingaggio: (g) => g.ingaggio || null,
+    nazionalita: (g) => g.nazionalita,
+    u21: (g) => g.u21,
+  });
 
   if (inCorso) return <div className="fantasma alto" />;
   if (errore) return <div className="errore">{errore}</div>;
@@ -128,28 +169,63 @@ export function Listone() {
           />
           Solo U21
         </label>
+        <label className="interruttore">
+          <input
+            type="checkbox"
+            checked={soloSvincolati}
+            onChange={(e) => setSoloSvincolati(e.target.checked)}
+          />
+          Solo svincolati
+        </label>
       </div>
 
       <p className="didascalia conteggio">
         {filtrati.length} giocatori su {tutti.length}
       </p>
+      {erroreU21 && (
+        <div className="errore" role="alert">
+          {erroreU21}
+        </div>
+      )}
+      {dato.posso_modificare_u21 && (
+        <p className="didascalia">
+          Chi amministra la lega segna lo status Under 21 italiano toccando il
+          cerchio nell'ultima colonna (valutato al 31 agosto, vale per tutta la
+          stagione).
+        </p>
+      )}
 
       <div className="tabella-contenitore">
         <table className="tabella">
           <thead>
             <tr>
-              <th>Giocatore</th>
-              <th>Club</th>
-              <th>Ruoli</th>
-              <th>Squadra</th>
-              <th className="numerica">Anni</th>
-              <th className="numerica">Ingaggio</th>
-              <th>Nazionalità</th>
-              <th className="centrata">U21</th>
+              {(
+                [
+                  ["nome", "Giocatore", undefined],
+                  ["club", "Club", undefined],
+                  ["ruoli", "Ruoli", undefined],
+                  ["squadra", "Squadra", undefined],
+                  ["anni", "Anni", "numerica"],
+                  ["ingaggio", "Ingaggio", "numerica"],
+                  ["nazionalita", "Nazionalità", undefined],
+                  ["u21", "U21", "centrata"],
+                ] as const
+              ).map(([nome, etichetta, classe]) => (
+                <IntestazioneOrdinabile
+                  key={nome}
+                  nome={nome}
+                  attiva={colonna}
+                  direzione={direzione}
+                  onOrdina={imposta}
+                  className={classe}
+                >
+                  {etichetta}
+                </IntestazioneOrdinabile>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {filtrati.map((g) => (
+            {ordinate.map((g) => (
               <tr key={g.id}>
                 <td className="forte">{g.nome}</td>
                 <td className="tenue">{g.club}</td>
@@ -169,7 +245,23 @@ export function Listone() {
                   {g.italiano && "🇮🇹 "}
                   {g.nazionalita}
                 </td>
-                <td className="centrata">{g.u21 ? "●" : ""}</td>
+                <td className="centrata">
+                  {dato.posso_modificare_u21 ? (
+                    <button
+                      type="button"
+                      className="u21-tasto"
+                      aria-pressed={g.u21}
+                      aria-label={`${g.nome}: Under 21 italiano, ${g.u21 ? "sì" : "no"}. Premi per cambiare`}
+                      onClick={() => segnaU21(g)}
+                    >
+                      {g.u21 ? "●" : "○"}
+                    </button>
+                  ) : g.u21 ? (
+                    <span aria-label="Under 21 italiano">●</span>
+                  ) : (
+                    ""
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
